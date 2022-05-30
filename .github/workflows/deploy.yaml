@@ -19,7 +19,7 @@ on:
         type: string
         description: 'Path in the repository where the values.yaml is stored'
     secrets:
-      GITHUB_TOKEN:
+      MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
 jobs:
@@ -33,9 +33,9 @@ jobs:
         with:
           repository: ${{ inputs.manifest-repository }}
           path: 'manifests'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image name
-        working-directory: ${{ inputs.manifest-app-path }}
+        working-directory: ./manifests/apps/${{ env.SERVICE_NAME }}/${{ env.SERVICE_STAGE }}
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
@@ -51,6 +51,6 @@ jobs:
       - name: Push
         uses: ad-m/github-push-action@master
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
           repository: ${{ inputs.manifest-repository }}
