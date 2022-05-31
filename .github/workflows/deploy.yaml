@@ -35,7 +35,7 @@ jobs:
           path: 'manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image name
-        working-directory: ./manifests/apps/${{ env.SERVICE_NAME }}/${{ env.SERVICE_STAGE }}
+        working-directory: ${{ inputs.manifest-app-path }}
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
