@@ -14,10 +14,6 @@ on:
         required: true
         type: string
         description: 'Name of the github repository that holds the manifest (ex: repo-owner/repo-name)'
-      manifest-app-path:
-        required: true
-        type: string
-        description: 'Path in the repository where the values.yaml is stored'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
