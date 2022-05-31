@@ -14,6 +14,10 @@ on:
         required: true
         type: string
         description: 'Name of the github repository that holds the manifest (ex: repo-owner/repo-name)'
+      manifest-app-path:
+        required: true
+        type: string
+        description: 'Path in the repository where the values.yaml is stored'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -32,7 +36,7 @@ jobs:
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image name
         shell: bash
-        working-directory: ./manifests/apps/${{ inputs.service }}/${{ inputs.stage }}
+        working-directory: ${{ inputs.manifest-app-path }}
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
