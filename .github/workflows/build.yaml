@@ -55,15 +55,13 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Test project
-        # only do the full test build on production deploys - the code is also build in the docker file
-        if: ${{ inputs.stage == 'production'}}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
         run: ./gradlew --no-daemon test
         shell: bash
       - name: Upload test results
-        if: ${{ inputs.stage == 'production' && always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v3
         with:
           name: test-result
@@ -72,7 +70,6 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
       - name: Clean up project
-        if: ${{ inputs.stage == 'production'}}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
