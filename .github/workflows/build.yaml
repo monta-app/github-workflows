@@ -55,13 +55,15 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: Test project
+        # only run tests on dev
+        if: ${{ inputs.stage == 'dev'}}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
         run: ./gradlew --no-daemon test
         shell: bash
       - name: Upload test results
-        if: ${{ always() }}
+        if: ${{ inputs.stage == 'dev' && always() }}
         uses: actions/upload-artifact@v3
         with:
           name: test-result
@@ -70,6 +72,7 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
       - name: Clean up project
+        if: ${{ inputs.stage == 'dev'}}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
