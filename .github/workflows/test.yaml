@@ -1,7 +1,6 @@
 name: Build and test
 on:
   workflow_call:
-    inputs:
     secrets:
       GHL_USERNAME:
         required: true
