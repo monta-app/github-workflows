@@ -15,11 +15,11 @@ on:
         required: true
         type: string
         description: 'Name of the service being released'
-      docker-file-path:
+      docker-file-name:
         required: false
         type: string
-        description: path to docker file to build
-        default: "."
+        description: Name of the docker file to be built
+        default: "Dockerfile"
     secrets:
       GHL_USERNAME:
         required: true
@@ -95,10 +95,10 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           SERVICE_NAME: ${{ inputs.service }}
           STAGE: ${{ inputs.stage }}
-          DOCKER_FILE_PATH: ${{ inputs.docker-file-path }}
+          DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
         run: |
           ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker build --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -t $ECR_IMAGE_URL:$IMAGE_TAG $DOCKER_FILE_PATH
+          docker build --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
           docker push $ECR_IMAGE_URL:$IMAGE_TAG
           docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
           docker push $ECR_IMAGE_URL:latest
