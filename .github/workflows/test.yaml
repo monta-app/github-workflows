@@ -52,6 +52,6 @@ jobs:
         with:
           job_name: Test
           status: ${{ job.status }}
-          fields: repo,message,commit,author,took,ref
+          fields: repo,workflow,job,message,commit,author,took,ref
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}
