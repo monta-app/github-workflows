@@ -8,19 +8,15 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
+      SLACK_DEPLOYMENT_WEBHOOK_URL:
+        required: true
+        description: 'Deployment alert slack webhook url'
 jobs:
   build:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Print runner info
-        run: |
-          lsb_release -d
-          uname -a
-          free -h
-          df -h
-        shell: bash
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -44,3 +40,12 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+      - name: Notify slack with success or error
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          job_name: Test
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,took,ref
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}

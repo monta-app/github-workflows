@@ -22,6 +22,9 @@ on:
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
+      SLACK_DEPLOYMENT_WEBHOOK_URL:
+        required: true
+        description: 'Deployment alert slack webhook url'
 jobs:
   deploy:
     name: Deploy
@@ -54,3 +57,12 @@ jobs:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
           repository: ${{ inputs.manifest-repository }}
+      - name: Notify slack with success or error
+        uses: 8398a7/action-slack@v3
+        if: ${{ always() }}
+        with:
+          job_name: Deploy
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,took,ref
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}

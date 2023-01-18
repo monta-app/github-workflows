@@ -42,13 +42,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Print runner info
-        run: |
-          lsb_release -d
-          uname -a
-          free -h
-          df -h
-        shell: bash
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -58,27 +51,6 @@ jobs:
           java-version: '17'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
-      - name: Test project
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-        run: ./gradlew --no-daemon test
-        shell: bash
-      - name: Upload test results
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-result
-          path: |
-            build/reports/tests/test
-            /home/runner/.gradle/daemon/**/daemon-*.out.log
-          retention-days: 2
-      - name: Clean up project
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-        run: ./gradlew --no-daemon clean
-        shell: bash
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -106,7 +78,7 @@ jobs:
         shell: bash
       - name: Notify slack with success or error
         uses: 8398a7/action-slack@v3
-        if: always()
+        if: ${{ always() }}
         with:
           job_name: Build
           status: ${{ job.status }}
