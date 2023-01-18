@@ -1,6 +1,11 @@
 name: Build and test
 on:
   workflow_call:
+    inputs:
+      gradle-module:
+        required: false
+        type: string
+        description: 'stage being released (dev,staging,production)'
     secrets:
       GHL_USERNAME:
         required: true
@@ -29,7 +34,8 @@ jobs:
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-        run: ./gradlew --no-daemon test
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: ./gradlew --no-daemon $GRADLE_MODULE:test
         shell: bash
       - name: Upload test results
         if: ${{ always() }}
