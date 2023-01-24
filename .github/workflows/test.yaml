@@ -2,10 +2,14 @@ name: Build and test
 on:
   workflow_call:
     inputs:
+      service-name:
+        required: true
+        type: string
+        description: 'Name of the service being tested'
       gradle-module:
         required: false
         type: string
-        description: 'stage being released (dev,staging,production)'
+        description: 'Name of the gradle module being tested'
     secrets:
       GHL_USERNAME:
         required: true
@@ -13,7 +17,7 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
-      SLACK_DEPLOYMENT_WEBHOOK_URL:
+      SLACK_BOT_TOKEN:
         required: true
         description: 'Deployment alert slack webhook url'
 jobs:
@@ -22,6 +26,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - id: slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "C01KL9FUPNK"
+          payload: |
+            {
+              "text": "$SERVICE_NAME - Test workflow 🧪",
+              "attachments": [
+                {
+                  "color": "dbab09",
+                  "fields": [
+                    {
+                      "title": "Status",
+                      "short": true,
+                      "value": "In Progress 🚧"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SERVICE_NAME: ${{ inputs.service-name }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN}}
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -46,18 +73,46 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
-      - env:
-          JOB_CONTEXT: ${{ toJSON(job) }}
-          EVENT_CONTEXT: ${{ toJSON(github.event) }}
-        run: |
-          echo $JOB_CONTEXT
-          echo $EVENT_CONTEXT
-      - name: Notify slack with success or error
-        uses: 8398a7/action-slack@v3
+      - name: Generate Status String
         if: ${{ always() }}
-        with:
-          job_name: Test
-          status: ${{ job.status }}
-          fields: repo,workflow,job,message,commit,author,took,ref
+        id: status
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}
+          GITHUB_JOB_STATUS: ${{ job.status }}
+        run: |
+          case $GITHUB_JOB_STATUS in
+            success)
+              echo "STATUS_STRING='Success ✅'" >> $GITHUB_OUTPUT
+              ;;
+            failure)
+              echo "STATUS_STRING='Failure ❌'" >> $GITHUB_OUTPUT
+              ;;
+            cancelled)
+              echo "STATUS_STRING='Cancelled 🚸'" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo -n "Something went wrong ⁉️"
+              ;;
+          esac
+      - uses: slackapi/slack-github-action@v1.23.0
+        if: ${{ always() }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN}}
+        with:
+          channel-id: "C01KL9FUPNK"
+          update-ts: ${{ steps.slack.outputs.ts }}
+          payload: |
+            {
+              "text": "${{ inputs.service-name }} - Test workflow 🧪",
+              "attachments": [
+                {
+                  "color": "28a745",
+                  "fields": [
+                    {
+                      "title": "Status",
+                      "short": true,
+                      "value": ${{ steps.status.outputs.STATUS_STRING }}
+                    }
+                  ]
+                }
+              ]
+            }
