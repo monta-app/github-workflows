@@ -78,21 +78,47 @@ jobs:
         id: status
         env:
           GITHUB_JOB_STATUS: ${{ job.status }}
+          MESSAGE_TITLE: "${{ inputs.service-name }} - Test workflow 🧪"
         run: |
+          statusMessage=""
+          statusColor=""
+
           case $GITHUB_JOB_STATUS in
             success)
-              echo "STATUS_STRING='Success ✅'" >> $GITHUB_OUTPUT
+              statusMessage="Success ✅"
+              statusColor="#00FF00"
               ;;
             failure)
-              echo "STATUS_STRING='Failure ❌'" >> $GITHUB_OUTPUT
+              statusMessage="Failure ❌"
+              statusColor="#FF0000"
               ;;
             cancelled)
-              echo "STATUS_STRING='Cancelled 🚸'" >> $GITHUB_OUTPUT
+              statusMessage="Cancelled 🚸"
+              statusColor="#FFFF00"
               ;;
             *)
-              echo -n "Something went wrong ⁉️"
+              statusMessage="Something went wrong??"
+              statusColor="#FFFF00"
               ;;
           esac
+
+          jsonBody="{
+             \"text\": \"$MESSAGE_TITLE\",
+             \"attachments\": [
+               {
+                 \"color\": \"$statusColor\",
+                 \"fields\": [
+                   {
+                     \"title\": \"Status\",
+                     \"short\": true,
+                     \"value\": \"$statusMessage\"
+                   }
+                 ]
+               }
+             ]
+           }"
+
+          echo "STATUS_STRING='$jsonBody'" >> $GITHUB_OUTPUT
       - uses: slackapi/slack-github-action@v1.23.0
         if: ${{ always() }}
         env:
@@ -100,19 +126,4 @@ jobs:
         with:
           channel-id: "C01KL9FUPNK"
           update-ts: ${{ steps.slack.outputs.ts }}
-          payload: |
-            {
-              "text": "${{ inputs.service-name }} - Test workflow 🧪",
-              "attachments": [
-                {
-                  "color": "28a745",
-                  "fields": [
-                    {
-                      "title": "Status",
-                      "short": true,
-                      "value": ${{ steps.status.outputs.STATUS_STRING }}
-                    }
-                  ]
-                }
-              ]
-            }
+          payload: ${{ steps.status.outputs.STATUS_STRING }}
