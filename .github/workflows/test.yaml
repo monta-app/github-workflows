@@ -46,6 +46,12 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+      - env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          EVENT_CONTEXT: ${{ toJSON(github.event) }}
+        run: |
+          echo $JOB_CONTEXT
+          echo $EVENT_CONTEXT
       - name: Notify slack with success or error
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
