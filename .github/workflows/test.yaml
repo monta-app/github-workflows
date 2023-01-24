@@ -119,6 +119,10 @@ jobs:
            }"
 
           echo "STATUS_STRING='$jsonBody'" >> $GITHUB_OUTPUT
+      - env:
+          JOB_CONTEXT: ${{ steps.status.outputs.STATUS_STRING }}
+        run: |
+          echo $JOB_CONTEXT
       - uses: slackapi/slack-github-action@v1.23.0
         if: ${{ always() }}
         env:
