@@ -26,29 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - id: slack
-        uses: slackapi/slack-github-action@v1.23.0
+      - name: Publish progress message
+        uses: monta-app/changelog-cli-action@main
+        id: publish-progress
         with:
-          channel-id: "C01KL9FUPNK"
-          payload: |
-            {
-              "text": "$SERVICE_NAME - Test workflow 🧪",
-              "attachments": [
-                {
-                  "color": "dbab09",
-                  "fields": [
-                    {
-                      "title": "Status",
-                      "short": true,
-                      "value": "In Progress 🚧"
-                    }
-                  ]
-                }
-              ]
-            }
-        env:
-          SERVICE_NAME: ${{ inputs.service-name }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN}}
+          status: ${{ job.status }}
+          title: "${{ inputs.service-name }} - Test workflow 🧪",
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -73,61 +58,12 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
-      - name: Generate Status String
+      - name: Publish progress message
+        uses: monta-app/changelog-cli-action@main
         if: ${{ always() }}
-        id: status
-        env:
-          GITHUB_JOB_STATUS: ${{ job.status }}
-          MESSAGE_TITLE: "${{ inputs.service-name }} - Test workflow 🧪"
-        run: |
-          statusMessage=""
-          statusColor=""
-
-          case $GITHUB_JOB_STATUS in
-            success)
-              statusMessage="Success ✅"
-              statusColor="#00FF00"
-              ;;
-            failure)
-              statusMessage="Failure ❌"
-              statusColor="#FF0000"
-              ;;
-            cancelled)
-              statusMessage="Cancelled 🚸"
-              statusColor="#FFFF00"
-              ;;
-            *)
-              statusMessage="Something went wrong??"
-              statusColor="#FFFF00"
-              ;;
-          esac
-
-          jsonBody="{
-             \"text\": \"$MESSAGE_TITLE\",
-             \"attachments\": [
-               {
-                 \"color\": \"$statusColor\",
-                 \"fields\": [
-                   {
-                     \"title\": \"Status\",
-                     \"short\": true,
-                     \"value\": \"$statusMessage\"
-                   }
-                 ]
-               }
-             ]
-           }"
-
-          echo "STATUS_STRING='$jsonBody'" >> $GITHUB_OUTPUT
-      - env:
-          JOB_CONTEXT: ${{ steps.status.outputs.STATUS_STRING }}
-        run: |
-          echo $JOB_CONTEXT
-      - uses: slackapi/slack-github-action@v1.23.0
-        if: ${{ always() }}
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN}}
         with:
-          channel-id: "C01KL9FUPNK"
-          update-ts: ${{ steps.slack.outputs.ts }}
-          payload: ${{ steps.status.outputs.STATUS_STRING }}
+          status: ${{ job.status }}
+          title: "${{ inputs.service-name }} - Test workflow 🧪",
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ steps.publish-progress.outputs.slack-message-id }}
