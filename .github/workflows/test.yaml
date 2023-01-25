@@ -26,14 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Publish progress message
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-progress
-        with:
-          status: ${{ job.status }}
-          title: "${{ inputs.service-name }} - Test workflow 🧪",
-          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -58,12 +50,3 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
-      - name: Publish progress message
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          status: ${{ job.status }}
-          title: "${{ inputs.service-name }} - Test workflow 🧪",
-          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-progress.outputs.slack-message-id }}
