@@ -10,7 +10,7 @@ on:
       stage:
         required: true
         type: string
-        description: 'stage being released (dev,staging,production'
+        description: 'stage being released (dev,staging,production)'
       service:
         required: true
         type: string
