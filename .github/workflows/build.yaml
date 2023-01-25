@@ -5,7 +5,11 @@ on:
       service-name:
         required: true
         type: string
-        description: ''
+        description: 'Title of the service being released'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released'
       region:
         required: true
         type: string
@@ -15,10 +19,6 @@ on:
         required: true
         type: string
         description: 'stage being released (dev,staging,production)'
-      service:
-        required: true
-        type: string
-        description: 'Name of the service being released'
       docker-file-name:
         required: false
         type: string
@@ -77,7 +77,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          SERVICE_NAME: ${{ inputs.service }}
+          SERVICE_NAME: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
           DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
         run: |

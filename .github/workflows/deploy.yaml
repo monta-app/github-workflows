@@ -5,15 +5,15 @@ on:
       service-name:
         required: true
         type: string
-        description: ''
+        description: 'Title of the service being released'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released'
       stage:
         required: true
         type: string
         description: 'stage being released (dev,staging,production)'
-      service:
-        required: true
-        type: string
-        description: 'Name of the service being released'
       manifest-repository:
         required: true
         type: string
@@ -61,7 +61,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git commit -am "Bump docker tag for ${{ inputs.service }} on ${{ inputs.stage }}"
+          git commit -am "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
         shell: bash
       - name: Push
         uses: ad-m/github-push-action@master

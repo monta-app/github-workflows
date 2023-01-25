@@ -5,11 +5,7 @@ on:
       service-name:
         required: true
         type: string
-        description: ''
-      service:
-        required: true
-        type: string
-        description: 'Name of the service being tested'
+        description: 'Title of the service being released'
       gradle-module:
         required: false
         type: string
