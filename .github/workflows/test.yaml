@@ -2,10 +2,6 @@ name: Build and test
 on:
   workflow_call:
     inputs:
-      service-name:
-        required: true
-        type: string
-        description: 'Name of the service being tested'
       gradle-module:
         required: false
         type: string
@@ -17,9 +13,6 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
-      SLACK_BOT_TOKEN:
-        required: true
-        description: 'Deployment alert slack webhook url'
 jobs:
   build:
     name: Test
