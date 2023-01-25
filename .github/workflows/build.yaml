@@ -33,15 +33,23 @@ on:
       AWS_SECRET_ACCESS_KEY:
         required: true
         description: 'AWS secret access key'
-      SLACK_DEPLOYMENT_WEBHOOK_URL:
+      SLACK_APP_TOKEN:
         required: true
-        description: 'Deployment alert slack webhook url'
+        description: 'Slack app token'
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Publish progress message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          status: "progress"
+          title: ${{ inputs.service }} - Build workflow 🏗️
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -76,12 +84,12 @@ jobs:
           docker push $ECR_IMAGE_URL:latest
           echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
         shell: bash
-      - name: Notify slack with success or error
-        uses: 8398a7/action-slack@v3
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
         if: ${{ always() }}
         with:
-          job_name: Build
           status: ${{ job.status }}
-          fields: repo,workflow,job,message,commit,author,took,ref
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}
+          title: ${{ inputs.service }} - Build workflow 🏗️
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}

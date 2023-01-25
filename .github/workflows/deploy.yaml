@@ -22,15 +22,23 @@ on:
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
-      SLACK_DEPLOYMENT_WEBHOOK_URL:
+      SLACK_APP_TOKEN:
         required: true
-        description: 'Deployment alert slack webhook url'
+        description: 'Slack app token'
 jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Publish progress message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          status: "progress"
+          title: ${{ inputs.service }} - Deploy workflow 📦
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
       - name: Check out manifest repository
         uses: actions/checkout@master
         with:
@@ -66,3 +74,12 @@ jobs:
           fields: repo,workflow,job,message,commit,author,took,ref
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOYMENT_WEBHOOK_URL }}
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          title: ${{ inputs.service }} - Deploy workflow 📦
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}

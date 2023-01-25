@@ -2,7 +2,7 @@ name: Build and test
 on:
   workflow_call:
     inputs:
-      service-name:
+      service:
         required: true
         type: string
         description: 'Name of the service being tested'
@@ -17,15 +17,23 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
-      SLACK_BOT_TOKEN:
+      SLACK_APP_TOKEN:
         required: true
-        description: 'Deployment alert slack webhook url'
+        description: 'Slack app token'
 jobs:
   build:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Publish progress message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          status: "progress"
+          title: ${{ inputs.service }} - Test workflow 🧪
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -50,3 +58,12 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: ${{ always() }}
+        with:
+          status: ${{ job.status }}
+          title: ${{ inputs.service }} - Test workflow 🧪
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
