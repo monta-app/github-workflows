@@ -2,10 +2,6 @@ name: Build and test
 on:
   workflow_call:
     inputs:
-      service-name:
-        required: true
-        type: string
-        description: 'Title of the service being released'
       gradle-module:
         required: false
         type: string
