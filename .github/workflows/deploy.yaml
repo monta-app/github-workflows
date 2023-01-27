@@ -24,14 +24,6 @@ on:
         type: string
         description: Name of the docker file to be built
         default: "Dockerfile"
-      manifest-repository:
-        required: true
-        type: string
-        description: 'Name of the github repository that holds the manifest (ex: repo-owner/repo-name)'
-      manifest-app-path:
-        required: true
-        type: string
-        description: 'Path in the repository where the values.yaml is stored'
     secrets:
       GHL_USERNAME:
         required: true
@@ -189,12 +181,12 @@ jobs:
       - name: Check out manifest repository
         uses: actions/checkout@master
         with:
-          repository: ${{ inputs.manifest-repository }}
+          repository: monta-app/kube-manifests
           path: 'manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image name
         shell: bash
-        working-directory: ${{ inputs.manifest-app-path }}
+        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
@@ -211,7 +203,7 @@ jobs:
         with:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
-          repository: ${{ inputs.manifest-repository }}
+          repository: monta-app/kube-manifests
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: ${{ always() }}
