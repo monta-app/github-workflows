@@ -49,6 +49,6 @@ jobs:
         with:
           name: test-result
           path: |
-            build/reports/tests/test
+            **/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
