@@ -1,0 +1,23 @@
+name: Create Changelog
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  create-change-log:
+    name: Create and publish changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Run changelog cli action
+        uses: monta-app/changelog-cli-action@main
+        with:
+          service-name: "GitHub Actions Workflows"
+          github-release: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          output: "slack"
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channels: "#devops-notifications"
