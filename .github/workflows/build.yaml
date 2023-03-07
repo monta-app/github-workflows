@@ -85,7 +85,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service }}-${{ inputs.stage }}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
