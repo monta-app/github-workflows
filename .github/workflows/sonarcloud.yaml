@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          # unlimited fetch depth for Sonar
+          fetch-depth: 0
       # Setup JDK
       - name: Set up JDK
         uses: actions/setup-java@v3
