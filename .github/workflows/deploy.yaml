@@ -31,18 +31,21 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
-      AWS_ACCESS_KEY_ID:
+      AWS_ACCOUNT_ID:
         required: true
-        description: 'AWS access key id'
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-        description: 'AWS secret access key'
+        description: 'AWS account id'
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read
+  actions: read # This is required for 8398a7/action-slack
+
 jobs:
   test:
     name: Test
@@ -128,8 +131,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
