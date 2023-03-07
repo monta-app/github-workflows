@@ -1,0 +1,52 @@
+name: SonarCloud Code Analysis
+on:
+  workflow_call:
+    secrets:
+      SONAR_GITHUB_TOKEN:
+        required: true
+        description: 'Github Token'
+      SONAR_TOKEN:
+        required: true
+        description: 'Sonarcloud Token for your project'
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      # Setup JDK
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+      # Download previous Gradle cache
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      # Test Project and generate jacoco report
+      - name: Test
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+        run: ./gradlew --no-daemon jacocoTestReport
+      # Sonarcloud
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Build and analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.SONAR_GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew build sonarqube --info
