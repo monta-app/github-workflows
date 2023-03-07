@@ -37,7 +37,7 @@ on:
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
-
+  actions: read # This is required for 8398a7/action-slack
 
 jobs:
   build:
