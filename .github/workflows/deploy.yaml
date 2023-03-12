@@ -2,10 +2,18 @@ name: Deploy
 on:
   workflow_call:
     inputs:
+      service-name:
+        required: false
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: false
+        type: string
+        description: 'An emoji to identify your service by :)'
       service-identifier:
         required: true
         type: string
-        description: 'Identifier of the service being released'
+        description: 'Identifier of the service being released i.e service-ocpp, service-vehicle'
       gradle-module:
         required: false
         type: string
@@ -59,6 +67,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
       - name: Checkout
@@ -98,6 +108,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
@@ -116,6 +128,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.test.outputs.slack-message-id }}
@@ -160,6 +174,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
@@ -178,6 +194,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.build.outputs.slack-message-id }}
@@ -214,6 +232,8 @@ jobs:
           github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
