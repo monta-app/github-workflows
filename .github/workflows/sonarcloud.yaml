@@ -52,4 +52,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SONAR_GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew build sonarqube --info --exclude-task detekt # No need to run detekt and let it fail here
+        run: ./gradlew build sonarqube --info
