@@ -13,7 +13,7 @@ on:
       service-identifier:
         required: true
         type: string
-        description: 'Identifier of the service being released i.e service-ocpp, service-vehicle'
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
       gradle-module:
         required: false
         type: string
