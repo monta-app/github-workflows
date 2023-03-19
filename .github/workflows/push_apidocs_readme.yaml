@@ -49,6 +49,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
+          README_VERSION: ${{ inputs.readme-version }}
         run: |
           if [ -z "$GRADLE_MODULE" ]
           then
@@ -74,7 +75,7 @@ jobs:
         uses: readmeio/rdme@v8
         with:
           rdme: |
-            if [ -z "${{ inputs.readme-version }}" ]
+            if [ -z "$README_VERSION" ]
             then
               openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --dryRun --update --useSpecVersion --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}
             else
