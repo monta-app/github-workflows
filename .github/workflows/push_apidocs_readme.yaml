@@ -7,14 +7,10 @@ on:
         required: false
         type: string
         description: "Name of the gradle module generating the docs (e.g. partner-api)"
-      readme-version:
+      readme-api-spec-id:
         required: false
         type: string
-        description: "Version to update (0.1 = develop, 0.2 = staging, 0.3 = main). Leave empty for production release, it will take version from spec file then."
-      readme-api-spec-id:
-        required: true
-        type: string
-        description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8)"
+        description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8); only relevant for pre-release specs or if your version never changes; can be omitted when creating a new version (e.g. production)"
       spec-prefix:
         required: true
         type: string
@@ -73,13 +69,13 @@ jobs:
       - name: Compile rdme command 🧮
         id: compile_rdme_command
         env:
-          README_VERSION: ${{ inputs.readme-version }}
+          README_SPEC_ID: ${{ inputs.readme-api-spec-id }}
         run: |
-          if [ -z "$README_VERSION" ]
+          if [ -z "README_SPEC_ID" ]
           then
             command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --update --useSpecVersion --key=${{ secrets.README_API_KEY }}"
           else
-            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}"
+            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --id=${{ inputs.readme-api-spec-id }} --key=${{ secrets.README_API_KEY }}"
           fi
           echo "COMMAND=$command" >> $GITHUB_OUTPUT
         shell: bash
