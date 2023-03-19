@@ -9,9 +9,11 @@ on:
         description: "Name of the gradle module generating the docs (e.g. partner-api)"
       readme-version:
         required: false
+        type: string
         description: "Version to update (0.1 = develop, 0.2 = staging, 0.3 = main). Leave empty for production release, it will take version from spec file then."
       readme-api-spec-id:
         required: true
+        type: string
         description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8)"
     secrets:
       GHL_USERNAME:
