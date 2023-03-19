@@ -1,0 +1,69 @@
+name: Publish Docs to Readme.com 📜
+
+on:
+  workflow_call:
+    inputs:
+      gradle-module:
+        required: false
+        type: string
+        description: "Name of the gradle module generating the docs (e.g. partner-api)"
+      readme-version:
+        required: false
+        description: "Version to update (0.1 = develop, 0.2 = staging, 0.3 = main). Leave empty for production release, it will take version from spec file then."
+      readme-api-spec-id:
+        required: true
+        description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8)"
+    secrets:
+      GHL_USERNAME:
+        required: true
+        description: "Github Username (Gradle plugin)"
+      GHL_PASSWORD:
+        required: true
+        description: "Github Password (Gradle plugin)"
+      README_API_KEY:
+        required: true
+        description: "Readme.com API Key"
+
+jobs:
+  push-apidocs:
+    name: Push API docs to Readme.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      - name: Build project
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]
+          then
+            ./gradlew --no-daemon assemble
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:assemble
+          fi
+        shell: bash
+      - name: Find API spec
+        id: find_api_spec
+        run: |
+          filepath=$(find . -type f -name "monta-gradle-module-*.yml")
+          echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Run `openapi` command 🚀
+        uses: readmeio/rdme@v8
+        with:
+          rdme: |
+            if [ -z "${{ inputs.readme-version }}" ]
+            then
+              openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --dryRun --update --useSpecVersion --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}
+            else
+              openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --dryRun --update --version ${{ inputs.readme-version }} --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}
+            fi
