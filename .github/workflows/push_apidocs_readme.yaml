@@ -77,9 +77,9 @@ jobs:
         run: |
           if [ -z "$README_VERSION" ]
           then
-            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --dryRun --update --useSpecVersion --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}"
+            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --update --useSpecVersion --key=${{ secrets.README_API_KEY }}"
           else
-            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --dryRun --update --version ${{ inputs.readme-version }} --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}"
+            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --key=${{ secrets.README_API_KEY }} --id=${{ inputs.readme-api-spec-id }}"
           fi
           echo "COMMAND=$command" >> $GITHUB_OUTPUT
         shell: bash
