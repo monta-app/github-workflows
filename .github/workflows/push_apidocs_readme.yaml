@@ -15,6 +15,10 @@ on:
         required: true
         type: string
         description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8)"
+      spec-prefix:
+        required: true
+        type: string
+        description: "Required to find the spec in your build folder; (e.g. for partner-api we use monta-partner-api)"
     secrets:
       GHL_USERNAME:
         required: true
@@ -56,8 +60,15 @@ jobs:
       - name: Find API spec
         id: find_api_spec
         run: |
-          filepath=$(find . -type f -name "monta-gradle-module-*.yml")
-          echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+          filepath=$(find . -type f -name "${{ input.spec-prefix }}*.yml")
+          if [ -z "$filepath" ]
+          then
+            echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+            echo "API spec found at: $filepath"
+          else
+            echo "NO API spec found using pattern: ${{ input.spec-prefix }}*.yml"
+            exit 1
+          fi
         shell: bash
       - name: Run `openapi` command 🚀
         uses: readmeio/rdme@v8
