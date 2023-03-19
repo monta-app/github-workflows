@@ -61,13 +61,13 @@ jobs:
         id: find_api_spec
         run: |
           filepath=$(find . -type f -name "${{ inputs.spec-prefix }}*.yml")
-          if [ -z "$filepath" ]
+          if [ -z "$filepath" ] 
           then
-            echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
-            echo "API spec found at: $filepath"
-          else
             echo "NO API spec found using pattern: ${{ inputs.spec-prefix }}*.yml"
             exit 1
+          else
+            echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+            echo "API spec found at: $filepath"
           fi
         shell: bash
       - name: Run `openapi` command 🚀
