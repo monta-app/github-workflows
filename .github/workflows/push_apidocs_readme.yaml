@@ -71,7 +71,7 @@ jobs:
         env:
           README_SPEC_ID: ${{ inputs.readme-api-spec-id }}
         run: |
-          if [ -z "README_SPEC_ID" ]
+          if [ -z "$README_SPEC_ID" ]
           then
             command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --update --useSpecVersion --key=${{ secrets.README_API_KEY }}"
           else
