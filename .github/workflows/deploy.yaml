@@ -40,8 +40,14 @@ on:
         required: true
         description: 'Github Password (Gradle plugin)'
       AWS_ACCOUNT_ID:
-        required: true
+        required: false
         description: 'AWS account id'
+      AWS_ACCESS_KEY_ID:
+        required: false
+        description: 'AWS access key id'
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+        description: 'AWS secret access key'
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
@@ -142,11 +148,19 @@ jobs:
           java-version: '17'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v1
+        if: ${{ secrets.AWS_ACCOUNT_ID }} != "" && ${{ secrets.AWS_ACCESS_KEY_ID }} == "" && ${{ secrets.AWS_SECRET_ACCESS_KEY }} == ""
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: ${{ secrets.AWS_ACCOUNT_ID }} == "" && ${{ secrets.AWS_ACCESS_KEY_ID }} != "" && ${{ secrets.AWS_SECRET_ACCESS_KEY }} != ""
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
