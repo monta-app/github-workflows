@@ -148,20 +148,25 @@ jobs:
           java-version: '17'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
+      - name: Check for secret.AWS_ACCOUNT_ID availability
+        id: secret-check
+        shell: bash
+        run: |
+          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
+            echo "available=true" >> $GITHUB_OUTPUT;
+          else
+            echo "available=false" >> $GITHUB_OUTPUT;
+          fi
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v1
-        if: ${{ env.AWS_ACCOUNT_ID }} != ""
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCESS_ID }}
+        if: steps.secret-check.outputs.available == 'true'
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-to-a ssume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
           aws-region: ${{ inputs.region }}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
-        if: ${{ env.AWS_ACCOUNT_ID }} == ""
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCESS_ID }}
+        if: steps.secret-check.outputs.available == 'false'
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
