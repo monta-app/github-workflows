@@ -1,0 +1,65 @@
+name: Validate OpenAPI Specs 🧾
+
+on:
+  workflow_call:
+    inputs:
+      gradle-module:
+        required: false
+        type: string
+        description: "Name of the gradle module generating the docs (e.g. partner-api)"
+      spec-prefix:
+        required: true
+        type: string
+        description: "Required to find the spec in your build folder; (e.g. for partner-api we use monta-partner-api)"
+    secrets:
+      GHL_USERNAME:
+        required: true
+        description: "Github Username (Gradle plugin)"
+      GHL_PASSWORD:
+        required: true
+        description: "Github Password (Gradle plugin)"
+
+jobs:
+  validate-api-specs:
+    name: Validate API specs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout ⬇️
+        uses: actions/checkout@v3
+      - name: Set up JDK ⚙️
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      - name: Build project 📦
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]
+          then
+            ./gradlew --no-daemon assemble
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:assemble
+          fi
+        shell: bash
+      - name: Find API spec 🔎
+        id: find_api_spec
+        run: |
+          filepath=$(find . -type f -name "${{ inputs.spec-prefix }}*.yml")
+          if [ -z "$filepath" ] 
+          then
+            echo "NO API spec found using pattern: ${{ inputs.spec-prefix }}*.yml"
+            exit 1
+          else
+            echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+            echo "API spec found at: $filepath"
+          fi
+        shell: bash
+      - name: Validate `openapi` spec 🙏
+        uses: readmeio/rdme@v8
+        with:
+          rdme: openapi:validate ${{steps.find_api_spec.outputs.FILE_PATH}}

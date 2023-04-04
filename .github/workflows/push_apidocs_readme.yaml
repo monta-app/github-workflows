@@ -1,0 +1,85 @@
+name: Publish Docs to Readme.com 📤
+
+on:
+  workflow_call:
+    inputs:
+      gradle-module:
+        required: false
+        type: string
+        description: "Name of the gradle module generating the docs (e.g. partner-api)"
+      readme-api-spec-id:
+        required: false
+        type: string
+        description: "ID of the API spec to update (e.g. 6417257a88e60b00585e97f8); only relevant for pre-release specs or if your version never changes; can be omitted when creating a new version (e.g. production)"
+      spec-prefix:
+        required: true
+        type: string
+        description: "Required to find the spec in your build folder; (e.g. for partner-api we use monta-partner-api)"
+    secrets:
+      GHL_USERNAME:
+        required: true
+        description: "Github Username (Gradle plugin)"
+      GHL_PASSWORD:
+        required: true
+        description: "Github Password (Gradle plugin)"
+      README_API_KEY:
+        required: true
+        description: "Readme.com API Key"
+
+jobs:
+  push-apidocs:
+    name: Push API docs to Readme.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout ⬇️
+        uses: actions/checkout@v3
+      - name: Set up JDK ⚙️
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      - name: Build project 📦
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]
+          then
+            ./gradlew --no-daemon assemble
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:assemble
+          fi
+        shell: bash
+      - name: Find API spec 🔎
+        id: find_api_spec
+        run: |
+          filepath=$(find . -type f -name "${{ inputs.spec-prefix }}*.yml")
+          if [ -z "$filepath" ] 
+          then
+            echo "NO API spec found using pattern: ${{ inputs.spec-prefix }}*.yml"
+            exit 1
+          else
+            echo "FILE_PATH=$filepath" >> $GITHUB_OUTPUT
+            echo "API spec found at: $filepath"
+          fi
+        shell: bash
+      - name: Compile rdme command 🧮
+        id: compile_rdme_command
+        env:
+          README_SPEC_ID: ${{ inputs.readme-api-spec-id }}
+        run: |
+          if [ -z "$README_SPEC_ID" ]
+          then
+            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --update --useSpecVersion --key=${{ secrets.README_API_KEY }}"
+          else
+            command="openapi ${{steps.find_api_spec.outputs.FILE_PATH}} --id=${{ inputs.readme-api-spec-id }} --key=${{ secrets.README_API_KEY }}"
+          fi
+          echo "COMMAND=$command" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Run `openapi` command 🚀
+        uses: readmeio/rdme@v8
+        with:
+          rdme: ${{steps.compile_rdme_command.outputs.COMMAND}}
