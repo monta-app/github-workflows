@@ -32,6 +32,11 @@ on:
         type: string
         description: Name of the docker file to be built
         default: "Dockerfile"
+      java-version:
+        required: false
+        type: string
+        description: the version of the java docker image to build
+        default: "17.0.7-alpine"
     secrets:
       GHL_USERNAME:
         required: true
@@ -182,9 +187,10 @@ jobs:
           SERVICE_NAME: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
           DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
+          JAVA_VERSION: ${{ inputs.java-version }}
         run: |
           ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker build --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
+          docker build --build-arg=JAVA_VERSION=$JAVA_VERSION --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
           docker push $ECR_IMAGE_URL:$IMAGE_TAG
           docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
           docker push $ECR_IMAGE_URL:latest
