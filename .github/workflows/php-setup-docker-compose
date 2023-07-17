@@ -1,0 +1,54 @@
+name: 'Setup Docker Compose'
+description: 'Setups docker compose for testing'
+
+on:
+  workflow_call:
+    inputs:
+      profiles:
+        required: false
+        type: string
+        description: 'Docker compose profiles used'
+        default: "app"
+
+jobs:
+  start-docker-compose:
+    name: Start docker compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Prepare The Environment
+        run: |
+          cp .env.ci .env
+      - name: Show .env
+        run: |
+          cat .env
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.STAGING_AWS_ACCOUNT_ID }}:role/ecr-get-image
+          role-session-name: server-php-smoke-tests
+          aws-region: eu-west-1
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Start services
+        env:
+          COMPOSE_PROFILES: ${{ inputs.profiles }}
+        run: |
+          docker compose up -d
+      - name: Install Composer Dependencies
+        run: |
+          docker compose --profile app exec app chmod -R 777 storage bootstrap/cache
+          docker compose --profile app exec app composer install --no-progress --prefer-dist --optimize-autoloader
+          docker compose --profile app exec app npm ci --ignore-scripts
+          docker compose --profile app exec app npm run production
+      - name: Generate Application Key
+        run: |
+          docker compose --profile app exec app php artisan key:generate
+      - name: Verify services started
+        run: |
+          docker compose --profile app exec app npm run wait-on -- -l -t 120000 http-get://kratos:4434/health/ready http-get://proxy:8080/portal http-get://proxy:8080/api/health http-get://proxy:8080/identity/auth/login
+          mysql --host 127.0.0.1 --port 7090 -u root -ppassword -e "SHOW DATABASES LIKE 'laravel'"
+      - name: Migrate & Seed database
+        run: |
+          docker compose --profile app exec app php artisan migrate:fresh --seed -vvv
