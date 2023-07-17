@@ -36,7 +36,7 @@ on:
         required: false
         type: string
         description: the version of the java docker image to build
-        default: "17.0.7-alpine"
+        default: "17.0.7"
     secrets:
       GHL_USERNAME:
         required: true
