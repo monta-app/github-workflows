@@ -190,15 +190,9 @@ jobs:
           JAVA_VERSION: ${{ inputs.java-version }}
         run: |
           ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker buildx build \
-          --platform linux/amd64,linux/arm64/v8 \
-          --build-arg=JAVA_VERSION=$JAVA_VERSION \
-          --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} \
-          --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} \
-          -f $DOCKER_FILE_NAME \
-          -t $ECR_IMAGE_URL:latest \
-          -t $ECR_IMAGE_URL:$IMAGE_TAG .
+          docker build --build-arg=JAVA_VERSION=$JAVA_VERSION --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
           docker push $ECR_IMAGE_URL:$IMAGE_TAG
+          docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
           docker push $ECR_IMAGE_URL:latest
           echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
         shell: bash
