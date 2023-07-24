@@ -131,12 +131,6 @@ jobs:
     # needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: true
-      matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
     steps:
       # - name: Publish progress message to slack
       #   uses: monta-app/slack-notifier-cli-action@main
@@ -152,14 +146,6 @@ jobs:
       #     slack-message-id: ${{ needs.test.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: |
-            name/app
-          tags: |
-            type=sha,format=long,prefix=,suffix=
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -201,7 +187,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm64
           push: false
           file: ./${{ inputs.docker-file-name }}
           # tags:
@@ -210,7 +196,9 @@ jobs:
             JAVA_VERSION=${{ inputs.java-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-          tags: ${{ steps.meta.outputs.tags }}
+#          ${{ steps.login-ecr.outputs.registry }}:${{ github.sha }}
+          tags: |
+            latest
       # - name: Build docker container
       #   id: build-container
       #   env:
