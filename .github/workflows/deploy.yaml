@@ -179,23 +179,42 @@ jobs:
       # - name: Login to Amazon ECR
       #   id: login-ecr
       #   uses: aws-actions/amazon-ecr-login@v1
-      - name: Build docker container
-        id: build-container
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-          DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
-          JAVA_VERSION: ${{ inputs.java-version }}
-        run: |
-          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker build --build-arg=JAVA_VERSION=$JAVA_VERSION --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
-          docker push $ECR_IMAGE_URL:$IMAGE_TAG
-          docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
-          docker push $ECR_IMAGE_URL:latest
-          echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
-        shell: bash
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64/amd64
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64,darwin/arm64
+          push: false
+          file: ./${{ inputs.docker-file-name }}
+          # tags:
+          # cache-from might significantly improve build times
+          build-args: |
+            JAVA_VERSION=${{ inputs.java-version }}
+            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
+            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
+      # - name: Build docker container
+      #   id: build-container
+      #   env:
+      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      #     IMAGE_TAG: ${{ github.sha }}
+      #     SERVICE_NAME: ${{ inputs.service-identifier }}
+      #     STAGE: ${{ inputs.stage }}
+      #     DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
+      #     JAVA_VERSION: ${{ inputs.java-version }}
+      #   run: |
+      #     ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
+      #     docker build --build-arg=JAVA_VERSION=$JAVA_VERSION --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
+      #     docker push $ECR_IMAGE_URL:$IMAGE_TAG
+      #     docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
+      #     docker push $ECR_IMAGE_URL:latest
+      #     echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
+      #   shell: bash
       # - name: Publish result message to slack
       #   uses: monta-app/slack-notifier-cli-action@main
       #   if: ${{ always() }}
