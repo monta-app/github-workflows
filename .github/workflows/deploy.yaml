@@ -66,84 +66,84 @@ permissions:
   actions: read # This is required for 8398a7/action-slack
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Publish progress message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "test"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'corretto'
-          java-version: '17'
-          cache: 'gradle'
-      - name: Test project
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]
-          then
-            ./gradlew --no-daemon test
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
-          fi
-        shell: bash
-      - name: Upload test results
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-result
-          path: |
-            build/reports/tests/test
-            /home/runner/.gradle/daemon/**/daemon-*.out.log
-          retention-days: 2
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "test"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-    outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+  # test:
+  #   name: Test
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - name: Publish progress message to slack
+  #       uses: monta-app/slack-notifier-cli-action@main
+  #       id: publish-slack
+  #       with:
+  #         github-context: ${{ toJson(github) }}
+  #         job-type: "test"
+  #         job-status: "progress"
+  #         service-name: ${{ inputs.service-name }}
+  #         service-emoji: ${{ inputs.service-emoji }}
+  #         slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+  #         slack-channel-id: "C01KL9FUPNK"
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - name: Set up JDK
+  #       uses: actions/setup-java@v3
+  #       with:
+  #         distribution: 'corretto'
+  #         java-version: '17'
+  #         cache: 'gradle'
+  #     - name: Test project
+  #       env:
+  #         GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+  #         GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+  #         GRADLE_MODULE: ${{ inputs.gradle-module }}
+  #       run: |
+  #         if [ -z "$GRADLE_MODULE" ]
+  #         then
+  #           ./gradlew --no-daemon test
+  #         else
+  #           ./gradlew --no-daemon $GRADLE_MODULE:test
+  #         fi
+  #       shell: bash
+  #     - name: Upload test results
+  #       if: ${{ always() }}
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: test-result
+  #         path: |
+  #           build/reports/tests/test
+  #           /home/runner/.gradle/daemon/**/daemon-*.out.log
+  #         retention-days: 2
+  #     - name: Publish result message to slack
+  #       uses: monta-app/slack-notifier-cli-action@main
+  #       if: ${{ always() }}
+  #       with:
+  #         github-context: ${{ toJson(github) }}
+  #         job-type: "test"
+  #         job-status: ${{ job.status }}
+  #         service-name: ${{ inputs.service-name }}
+  #         service-emoji: ${{ inputs.service-emoji }}
+  #         slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+  #         slack-channel-id: "C01KL9FUPNK"
+  #         slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+  #   outputs:
+  #     slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
   build:
     name: Build
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Publish progress message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "build"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.test.outputs.slack-message-id }}
+      # - name: Publish progress message to slack
+      #   uses: monta-app/slack-notifier-cli-action@main
+      #   id: publish-slack
+      #   with:
+      #     github-context: ${{ toJson(github) }}
+      #     job-type: "build"
+      #     job-status: "progress"
+      #     service-name: ${{ inputs.service-name }}
+      #     service-emoji: ${{ inputs.service-emoji }}
+      #     slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+      #     slack-channel-id: "C01KL9FUPNK"
+      #     slack-message-id: ${{ needs.test.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -153,32 +153,32 @@ jobs:
           java-version: '17'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+      # - name: Check for secret.AWS_ACCOUNT_ID availability
+      #   id: secret-check
+      #   shell: bash
+      #   run: |
+      #     if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
+      #       echo "available=true" >> $GITHUB_OUTPUT;
+      #     else
+      #       echo "available=false" >> $GITHUB_OUTPUT;
+      #     fi
+      # - name: Configure AWS credentials via assumed role
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   if: steps.secret-check.outputs.available == 'true'
+      #   with:
+      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+      #     role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+      #     aws-region: ${{ inputs.region }}
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   if: steps.secret-check.outputs.available == 'false'
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ inputs.region }}
+      # - name: Login to Amazon ECR
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v1
       - name: Build docker container
         id: build-container
         env:
@@ -196,73 +196,73 @@ jobs:
           docker push $ECR_IMAGE_URL:latest
           echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
         shell: bash
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "build"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-    outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Publish progress message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "deploy"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.build.outputs.slack-message-id }}
-      - name: Check out manifest repository
-        uses: actions/checkout@master
-        with:
-          repository: monta-app/kube-manifests
-          path: 'manifests'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update image name
-        shell: bash
-        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
-        run: |
-          sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
-          sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
-          sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
-      - name: Commit to manifest repository
-        working-directory: './manifests'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git commit -am "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
-        shell: bash
-      - name: Push
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
-          directory: './manifests'
-          repository: monta-app/kube-manifests
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          github-context: ${{ toJson(github) }}
-          job-type: "deploy"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+      # - name: Publish result message to slack
+      #   uses: monta-app/slack-notifier-cli-action@main
+      #   if: ${{ always() }}
+      #   with:
+      #     github-context: ${{ toJson(github) }}
+      #     job-type: "build"
+      #     job-status: ${{ job.status }}
+      #     service-name: ${{ inputs.service-name }}
+      #     service-emoji: ${{ inputs.service-emoji }}
+      #     slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+      #     slack-channel-id: "C01KL9FUPNK"
+      #     slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+    # outputs:
+    #   slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+  # deploy:
+  #   name: Deploy
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 5
+  #   steps:
+  #     - name: Publish progress message to slack
+  #       uses: monta-app/slack-notifier-cli-action@main
+  #       id: publish-slack
+  #       with:
+  #         github-context: ${{ toJson(github) }}
+  #         job-type: "deploy"
+  #         job-status: "progress"
+  #         service-name: ${{ inputs.service-name }}
+  #         service-emoji: ${{ inputs.service-emoji }}
+  #         slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+  #         slack-channel-id: "C01KL9FUPNK"
+  #         slack-message-id: ${{ needs.build.outputs.slack-message-id }}
+  #     - name: Check out manifest repository
+  #       uses: actions/checkout@master
+  #       with:
+  #         repository: monta-app/kube-manifests
+  #         path: 'manifests'
+  #         token: ${{ secrets.MANIFEST_REPO_PAT }}
+  #     - name: Update image name
+  #       shell: bash
+  #       working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
+  #       run: |
+  #         sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
+  #         sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
+  #         sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+  #     - name: Commit to manifest repository
+  #       working-directory: './manifests'
+  #       run: |
+  #         git config --local user.email "action@github.com"
+  #         git config --local user.name "GitHub Action"
+  #         git commit -am "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
+  #       shell: bash
+  #     - name: Push
+  #       uses: ad-m/github-push-action@master
+  #       with:
+  #         github_token: ${{ secrets.MANIFEST_REPO_PAT }}
+  #         directory: './manifests'
+  #         repository: monta-app/kube-manifests
+  #     - name: Publish result message to slack
+  #       uses: monta-app/slack-notifier-cli-action@main
+  #       if: ${{ always() }}
+  #       with:
+  #         github-context: ${{ toJson(github) }}
+  #         job-type: "deploy"
+  #         job-status: ${{ job.status }}
+  #         service-name: ${{ inputs.service-name }}
+  #         service-emoji: ${{ inputs.service-emoji }}
+  #         slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+  #         slack-channel-id: "C01KL9FUPNK"
+  #         slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
