@@ -159,7 +159,7 @@ jobs:
           images: |
             name/app
           tags: |
-            type=sha,format=long
+            type=sha,format=long,prefix=,suffix=
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
