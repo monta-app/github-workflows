@@ -189,30 +189,37 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
+          tags: |
+            type=sha,format=long,prefix=
+          flavor: |
+            latest=false
+            prefix=
+            suffix=
       - name: Build
+        id: build
         uses: docker/build-push-action@v4
         with:
           context: .
-          push: false
           file: ./${{ inputs.docker-file-name }}
           build-args: |
             JAVA_VERSION=${{ inputs.java-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }},push-by-digest=true,name-canonical=true,push=false
+          tags: ${{ steps.meta.outputs.tags }}
+          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }},push-by-digest=true,name-canonical=true,push=true
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
-      # - name: Upload digest
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: digests
-      #     path: /tmp/digests/*
-      #     if-no-files-found: error
-      #     retention-days: 1
+      - name: Upload digest
+        uses: actions/upload-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
       # - name: Build docker container
       #   id: build-container
