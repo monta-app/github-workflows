@@ -189,8 +189,9 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
+          # type=sha,format=long,prefix=,suffix=-${{ runner.arch }}
           tags: |
-            type=sha,format=long,prefix=,suffix=-${{ runner.arch }}
+            type=raw,value=test,prefix=,suffix=-${{ runner.arch }}
           flavor: |
             latest=false
             prefix=
@@ -201,24 +202,63 @@ jobs:
         with:
           context: .
           file: ./${{ inputs.docker-file-name }}
+          push: true
           build-args: |
             JAVA_VERSION=${{ inputs.java-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
-      # - name: Export digest
-      #   run: |
-      #     mkdir -p /tmp/digests
-      #     digest="${{ steps.build.outputs.digest }}"
-      #     touch "/tmp/digests/${digest#sha256:}"
-      # - name: Upload digest
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: digests
-      #     path: /tmp/digests/*
-      #     if-no-files-found: error
-      #     retention-days: 1
+  
+  push-manifest-list:
+    name: Push Manifest
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+      steps:
+      - name: Check for secret.AWS_ACCOUNT_ID availability
+        id: secret-check
+        shell: bash
+        run: |
+          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
+            echo "available=true" >> $GITHUB_OUTPUT;
+          else
+            echo "available=false" >> $GITHUB_OUTPUT;
+          fi
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'true'
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'false'
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: build-push-manifest
+        id: build-container
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICE_NAME: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
+          JAVA_VERSION: ${{ inputs.java-version }}
+        shell: bash
+        run: |
+          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
+          docker manifest create $ECR_IMAGE_URL:test $ECR_IMAGE_URL:test-ARM64 $ECR_IMAGE_URL:test-X64
+          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:test $ECR_IMAGE_URL:test-ARM64
+          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:test $ECR_IMAGE_URL:test-X64
+          docker manifest inspect $ECR_IMAGE_URL:test
+          docker manifest push $ECR_IMAGE_URL:test
 
       # - name: Build docker container
       #   id: build-container
