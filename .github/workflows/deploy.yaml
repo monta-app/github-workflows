@@ -129,8 +129,13 @@ jobs:
   build:
     name: Build
     # needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner-type }}
     timeout-minutes: 30
+    strategy:
+      matrix:
+        runner-type:
+        - ubuntu-latest
+        - [self-hosted, linux, ARM64]
     steps:
       # - name: Publish progress message to slack
       #   uses: monta-app/slack-notifier-cli-action@main
@@ -153,52 +158,62 @@ jobs:
           java-version: '17'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
-      # - name: Check for secret.AWS_ACCOUNT_ID availability
-      #   id: secret-check
-      #   shell: bash
-      #   run: |
-      #     if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-      #       echo "available=true" >> $GITHUB_OUTPUT;
-      #     else
-      #       echo "available=false" >> $GITHUB_OUTPUT;
-      #     fi
-      # - name: Configure AWS credentials via assumed role
-      #   uses: aws-actions/configure-aws-credentials@v1
-      #   if: steps.secret-check.outputs.available == 'true'
-      #   with:
-      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-      #     role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-      #     aws-region: ${{ inputs.region }}
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v1
-      #   if: steps.secret-check.outputs.available == 'false'
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-region: ${{ inputs.region }}
-      # - name: Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v1
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - name: Check for secret.AWS_ACCOUNT_ID availability
+        id: secret-check
+        shell: bash
+        run: |
+          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
+            echo "available=true" >> $GITHUB_OUTPUT;
+          else
+            echo "available=false" >> $GITHUB_OUTPUT;
+          fi
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'true'
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'false'
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
       - name: Build
         uses: docker/build-push-action@v4
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
           push: false
           file: ./${{ inputs.docker-file-name }}
-          # tags:
-          # cache-from might significantly improve build times
           build-args: |
             JAVA_VERSION=${{ inputs.java-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-#          ${{ steps.login-ecr.outputs.registry }}:${{ github.sha }}
-          tags: |
-            latest
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }},push-by-digest=true,name-canonical=true,push=false
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      # - name: Upload digest
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: digests
+      #     path: /tmp/digests/*
+      #     if-no-files-found: error
+      #     retention-days: 1
+
       # - name: Build docker container
       #   id: build-container
       #   env:
