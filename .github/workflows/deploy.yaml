@@ -215,7 +215,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
-      steps:
+    steps:
       - name: Check for secret.AWS_ACCOUNT_ID availability
         id: secret-check
         shell: bash
