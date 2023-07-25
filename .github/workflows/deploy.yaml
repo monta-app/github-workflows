@@ -209,7 +209,7 @@ jobs:
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
           labels: |
-            GITHUB_RUN_ID=${{ env.GITHUB_RUN_ID }}
+            GITHUB_RUN_ID=${GITHUB_RUN_ID}
             ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
     #   - name: Publish result message to slack
