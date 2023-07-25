@@ -203,6 +203,7 @@ jobs:
           context: .
           file: ./${{ inputs.docker-file-name }}
           push: true
+          no-cache: true
           build-args: |
             JAVA_VERSION=${{ inputs.java-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
