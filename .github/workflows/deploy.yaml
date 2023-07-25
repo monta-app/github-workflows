@@ -262,8 +262,6 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           SERVICE_NAME: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
-          DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
-          JAVA_VERSION: ${{ inputs.java-version }}
         shell: bash
         run: |
           ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
