@@ -190,7 +190,7 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
           tags: |
-            type=sha,format=long,prefix=,suffix=${{ runner.arch }}
+            type=sha,format=long,prefix=,suffix=-${{ runner.arch }}
           flavor: |
             latest=false
             prefix=
