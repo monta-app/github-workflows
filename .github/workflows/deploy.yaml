@@ -184,15 +184,13 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
           tags: |
-            type=sha,format=long,prefix=
+            type=sha,format=long,prefix=,suffix=${{ runner.arch }}
           flavor: |
             latest=false
             prefix=
@@ -209,19 +207,18 @@ jobs:
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
-          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }},push-by-digest=true,name-canonical=true,push=true
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      - name: Upload digest
-        uses: actions/upload-artifact@v3
-        with:
-          name: digests
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
+      # - name: Export digest
+      #   run: |
+      #     mkdir -p /tmp/digests
+      #     digest="${{ steps.build.outputs.digest }}"
+      #     touch "/tmp/digests/${digest#sha256:}"
+      # - name: Upload digest
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: digests
+      #     path: /tmp/digests/*
+      #     if-no-files-found: error
+      #     retention-days: 1
 
       # - name: Build docker container
       #   id: build-container
