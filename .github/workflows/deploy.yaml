@@ -272,6 +272,11 @@ jobs:
           docker manifest annotate --arch amd64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
           docker manifest inspect $ECR_IMAGE_URL:${{ github.sha }}
           docker manifest push $ECR_IMAGE_URL:${{ github.sha }}
+          docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
+          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64
+          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
+          docker manifest inspect $ECR_IMAGE_URL:latest
+          docker manifest push $ECR_IMAGE_URL:latest
 
   deploy:
     name: Deploy
