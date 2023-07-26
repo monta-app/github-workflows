@@ -226,15 +226,15 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-      - name: Set slack message id output
-        if: ${{ runner.arch == 'X64' }}
-        id: set_output
-        env:
-          message_id: ${{ steps.publish-slack.outputs.slack-message-id }}
-        run: echo "id=${message_id}" >> "$GITHUB_OUTPUT"
-        shell: bash
+      # - name: Set slack message id output
+      #   if: ${{ runner.arch == 'X64' }}
+      #   id: set_output
+      #   env:
+      #     message_id: ${{ steps.publish-slack.outputs.slack-message-id }}
+      #   run: echo "id=${message_id}" >> "$GITHUB_OUTPUT"
+      #   shell: bash
     outputs:
-      slack-message-id: ${{ steps.set_output.outputs.id }}
+      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
   push-manifest-list:
     name: Push Manifest
@@ -290,7 +290,7 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: push-manifest-list
+    needs: [build, push-manifest-list]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
