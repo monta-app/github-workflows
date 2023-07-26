@@ -66,10 +66,12 @@ permissions:
   actions: read # This is required for 8398a7/action-slack
 
 jobs:
-  test:
-    name: Test
+  init_message:
+    name: Sending first Slack message
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
     steps:
       - name: Publish progress message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -82,6 +84,15 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
+
+  test:
+    name: Test
+    needs: init_message
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
+    steps:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -123,13 +134,11 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-    outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+          slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
 
   build:
     name: Build
-    needs: test
+    needs: init_message
     runs-on: ${{ matrix.runner-type }} # Runs on both self-hosted arm64 as well as hosted amd64
     timeout-minutes: 30
     strategy:
@@ -137,6 +146,8 @@ jobs:
         runner-type:
         - ubuntu-latest
         - [self-hosted, linux, ARM64]
+    outputs:
+      slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
       - name: Publish progress message to slack
         if: ${{ runner.arch == 'X64' }}
@@ -150,7 +161,7 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.test.outputs.slack-message-id }}
+          slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -225,13 +236,12 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-    outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+          slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
 
   push-manifest-list:
     name: Push Manifest
-    needs: build
+    needs: [build, test]
+    if: ${{ success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -283,7 +293,8 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: [build, push-manifest-list]
+    needs: [test, build, push-manifest-list]
+    if: ${{ success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -337,3 +348,45 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
+
+  delete_images_on_test_fail:
+    name: Deleting Pushed Images for Failed Tests
+    needs: [test, build]
+    if: needs.test.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check for secret.AWS_ACCOUNT_ID availability
+        id: secret-check
+        shell: bash
+        run: |
+          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
+            echo "available=true" >> $GITHUB_OUTPUT;
+          else
+            echo "available=false" >> $GITHUB_OUTPUT;
+          fi
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'true'
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-delete-image
+          role-session-name: delete-image-from-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: steps.secret-check.outputs.available == 'false'
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Delete images
+        shell: bash
+        continue-on-error: true
+        env:
+          SERVICE_NAME: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          aws ecr batch-delete-image --repository-name $SERVICE_NAME-$STAGE --image-ids imageTag=${{ github.sha }}-X64 imageTag=${{ github.sha }}-ARM64
