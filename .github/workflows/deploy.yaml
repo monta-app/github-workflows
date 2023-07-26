@@ -115,7 +115,7 @@ jobs:
           fi
         shell: bash
       - name: Upload test results
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: test-result
@@ -125,7 +125,7 @@ jobs:
           retention-days: 2
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
+        if: always()
         with:
           github-context: ${{ toJson(github) }}
           job-type: "test"
@@ -150,7 +150,7 @@ jobs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
       - name: Publish progress message to slack
-        if: ${{ runner.arch == 'X64' }}
+        if: runner.arch == 'X64'
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
@@ -227,7 +227,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ runner.arch == 'X64' && ( failure() || success() || cancelled() ) }}
+        if: runner.arch == 'X64' && ( failure() || success() || cancelled() )
         with:
           github-context: ${{ toJson(github) }}
           job-type: "build"
@@ -241,7 +241,7 @@ jobs:
   push-manifest-list:
     name: Push Manifest
     needs: [build, test]
-    if: ${{ success() }}
+    if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -294,7 +294,7 @@ jobs:
   deploy:
     name: Deploy
     needs: [test, build, push-manifest-list]
-    if: ${{ success() }}
+    if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -338,7 +338,7 @@ jobs:
           repository: monta-app/kube-manifests
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
+        if: always()
         with:
           github-context: ${{ toJson(github) }}
           job-type: "deploy"
