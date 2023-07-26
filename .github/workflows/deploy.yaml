@@ -139,7 +139,7 @@ jobs:
         - [self-hosted, linux, ARM64]
     steps:
       - name: Publish progress message to slack
-        if: ${{ runner.arch }} == X64
+        if: ${{ runner.arch == 'X64' }}
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
@@ -216,7 +216,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ runner.arch }} == X64
+        if: ${{ runner.arch == 'X64' }}
         with:
           github-context: ${{ toJson(github) }}
           job-type: "build"
