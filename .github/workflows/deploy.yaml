@@ -104,7 +104,7 @@ jobs:
           SERVICE_NAME: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
         run: |
-          aws ecr list-images --repository-name $SERVICE_NAME-$STAGE | grep ${{ github.sha }}
+          aws ecr list-images --repository-name $SERVICE_NAME-$STAGE | grep -vz ${{ github.sha }}
 
   init_message:
     name: Sending first Slack message
