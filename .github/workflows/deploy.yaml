@@ -147,13 +147,15 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
+        # run: |
+        #   if [ -z "$GRADLE_MODULE" ]
+        #   then
+        #     ./gradlew --no-daemon test
+        #   else
+        #     ./gradlew --no-daemon $GRADLE_MODULE:test
+        #   fi
         run: |
-          if [ -z "$GRADLE_MODULE" ]
-          then
-            ./gradlew --no-daemon test
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
-          fi
+          false
         shell: bash
       - name: Upload test results
         if: always()
