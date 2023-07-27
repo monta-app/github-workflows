@@ -126,20 +126,13 @@ jobs:
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
     outputs:
       slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-
   build:
     name: Build
     needs: test
-    runs-on: ${{ matrix.runner-type }} # Runs on both self-hosted arm64 as well as hosted amd64
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      matrix:
-        runner-type:
-        - ubuntu-latest
-        - [self-hosted, linux, ARM64]
     steps:
       - name: Publish progress message to slack
-        if: ${{ runner.arch == 'X64' }}
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
@@ -186,37 +179,26 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
-          tags: |
-            type=sha,format=long,prefix=,suffix=-${{ runner.arch }}
-          flavor: |
-            latest=false
-            prefix=
-            suffix=
-      - name: Build
-        id: build
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./${{ inputs.docker-file-name }}
-          push: true
-          no-cache: true
-          build-args: |
-            JAVA_VERSION=${{ inputs.java-version }}
-            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
-            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-          # For pruning built image on self-hosted runner based on this run's ID
-          labels: |
-            GITHUB_RUN_ID=${{ github.run_id }}
-            ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
+      - name: Build docker container
+        id: build-container
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICE_NAME: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          DOCKER_FILE_NAME: ${{ inputs.docker-file-name }}
+          JAVA_VERSION: ${{ inputs.java-version }}
+        run: |
+          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
+          docker build --build-arg=JAVA_VERSION=$JAVA_VERSION --build-arg=GHL_USERNAME=${{ secrets.GHL_USERNAME }} --build-arg=GHL_PASSWORD=${{ secrets.GHL_PASSWORD }} -f $DOCKER_FILE_NAME -t $ECR_IMAGE_URL:$IMAGE_TAG .
+          docker push $ECR_IMAGE_URL:$IMAGE_TAG
+          docker tag $ECR_IMAGE_URL:$IMAGE_TAG $ECR_IMAGE_URL:latest
+          docker push $ECR_IMAGE_URL:latest
+          echo "::set-output name=ECR_IMAGE_URL:$IMAGE_TAG::$ECR_IMAGE_URL:$IMAGE_TAG"
+        shell: bash
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ runner.arch == 'X64' }}
+        if: ${{ always() }}
         with:
           github-context: ${{ toJson(github) }}
           job-type: "build"
@@ -228,62 +210,9 @@ jobs:
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
     outputs:
       slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-
-  push-manifest-list:
-    name: Push Manifest
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-      - name: build-push-manifest
-        id: build-container
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-        shell: bash
-        run: |
-          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64
-          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest inspect $ECR_IMAGE_URL:${{ github.sha }}
-          docker manifest push $ECR_IMAGE_URL:${{ github.sha }}
-          docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64
-          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest inspect $ECR_IMAGE_URL:latest
-          docker manifest push $ECR_IMAGE_URL:latest
-
   deploy:
     name: Deploy
-    needs: [build, push-manifest-list]
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
