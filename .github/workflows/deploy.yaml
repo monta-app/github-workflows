@@ -395,7 +395,7 @@ jobs:
   delete_images_on_test_fail:
     name: Deleting Pushed Images for Failed Tests
     needs: [test, build]
-    if: needs.test.result == 'failure' && contains(fromJSON('["success", "failure", "cancelled", "skipped"]'), needs.build.result)
+    if: failure()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
