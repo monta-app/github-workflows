@@ -399,6 +399,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: ${{ always() }}
+        with:
+          github-context: ${{ toJson(github) }}
+          job-type: "build"
+          job-status: ${{ needs.build.result }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ needs.test.outputs.slack-message-id }}
       - name: Check for secret.AWS_ACCOUNT_ID availability
         id: secret-check
         shell: bash
