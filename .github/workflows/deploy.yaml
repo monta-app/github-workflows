@@ -67,49 +67,9 @@ permissions:
 
 jobs:
 
-  test_tag_in_registry:
-    name: Testing if SHA already exists in registry
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-get-image
-          role-session-name: get-image-from-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-      - name: Get images
-        shell: bash
-        env:
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-        run: |
-          aws ecr list-images --repository-name $SERVICE_NAME-$STAGE | grep -vz ${{ github.sha }}
-
   init_message:
     name: Sending first Slack message
     runs-on: ubuntu-latest
-    needs: test_tag_in_registry
     timeout-minutes: 5
     outputs:
       slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
@@ -390,9 +350,11 @@ jobs:
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
-  delete_images_on_test_fail:
-    name: Deleting Pushed Images for Failed Tests
-    needs: [test, build]
+  # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
+  update_build_fail:
+    name: Update Slack message for build fail
+    # needs init_message in order to get the message id, because build might not output one if fails
+    needs: [init_message, build]
     if: failure()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -408,34 +370,4 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.test.outputs.slack-message-id }}
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-delete-image
-          role-session-name: delete-image-from-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Delete images
-        shell: bash
-        env:
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-        run: |
-          aws ecr batch-delete-image --repository-name $SERVICE_NAME-$STAGE --image-ids imageTag=${{ github.sha }}-X64 imageTag=${{ github.sha }}-ARM64
+          slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
