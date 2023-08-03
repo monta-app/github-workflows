@@ -10,10 +10,14 @@ on:
         required: false
         type: string
         description: 'An emoji to identify your service by :)'
-      service-identifier:
+      service-identifier-1:
         required: true
         type: string
-        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+        description: 'Identifier of the first service being released i.e ocpp, vehicle, server, wallet.'
+      service-identifier-2:
+        required: true
+        type: string
+        description: 'Identifier of the second service being released i.e ocpp, vehicle, server, wallet.'
       gradle-module:
         required: false
         type: string
@@ -319,9 +323,16 @@ jobs:
           repository: monta-app/kube-manifests
           path: 'manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update image name
+      - name: Update image name 1
         shell: bash
-        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
+        working-directory: ./manifests/apps/${{ inputs.service-identifier-1 }}/${{ inputs.stage }}/app
+        run: |
+          sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
+          sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
+          sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+      - name: Update image name 2
+        shell: bash
+        working-directory: ./manifests/apps/${{ inputs.service-identifier-2 }}/${{ inputs.stage }}/app
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
