@@ -37,6 +37,11 @@ on:
         type: string
         description: the version of the java docker image to build
         default: "17.0.7"
+      slack-channel-id:
+        required: false
+        type: string
+        description: 'ID of slack channel to notify with build status. Default value is the "deployment" channel, only override in special cases.'
+        default: "C01KL9FUPNK"
     secrets:
       GHL_USERNAME:
         required: true
@@ -83,7 +88,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
 
   test:
     name: Test
@@ -132,7 +137,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
 
   build:
@@ -158,7 +163,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v3
@@ -288,7 +293,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.test.outputs.slack-message-id }}
 
   deploy:
@@ -306,7 +311,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.push-manifest-list.outputs.slack-message-id }}
       - name: Check out manifest repository
         uses: actions/checkout@master
@@ -343,7 +348,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
@@ -364,5 +369,5 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
