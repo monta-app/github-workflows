@@ -37,6 +37,11 @@ on:
         type: string
         description: the version of the java docker image to build
         default: "17.0.7"
+      slack-channel-id:
+        required: false
+        type: string
+        description: 'ID of slack channel to notify with build status. Default value is the "deployment" channel, only override in special cases.'
+        default: "C01KL9FUPNK"
     secrets:
       GHL_USERNAME:
         required: true
@@ -78,13 +83,12 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
 
   test:
     name: Test
@@ -128,13 +132,12 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: ${{ job.status }}
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
 
   build:
@@ -155,13 +158,12 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v3
@@ -286,13 +288,12 @@ jobs:
         if: ${{ always() }}
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: ${{ needs.build.result }}
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.test.outputs.slack-message-id }}
 
   deploy:
@@ -305,13 +306,12 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.push-manifest-list.outputs.slack-message-id }}
       - name: Check out manifest repository
         uses: actions/checkout@master
@@ -343,13 +343,12 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: ${{ job.status }}
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
@@ -365,11 +364,10 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: ${{ always() }}
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: ${{ needs.build.result }}
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
+          slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
