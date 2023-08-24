@@ -78,7 +78,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
@@ -128,7 +127,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "test"
           job-status: ${{ job.status }}
           service-name: ${{ inputs.service-name }}
@@ -155,7 +153,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
@@ -286,7 +283,6 @@ jobs:
         if: ${{ always() }}
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: ${{ needs.build.result }}
           service-name: ${{ inputs.service-name }}
@@ -305,7 +301,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: "progress"
           service-name: ${{ inputs.service-name }}
@@ -343,7 +338,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "deploy"
           job-status: ${{ job.status }}
           service-name: ${{ inputs.service-name }}
@@ -365,7 +359,6 @@ jobs:
         uses: monta-app/slack-notifier-cli-action@main
         if: ${{ always() }}
         with:
-          github-context: ${{ toJson(github) }}
           job-type: "build"
           job-status: ${{ needs.build.result }}
           service-name: ${{ inputs.service-name }}
