@@ -47,9 +47,9 @@ jobs:
         run: |
           if [ -z "$GRADLE_MODULE" ]
           then
-            ./gradlew --no-daemon test
+            ./gradlew --no-daemon test -i
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
+            ./gradlew --no-daemon $GRADLE_MODULE:test -i
           fi
         shell: bash
       - name: Upload test results
