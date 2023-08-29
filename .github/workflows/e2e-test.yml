@@ -18,7 +18,7 @@ on:
         type: string
         description: 'Docker compose profiles used'
         default: "app"
-      base-folder:
+      php-base-folder:
         required: false
         type: string
         default: "php-server"
@@ -26,6 +26,11 @@ on:
       gradle-module:
         required: true
         type: string
+        description: 'gradle module to be built'
+      php-branch:
+        required: false
+        type: string
+        default: "development"
         description: 'gradle module to be built'
 
 jobs:
@@ -39,15 +44,15 @@ jobs:
         name: Checkout PHP-Server
         with:
           repository: monta-app/server
-          ref: development
-          path: ./php-server
+          ref: ${{ inputs.php-branch }}
+          path: ./${{ inputs.php-base-folder }}
           token: ${{ secrets.PAT }}
           submodules: recursive
 
       - name: Prepare The Environment
         shell: bash
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           cp .env.ci .env
 
       - name: Configure AWS credentials
@@ -66,7 +71,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose up -d
 
       - name: Install Composer Dependencies
@@ -74,7 +79,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app chmod -R 777 storage bootstrap/cache
           docker compose exec -T app composer install --no-progress --prefer-dist --optimize-autoloader
 
@@ -84,7 +89,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app npm ci --ignore-scripts
 
       - name: Generate Application Key
@@ -92,7 +97,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app php artisan key:generate
 
       - name: Install lokalise
@@ -100,7 +105,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app php artisan monta:lokalise
 
       - name: Verify services started
@@ -109,7 +114,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app npm run wait-on -- -l -t 120000 -d 5000 http-get://kratos:4434/health/ready http-get://proxy:8080/portal http-get://proxy:8080/api/health http-get://proxy:8080/identity/auth/login
           mysql --host 127.0.0.1 --port 7090 -u root -ppassword -e "SHOW DATABASES LIKE 'laravel'"
 
@@ -118,7 +123,7 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app php artisan migrate:fresh -vvv
 
       - name: Seed database
@@ -127,13 +132,13 @@ jobs:
         env:
           COMPOSE_PROFILES: ${{ inputs.profiles }}
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app php artisan db:seed -vvv
 
       - name: Cache routes
         shell: bash
         run: |
-          cd ${{ inputs.base-folder }}
+          cd ${{ inputs.php-base-folder }}
           docker compose exec -T app php artisan route:cache
 
       #######################################################
