@@ -1,4 +1,4 @@
-name: E2E Tests
+name: IT Tests
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -18,10 +18,10 @@ on:
         type: string
         description: 'Docker compose profiles used'
         default: "app"
-      php-base-folder:
+      tested-project-folder:
         required: false
         type: string
-        default: "php-server"
+        default: "tested-project"
         description: 'base folder where PHP-server is pulled'
       gradle-module:
         required: true
@@ -34,115 +34,31 @@ on:
         description: 'gradle module to be built'
 
 jobs:
-  e2e-test:
+  it-tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Project
-        uses: actions/checkout@v3
-
       - uses: actions/checkout@v3
         name: Checkout PHP-Server
         with:
           repository: monta-app/server
           ref: ${{ inputs.php-branch }}
-          path: ./${{ inputs.php-base-folder }}
           token: ${{ secrets.PAT }}
-          submodules: recursive
+          fetch-depth: 1
 
-      - name: Prepare The Environment
-        shell: bash
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          cp .env.ci .env
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Setup docker compose
+        uses: ./.github/actions/setup-docker-compose
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.STAGING_AWS_ACCOUNT_ID }}:role/ecr-get-image
-          role-session-name: server-php-smoke-tests
-          aws-region: eu-west-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Start services
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose up -d
-
-      - name: Install Composer Dependencies
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app chmod -R 777 storage bootstrap/cache
-          docker compose exec -T app composer install --no-progress --prefer-dist --optimize-autoloader
-
-      - name: Install NPM dependencies
-        shell: bash
-        if: ${{ inputs.mode != 'unit' }}
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app npm ci --ignore-scripts
-
-      - name: Generate Application Key
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app php artisan key:generate
-
-      - name: Install lokalise
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app php artisan monta:lokalise
-
-      - name: Verify services started
-        if: ${{ inputs.mode != 'unit' }}
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app npm run wait-on -- -l -t 120000 -d 5000 http-get://kratos:4434/health/ready http-get://proxy:8080/portal http-get://proxy:8080/api/health http-get://proxy:8080/identity/auth/login
-          mysql --host 127.0.0.1 --port 7090 -u root -ppassword -e "SHOW DATABASES LIKE 'laravel'"
-
-      - name: Migrate database
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app php artisan migrate:fresh -vvv
-
-      - name: Seed database
-        if: ${{ inputs.mode != 'unit' }}
-        shell: bash
-        env:
-          COMPOSE_PROFILES: ${{ inputs.profiles }}
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app php artisan db:seed -vvv
-
-      - name: Cache routes
-        shell: bash
-        run: |
-          cd ${{ inputs.php-base-folder }}
-          docker compose exec -T app php artisan route:cache
+          mode: "services"
+          profiles: "app,identity"
+          aws-account-id: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
 
       #######################################################
       #######################################################
+
+      - uses: actions/checkout@v3
+        name: Checkout Project
+        with:
+          path: ./${{ inputs.tested-project-folder }}
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -156,6 +72,7 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
+          cd ${{ inputs.tested-project-folder }}
           if [ -z "$GRADLE_MODULE" ]
           then
             ./gradlew --no-daemon integrationTest -i
@@ -169,6 +86,6 @@ jobs:
         with:
           name: test-result
           path: |
-            **/reports/tests/test
+            ./${{ inputs.tested-project-folder }}/**/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
