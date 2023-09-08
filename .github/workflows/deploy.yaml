@@ -326,6 +326,14 @@ jobs:
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+      - name: Update config
+        shell: bash
+        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
+        run: |
+          # Update previousHash
+          previousHash=$(yq e .currentHash config.yaml) yq e '.previousHash = env(previousHash)' -i config.yaml
+          # Update currentHash
+          currentHash=${GITHUB_SHA::8} yq e '.currentHash = env(currentHash)' -i config.yaml
       - name: Commit to manifest repository
         working-directory: './manifests'
         run: |
