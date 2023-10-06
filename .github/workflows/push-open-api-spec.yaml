@@ -56,6 +56,8 @@ jobs:
       - name: Build Open API Spec
         shell: bash
         env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           if [ -n "$GRADLE_MODULE" ]; then
