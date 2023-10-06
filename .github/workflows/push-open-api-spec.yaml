@@ -65,17 +65,15 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           if [ -n "$GRADLE_MODULE" ]; then
-              ./gradlew $GRADLE_MODULE:buildLayers
+              ./gradlew $GRADLE_MODULE:kaptKotlin
           else
-              ./gradlew buildLayers
+              ./gradlew kaptKotlin
           fi
       - name: Create service profile
         id: create-service-profile
         shell: bash
         env:
-          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
-          STAGE: ${{ inputs.stage }}
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
@@ -107,10 +105,22 @@ jobs:
           linkerd profile --ignore-cluster --open-api $YML_FILE $YML_FILE_NAME >> service-profile.yaml
           
           SERVICE_PROFILE=$(realpath service-profile.yaml)
-          DESTINATION_PATH="apps/${SERVICE_IDENTIFIER}/${STAGE}/app/templates/service-profile.yaml"
-          
+          echo "Service Profile path $SERVICE_PROFILE"
           echo "service-profile-path=$SERVICE_PROFILE" >> "$GITHUB_OUTPUT"
+
+      - name: Generate commit info
+        id: generate-commit-info
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          DESTINATION_PATH="apps/${SERVICE_IDENTIFIER}/${STAGE}/app/templates"
+          echo "Destination path $DESTINATION_PATH"
           echo "destination-path=$DESTINATION_PATH" >> "$GITHUB_OUTPUT"
+          COMMIT_MESSAGE="chore($SERVICE_IDENTIFIER): updated open API spec for $STAGE"
+          echo "Commit message $COMMIT_MESSAGE"
+          echo "commit-message=$COMMIT_MESSAGE" >> "$GITHUB_OUTPUT"
       - name: Push service profile to repository
         uses: dmnemec/copy_file_to_another_repo_action@main
         env:
@@ -118,7 +128,7 @@ jobs:
         with:
           source_file: ${{ steps.create-service-profile.outputs.service-profile-path }}
           destination_repo: 'monta-app/kube-manifests'
-          destination_folder: ${{ steps.create-service-profile.outputs.destination-path }}
+          destination_folder: ${{ steps.generate-commit-info.outputs.destination-path }}
           user_email: "action@github.com"
           user_name: "GitHub Action"
-          commit_message: 'chore: updated open API spec'
+          commit_message: ${{ steps.generate-commit-info.outputs.commit-message }}
