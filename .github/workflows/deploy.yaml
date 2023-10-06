@@ -42,6 +42,11 @@ on:
         type: string
         description: 'ID of slack channel to notify with build status. Default value is the "deployment" channel, only override in special cases.'
         default: "C01KL9FUPNK"
+      upload-open-api:
+        required: false
+        type: boolean
+        default: false
+        description: 'Upload open api specification to the kube manifests repository'
     secrets:
       GHL_USERNAME:
         required: true
@@ -71,7 +76,6 @@ permissions:
   actions: read # This is required for 8398a7/action-slack
 
 jobs:
-
   init_message:
     name: Sending first Slack message
     runs-on: ubuntu-latest
@@ -139,6 +143,105 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
+
+  update-open-api-spec:
+    if: ${{ inputs.upload-open-api }}
+    name: Update OpenAPI Spec
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'corretto'
+          java-version: '17'
+          cache: 'gradle'
+      - name: Install LinkerD CLI
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+      - name: Update Path with LinkerD CLI
+        shell: bash
+        run: |
+          echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
+      - name: Build Open API Spec
+        shell: bash
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -n "$GRADLE_MODULE" ]; then
+              ./gradlew $GRADLE_MODULE:kaptKotlin
+          else
+              ./gradlew kaptKotlin
+          fi
+      - name: Create service profile
+        id: create-service-profile
+        shell: bash
+        env:
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          # Hardcoded target directory
+          TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
+          
+          # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
+          if [ -n "$GRADLE_MODULE" ]; then
+              TARGET_DIR="${GRADLE_MODULE}/${TARGET_DIR}"
+          fi
+          
+          # Ensure the target directory exists
+          if [ ! -d "${TARGET_DIR}" ]; then
+              echo "Error: Target directory '${TARGET_DIR}' does not exist."
+              exit 1
+          fi
+          
+          cd $TARGET_DIR
+          
+          # Find the first .yml file in the target directory
+          YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
+          YML_FILE_NAME_WITH_EXTENSION=$(basename "$YML_FILE")
+          YML_FILE_NAME="${YML_FILE_NAME_WITH_EXTENSION%.*}"
+          
+          # Check if a .yml file was found and display the result or an error message
+          if [ -z "${YML_FILE}" ]; then
+              echo "No .yml file found in ${TARGET_DIR}."
+              exit 1
+          fi
+          
+          linkerd profile --ignore-cluster --open-api $YML_FILE $YML_FILE_NAME >> service-profile.yaml
+          
+          SERVICE_PROFILE=$(realpath service-profile.yaml)
+          echo "Service Profile path $SERVICE_PROFILE"
+          echo "service-profile-path=$SERVICE_PROFILE" >> "$GITHUB_OUTPUT"
+
+      - name: Generate commit info
+        id: generate-commit-info
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          DESTINATION_PATH="apps/${SERVICE_IDENTIFIER}/${STAGE}/app/templates"
+          echo "Destination path $DESTINATION_PATH"
+          echo "destination-path=$DESTINATION_PATH" >> "$GITHUB_OUTPUT"
+          COMMIT_MESSAGE="chore($SERVICE_IDENTIFIER): updated open API spec for $STAGE"
+          echo "Commit message $COMMIT_MESSAGE"
+          echo "commit-message=$COMMIT_MESSAGE" >> "$GITHUB_OUTPUT"
+      - name: Push service profile to repository
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.MANIFEST_REPO_PAT }}
+        with:
+          source_file: ${{ steps.create-service-profile.outputs.service-profile-path }}
+          destination_repo: 'monta-app/kube-manifests'
+          destination_folder: ${{ steps.generate-commit-info.outputs.destination-path }}
+          user_email: "action@github.com"
+          user_name: "GitHub Action"
+          commit_message: ${{ steps.generate-commit-info.outputs.commit-message }}
 
   build:
     name: Build
