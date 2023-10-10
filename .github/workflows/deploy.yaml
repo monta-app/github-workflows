@@ -184,6 +184,8 @@ jobs:
         shell: bash
         env:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
@@ -203,8 +205,7 @@ jobs:
           
           # Find the first .yml file in the target directory
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
-          YML_FILE_NAME_WITH_EXTENSION=$(basename "$YML_FILE")
-          YML_FILE_NAME="${YML_FILE_NAME_WITH_EXTENSION%.*}"
+          K8S_NAMESPACE="$SERVICE_IDENTIFIER-$STAGE"
           
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
@@ -212,7 +213,7 @@ jobs:
               exit 1
           fi
           
-          linkerd profile --ignore-cluster --open-api $YML_FILE $YML_FILE_NAME >> service-profile.yaml
+          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $K8S_NAMESPACE >> service-profile.yaml
           
           SERVICE_PROFILE=$(realpath service-profile.yaml)
           echo "Service Profile path $SERVICE_PROFILE"
