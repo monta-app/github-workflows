@@ -36,7 +36,7 @@ on:
         required: false
         type: string
         description: the version of the java docker image to build
-        default: "17.0.7"
+        default: "17.0.8"
       slack-channel-id:
         required: false
         type: string
