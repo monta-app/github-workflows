@@ -189,32 +189,31 @@ jobs:
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
-          
+
           # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
           if [ -n "$GRADLE_MODULE" ]; then
               TARGET_DIR="${GRADLE_MODULE}/${TARGET_DIR}"
           fi
-          
+
           # Ensure the target directory exists
           if [ ! -d "${TARGET_DIR}" ]; then
               echo "Error: Target directory '${TARGET_DIR}' does not exist."
               exit 1
           fi
-          
+
           cd $TARGET_DIR
-          
+
           # Find the first .yml file in the target directory
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
-          K8S_NAMESPACE="$SERVICE_IDENTIFIER-$STAGE"
-          
+
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
               echo "No .yml file found in ${TARGET_DIR}."
               exit 1
           fi
-          
-          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $K8S_NAMESPACE >> service-profile.yaml
-          
+
+          linkerd profile --ignore-cluster --open-api $YML_FILE >> service-profile.yaml
+
           SERVICE_PROFILE=$(realpath service-profile.yaml)
           echo "Service Profile path $SERVICE_PROFILE"
           echo "service-profile-path=$SERVICE_PROFILE" >> "$GITHUB_OUTPUT"
