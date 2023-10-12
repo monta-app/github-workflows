@@ -153,6 +153,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Check out manifest repository
+        uses: actions/checkout@master
+        with:
+          repository: monta-app/kube-manifests
+          path: 'kube-manifests'
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -205,6 +211,7 @@ jobs:
 
           # Find the first .yml file in the target directory
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
+          K8S_NAMESPACE=$(cat kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
@@ -212,7 +219,7 @@ jobs:
               exit 1
           fi
 
-          linkerd profile --ignore-cluster --open-api $YML_FILE >> service-profile.yaml
+          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $K8S_NAMESPACE >> service-profile.yaml
 
           SERVICE_PROFILE=$(realpath service-profile.yaml)
           echo "Service Profile path $SERVICE_PROFILE"
