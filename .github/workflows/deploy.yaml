@@ -157,7 +157,6 @@ jobs:
         uses: actions/checkout@master
         with:
           repository: monta-app/kube-manifests
-          path: 'kube-manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -213,10 +212,10 @@ jobs:
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
 
           # Read namesapce from config.yaml
-          K8S_NAMESPACE=$(cat kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
+          K8S_NAMESPACE=$(cat $GITHUB_WORKSPACE/kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
 
           # Read service name from values.yaml
-          SERVICE_NAME=$(cat kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/app/values.yaml | yq '.[] | select(key == "laravel" or key == "kotlin").fullnameOverride')
+          SERVICE_NAME=$(cat $GITHUB_WORKSPACE/kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/app/values.yaml | yq '.[] | select(key == "laravel" or key == "kotlin").fullnameOverride')
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
