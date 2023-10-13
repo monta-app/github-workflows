@@ -157,6 +157,7 @@ jobs:
         uses: actions/checkout@master
         with:
           repository: monta-app/kube-manifests
+          path: 'kube-manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -210,6 +211,11 @@ jobs:
 
           # Find the first .yml file in the target directory
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
+
+          # DEBUG
+          ls
+          pwd
+          ls $GITHUB_WORKSPACE
 
           # Read namesapce from config.yaml
           K8S_NAMESPACE=$(cat $GITHUB_WORKSPACE/kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
