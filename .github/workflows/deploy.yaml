@@ -143,22 +143,43 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
-
+  get-manifest-info:
+    if: ${{ inputs.upload-open-api }}
+    name: Get manifest information
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      service-namespace: ${{ steps.get-manifest-info.outputs.namespace }}
+      service-name: ${{ steps.get-manifest-info.outputs.service-name }}
+    steps:
+      - name: Check out manifest repository
+        uses: actions/checkout@v3
+        with:
+          repository: monta-app/kube-manifests
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Get manifest info
+        id: get-manifest-info
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          # Read namespace from config.yaml
+          K8S_NAMESPACE=$(cat apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
+          echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
+          # Read service name from values.yaml
+          SERVICE_NAME=$(cat apps/$SERVICE_IDENTIFIER/$STAGE/app/values.yaml | yq '.[] | select(key == "laravel" or key == "kotlin").fullnameOverride')
+          echo "service-name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
   update-open-api-spec:
     if: ${{ inputs.upload-open-api }}
     name: Update OpenAPI Spec
-    needs: [test]
+    needs: [ get-manifest-info ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Check out manifest repository
-        uses: actions/checkout@master
-        with:
-          repository: monta-app/kube-manifests
-          path: 'kube-manifests'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -190,8 +211,8 @@ jobs:
         shell: bash
         env:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
-          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
+          K8S_NAMESPACE: ${{ needs.get-manifest-info.outputs.service-namespace }}
+          SERVICE_NAME: ${{ needs.get-manifest-info.outputs.service-names }}
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
@@ -211,17 +232,6 @@ jobs:
 
           # Find the first .yml file in the target directory
           YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
-
-          # DEBUG
-          ls
-          pwd
-          ls $GITHUB_WORKSPACE
-
-          # Read namesapce from config.yaml
-          K8S_NAMESPACE=$(cat $GITHUB_WORKSPACE/kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
-
-          # Read service name from values.yaml
-          SERVICE_NAME=$(cat $GITHUB_WORKSPACE/kube-manifests/apps/$SERVICE_IDENTIFIER/$STAGE/app/values.yaml | yq '.[] | select(key == "laravel" or key == "kotlin").fullnameOverride')
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
@@ -268,8 +278,8 @@ jobs:
     strategy:
       matrix:
         runner-type:
-        - ubuntu-latest
-        - [self-hosted, linux, ARM64]
+          - ubuntu-latest
+          - [ self-hosted, linux, ARM64 ]
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
@@ -351,7 +361,7 @@ jobs:
 
   push-manifest-list:
     name: Push Manifest
-    needs: [build, test]
+    needs: [ build, test ]
     if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -483,7 +493,7 @@ jobs:
   update_build_fail:
     name: Update Slack message for build fail
     # needs init_message in order to get the message id, because build might not output one if fails
-    needs: [init_message, build]
+    needs: [ init_message, build ]
     if: failure()
     runs-on: ubuntu-latest
     timeout-minutes: 5
