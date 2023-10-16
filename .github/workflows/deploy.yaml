@@ -212,7 +212,7 @@ jobs:
         env:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
           K8S_NAMESPACE: ${{ needs.get-manifest-info.outputs.service-namespace }}
-          SERVICE_NAME: ${{ needs.get-manifest-info.outputs.service-names }}
+          SERVICE_NAME: ${{ needs.get-manifest-info.outputs.service-name }}
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
