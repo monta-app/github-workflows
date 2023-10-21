@@ -16,6 +16,9 @@ on:
       SLACK_APP_TOKEN:
         required: false
         description: "Slack app token (Optional, won't publish to slack if not present)"
+      CODECOV_TOKEN:
+        required: false
+        description: "CodeCov Secret Token"
 jobs:
   pr_title_checker:
     name: PR title checker
@@ -61,7 +64,7 @@ jobs:
             **/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
-      - name: add coverage to PR
+      - name: Add coverage to PR
         id: jacoco
         uses: madrapps/jacoco-report@v1.6.1
         with:
@@ -71,3 +74,8 @@ jobs:
           min-coverage-changed-files: 70
           title: Code Coverage ${{ inputs.gradle-module }}
           update-comment: true
+      - name: Upload coverage reports to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
