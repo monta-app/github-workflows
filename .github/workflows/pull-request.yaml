@@ -6,11 +6,6 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested"
-      sonar-cloud:
-        required: false
-        type: boolean
-        description: 'Does this project use sonar cloud?'
-        default: false
     secrets:
       GHL_USERNAME:
         required: true
@@ -21,9 +16,6 @@ on:
       SLACK_APP_TOKEN:
         required: false
         description: "Slack app token (Optional, won't publish to slack if not present)"
-      SONAR_TOKEN:
-        required: false
-        description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
   pr_title_checker:
     name: PR title checker
@@ -53,18 +45,11 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ ! -z "$SONAR_TOKEN" ]; then
-            EXTRA_ARGS='sonar --info'
-          else
-            EXTRA_ARGS=''
-          fi
-          
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon test $EXTRA_ARGS
+            ./gradlew --no-daemon test
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:test $EXTRA_ARGS
+            ./gradlew --no-daemon $GRADLE_MODULE:test
           fi
         shell: bash
       - name: Upload test results
