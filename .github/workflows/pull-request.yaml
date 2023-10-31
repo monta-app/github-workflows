@@ -6,6 +6,11 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested"
+      sonar-cloud:
+        required: false
+        type: boolean
+        description: 'Does this project use sonar cloud?'
+        default: false
     secrets:
       GHL_USERNAME:
         required: true
@@ -44,12 +49,18 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
+          SONAR_CLOUD_ENABLED: ${{ inputs.sonar-cloud }}
         run: |
-          if [ -z "$GRADLE_MODULE" ]
-          then
-            ./gradlew --no-daemon test -i
+          if [ ! -z "$SONAR_CLOUD_ENABLED" ]; then
+            EXTRA_ARGS='sonar --info'
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:test -i
+            EXTRA_ARGS=''
+          fi
+          
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew --no-daemon test $EXTRA_ARGS
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:test $EXTRA_ARGS
           fi
         shell: bash
       - name: Upload test results
