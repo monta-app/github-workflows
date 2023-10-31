@@ -69,9 +69,6 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
-      GITHUB_TOKEN:
-        required: false
-        description: "Github token (Required for publishing test results for sonar cloud)"
       SONAR_TOKEN:
         required: false
         description: "Sonar token (Optional, won't publish to sonar if not present)"
