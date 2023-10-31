@@ -69,6 +69,12 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+      GITHUB_TOKEN:
+        required: false
+        description: "Github token (Required for publishing test results for sonar cloud)"
+      SONAR_TOKEN:
+        required: false
+        description: "Sonar token (Optional, won't publish to sonar if not present)"
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -115,12 +121,19 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -z "$GRADLE_MODULE" ]
-          then
-            ./gradlew --no-daemon test
+          if [ ! -z "$SONAR_TOKEN" ]; then
+            EXTRA_ARGS='sonar --info'
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
+            EXTRA_ARGS=''
+          fi
+          
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew --no-daemon test $EXTRA_ARGS
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:test $EXTRA_ARGS
           fi
         shell: bash
       - name: Upload test results
