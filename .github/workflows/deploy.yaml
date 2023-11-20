@@ -348,8 +348,6 @@ jobs:
             latest=false
             prefix=
             suffix=
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v3
       - name: Build
         id: build
         uses: docker/build-push-action@v4
