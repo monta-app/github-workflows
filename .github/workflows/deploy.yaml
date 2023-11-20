@@ -283,6 +283,13 @@ jobs:
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
+      - name: Download curl
+        if: runner.arch == 'X64'
+        id: download-curl
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y curl
       - name: Publish progress message to slack
         if: runner.arch == 'X64'
         uses: monta-app/slack-notifier-cli-action@main
@@ -341,6 +348,8 @@ jobs:
             latest=false
             prefix=
             suffix=
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
       - name: Build
         id: build
         uses: docker/build-push-action@v4
