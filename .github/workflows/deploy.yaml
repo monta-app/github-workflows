@@ -278,8 +278,8 @@ jobs:
     strategy:
       matrix:
         runner-type:
-          - ubuntu-latest
-          - [ self-hosted, linux, ARM64 ]
+          - self-hosted-x64
+          - self-hosted-arm64
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
