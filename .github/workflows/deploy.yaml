@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           echo $ARM_BUILD
-          if [ $ARM_BUILD ]; then
+          if [ $ARM_BUILD = "true"]; then
             echo BUILDING ARM
           fi
   # matrix-prep-config:
