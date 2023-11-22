@@ -47,6 +47,11 @@ on:
         type: boolean
         default: false
         description: 'Upload open api specification to the kube manifests repository'
+      arm-build:
+        required: false
+        type: boolean
+        default: false
+        description: 'Build both an arm64 image in addition to the x64 image'
     secrets:
       GHL_USERNAME:
         required: true
@@ -76,6 +81,17 @@ permissions:
   actions: read # This is required for 8398a7/action-slack
 
 jobs:
+  matrix-prep-config:
+    runs-on: ubuntu-latest
+    steps:
+    - id: x64
+      run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
+    - id: arm64
+      if: ${{ inputs.arm-build == 'true' }}
+      run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
+    outputs:
+      runners: ${{ toJSON(steps.*.outputs.runner) }}
+
   init_message:
     name: Sending first Slack message
     runs-on: ubuntu-latest
@@ -97,7 +113,7 @@ jobs:
   test:
     name: Test
     needs: init_message
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-x64
     timeout-minutes: 30
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
@@ -272,14 +288,14 @@ jobs:
 
   build:
     name: Build
-    needs: init_message
-    runs-on: ${{ matrix.runner-type }} # Runs on both self-hosted arm64 as well as hosted amd64
+    needs:
+    - init_message
+    - matrix-prep-config
+    runs-on: ${{ matrix.runner-type }}
     timeout-minutes: 30
     strategy:
       matrix:
-        runner-type:
-          - self-hosted-x64
-          - self-hosted-arm64
+        runner-type: ${{ fromJSON(needs.matrix-prep-config.outputs.runners) }}
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
