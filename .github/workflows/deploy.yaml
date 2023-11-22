@@ -118,6 +118,13 @@ jobs:
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
+      - name: Download curl
+        if: runner.arch == 'X64'
+        id: download-curl
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y curl
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
