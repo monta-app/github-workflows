@@ -87,7 +87,7 @@ jobs:
     - id: x64
       run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
     - id: arm64
-      if: ${{ inputs.arm-build == 'true' }}
+      if: ${{ inputs.arm-build }}
       run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
     outputs:
       runners: ${{ toJSON(steps.*.outputs.runner) }}
