@@ -47,6 +47,11 @@ on:
         type: boolean
         default: false
         description: 'Upload open api specification to the kube manifests repository'
+      arm-build:
+        required: false
+        type: boolean
+        default: false
+        description: 'Build both an arm64 image in addition to the x64 image'
     secrets:
       GHL_USERNAME:
         required: true
@@ -76,6 +81,17 @@ permissions:
   actions: read # This is required for 8398a7/action-slack
 
 jobs:
+  matrix-prep-config:
+    runs-on: ubuntu-latest
+    steps:
+    - id: x64
+      run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
+    - id: arm64
+      if: ${{ inputs.arm-build }}
+      run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
+    outputs:
+      runners: ${{ toJSON(steps.*.outputs.runner) }}
+
   init_message:
     name: Sending first Slack message
     runs-on: ubuntu-latest
@@ -97,11 +113,17 @@ jobs:
   test:
     name: Test
     needs: init_message
-    runs-on: ubuntu-latest
+    runs-on: self-hosted-x64
     timeout-minutes: 30
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
+      - name: Download curl
+        id: download-curl
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y curl
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up JDK
@@ -272,17 +294,24 @@ jobs:
 
   build:
     name: Build
-    needs: init_message
-    runs-on: ${{ matrix.runner-type }} # Runs on both self-hosted arm64 as well as hosted amd64
+    needs:
+    - init_message
+    - matrix-prep-config
+    runs-on: ${{ matrix.runner-type }}
     timeout-minutes: 30
     strategy:
       matrix:
-        runner-type:
-          - ubuntu-latest
-          - [ self-hosted, linux, ARM64 ]
+        runner-type: ${{ fromJSON(needs.matrix-prep-config.outputs.runners) }}
     outputs:
       slack-message-id: ${{ needs.init_message.outputs.slack-message-id }}
     steps:
+      - name: Download curl
+        if: runner.arch == 'X64'
+        id: download-curl
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y curl
       - name: Publish progress message to slack
         if: runner.arch == 'X64'
         uses: monta-app/slack-notifier-cli-action@main
@@ -400,16 +429,27 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           SERVICE_NAME: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
+          ARM_BUILD: ${{ inputs.arm-build }}
         shell: bash
         run: |
           ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64
+
+          if [ $ARM_BUILD = "true" ]; then
+            docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
+            docker manifest annotate --arch arm64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64
+          else
+            docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
+          fi
           docker manifest annotate --arch amd64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
           docker manifest inspect $ECR_IMAGE_URL:${{ github.sha }}
           docker manifest push $ECR_IMAGE_URL:${{ github.sha }}
-          docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest annotate --arch arm64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64
+
+          if [ $ARM_BUILD = "true" ]; then
+            docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
+            docker manifest annotate --arch arm64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64
+          else
+            docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
+          fi
           docker manifest annotate --arch amd64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
           docker manifest inspect $ECR_IMAGE_URL:latest
           docker manifest push $ECR_IMAGE_URL:latest
