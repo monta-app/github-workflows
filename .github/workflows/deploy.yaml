@@ -493,7 +493,6 @@ jobs:
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
-          sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
           sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
