@@ -497,7 +497,7 @@ jobs:
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
         shell: bash
-        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
+        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}
         run: |
           # Update previousHash
           previousHash=$(yq e .currentHash config.yaml) yq e '.previousHash = env(previousHash)' -i config.yaml
