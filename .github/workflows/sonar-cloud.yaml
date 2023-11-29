@@ -33,7 +33,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          distribution: ${{ inputs.distribution }}
+          distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
       - name: Cache SonarCloud packages
