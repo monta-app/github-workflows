@@ -32,6 +32,14 @@ on:
         type: string
         default: "development"
         description: 'gradle module to be built'
+      java-distribution:
+        required: false
+        type: string
+        default: 'corretto'
+      java-version:
+        required: false
+        type: string
+        default: '17'
 
 jobs:
   it-tests:
@@ -63,8 +71,8 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          distribution: 'corretto'
-          java-version: '17'
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
           cache: 'gradle'
       - name: Test project
         env:
