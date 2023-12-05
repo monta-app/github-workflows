@@ -91,6 +91,9 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+      ARGOCD_TOKEN:
+        required: false
+        description: 'ArgoCD token'
 
 permissions:
   id-token: write # This is required for requesting the JWT
