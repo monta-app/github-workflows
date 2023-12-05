@@ -571,10 +571,12 @@ jobs:
           sudo chmod +x argocd
       - name: ArgoCD update application
         shell: bash
+        env:
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
         run: |
-          OLD_TAG=$(./argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params | grep image\.tag | awk '{print $2}')
-          ./argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }}
+          OLD_TAG=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params | grep image\.tag | awk '{print $2}')
+          ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
+          ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
