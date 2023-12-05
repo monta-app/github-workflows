@@ -62,10 +62,11 @@ on:
       push-to-manifests:
         required: false
         type: boolean
-        default: true
+        default: false
         description: 'If false, will use ArgoCD Updater instead of pushing to kube-manifests'
       argocd-server:
         required: false
+        default: 'argocd.staging.monta.app'
         type: string
         description: 'ArgoCD hostname'
     secrets:
