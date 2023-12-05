@@ -144,36 +144,36 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y curl
-      # - name: Checkout
-      #   uses: actions/checkout@v3
-      # - name: Set up JDK
-      #   uses: actions/setup-java@v3
-      #   with:
-      #     distribution: ${{ inputs.java-distribution }}
-      #     java-version: ${{ inputs.java-version }}
-      #     cache: 'gradle'
-      # - name: Test project
-      #   env:
-      #     GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      #     GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-      #     GRADLE_MODULE: ${{ inputs.gradle-module }}
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   run: |
-      #     if [ -z "$GRADLE_MODULE" ]; then
-      #       ./gradlew --no-daemon test
-      #     else
-      #       ./gradlew --no-daemon $GRADLE_MODULE:test
-      #     fi
-      #   shell: bash
-      # - name: Upload test results
-      #   if: always()
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: test-result
-      #     path: |
-      #       build/reports/tests/test
-      #       /home/runner/.gradle/daemon/**/daemon-*.out.log
-      #     retention-days: 2
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
+          cache: 'gradle'
+      - name: Test project
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew --no-daemon test
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:test
+          fi
+        shell: bash
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-result
+          path: |
+            build/reports/tests/test
+            /home/runner/.gradle/daemon/**/daemon-*.out.log
+          retention-days: 2
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
@@ -579,7 +579,7 @@ jobs:
         run: |
           OLD_TAG=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params | grep image\.tag | awk '{print $2}')
           ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }}
+          ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }} -p kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
