@@ -59,6 +59,15 @@ on:
         type: boolean
         default: false
         description: 'Build both an arm64 image in addition to the x64 image'
+      push-to-manifests:
+        required: false
+        type: boolean
+        default: true
+        description: 'If false, will use ArgoCD Updater instead of pushing to kube-manifests'
+      argocd-server:
+        required: false
+        type: string
+        description: 'ArgoCD hostname'
     secrets:
       GHL_USERNAME:
         required: true
@@ -473,8 +482,9 @@ jobs:
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.test.outputs.slack-message-id }}
 
-  deploy:
-    name: Deploy
+  deploy_by_push:
+    if: ${{ inputs.push-to-manifests }}
+    name: Deploy (push)
     needs: push-manifest-list
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -535,6 +545,46 @@ jobs:
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
+  deploy_by_argocd:
+    if: ${{ ! inputs.push-to-manifests }}
+    name: Deploy (ArgoCD)
+    needs: push-manifest-list
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish progress message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          job-type: "deploy"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-message-id: ${{ needs.push-manifest-list.outputs.slack-message-id }}
+      - name: Download ArgoCD CLI
+        shell: bash
+        run: |
+          curl -sSL -o /argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo chmod +x /argocd
+      - name: ArgoCD update application
+        shell: bash
+        run: |
+          OLD_TAG=$(/argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params | grep image\.tag | awk '{print $2}')
+          /argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
+          /argocd --auth-token ${{ secrets.ARGOCD_TOKEN }} --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }}
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: always()
+        with:
+          job-type: "deploy"
+          job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
   update_build_fail:
     name: Update Slack message for build fail
