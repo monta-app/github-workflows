@@ -364,7 +364,7 @@ jobs:
       - name: Install Teleport
         uses: teleport-actions/setup@v1
         with:
-          version: 14.1.0
+          version: 14.1.5
       - name: Authorize against Teleport
         uses: teleport-actions/auth-k8s@v2
         with:
