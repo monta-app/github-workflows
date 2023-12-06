@@ -91,9 +91,8 @@ on:
         required: true
         description: 'Slack app token'
       ARGOCD_TOKEN:
-        required: false
+        required: false # REQUIRED WHEN USING `upload-open-api`!!!
         description: 'ArgoCD token'
-
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -108,6 +107,7 @@ jobs:
     outputs:
       slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
       runners: ${{ toJSON(steps.*.outputs.runner) }}
+      service-cluster: ${{ steps.get-manifest-info.outputs.cluster }}
       service-namespace: ${{ steps.get-manifest-info.outputs.namespace }}
       service-name: ${{ steps.get-manifest-info.outputs.service-name }}
     steps:
@@ -142,6 +142,11 @@ jobs:
           fi
           curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo chmod +x argocd
+          K8S_CLUSTER=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.cluster')
+          if [ $K8S_CLUSTER == "main-prod" ]; then
+            export K8S_CLUSTER="main-production"
+          fi
+          echo "cluster=$K8S_CLUSTER" >> "$GITHUB_OUTPUT"
           K8S_NAMESPACE=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
           echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
           SERVICE_NAME=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
@@ -335,7 +340,7 @@ jobs:
   update-open-api-spec:
     if: ${{ inputs.upload-open-api }}
     name: Update OpenAPI Spec
-    needs: [ build, test ]
+    needs: [ init ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -351,6 +356,21 @@ jobs:
         shell: bash
         run: |
           curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+      - name: Install kubectl CLI
+        shell: bash
+        run: |
+          curl -LO https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl
+          sudo chmod +x kubectl
+      - name: Install Teleport
+        uses: teleport-actions/setup@v1
+        with:
+          version: 14.1.0
+      - name: Authorize against Teleport
+        uses: teleport-actions/auth-k8s@v2
+        with:
+          proxy: 'teleport.monta.app:443'
+          token: github-actions
+          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
       - name: Update Path with LinkerD CLI
         shell: bash
         run: |
@@ -372,8 +392,8 @@ jobs:
         shell: bash
         env:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
-          K8S_NAMESPACE: ${{ needs.get-manifest-info.outputs.service-namespace }}
-          SERVICE_NAME: ${{ needs.get-manifest-info.outputs.service-name }}
+          K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
+          SERVICE_NAME: ${{ needs.init.outputs.service-name }}
         run: |
           # Hardcoded target directory
           TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
@@ -402,34 +422,7 @@ jobs:
 
           linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
 
-          SERVICE_PROFILE=$(realpath service-profile.yaml)
-          echo "Service Profile path $SERVICE_PROFILE"
-          echo "service-profile-path=$SERVICE_PROFILE" >> "$GITHUB_OUTPUT"
-
-      - name: Generate commit info
-        id: generate-commit-info
-        shell: bash
-        env:
-          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-        run: |
-          DESTINATION_PATH="apps/${SERVICE_IDENTIFIER}/${STAGE}/app/templates"
-          echo "Destination path $DESTINATION_PATH"
-          echo "destination-path=$DESTINATION_PATH" >> "$GITHUB_OUTPUT"
-          COMMIT_MESSAGE="chore($SERVICE_IDENTIFIER): updated open API spec for $STAGE"
-          echo "Commit message $COMMIT_MESSAGE"
-          echo "commit-message=$COMMIT_MESSAGE" >> "$GITHUB_OUTPUT"
-      - name: Push service profile to repository
-        uses: dmnemec/copy_file_to_another_repo_action@main
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.MANIFEST_REPO_PAT }}
-        with:
-          source_file: ${{ steps.create-service-profile.outputs.service-profile-path }}
-          destination_repo: 'monta-app/kube-manifests'
-          destination_folder: ${{ steps.generate-commit-info.outputs.destination-path }}
-          user_email: "action@github.com"
-          user_name: "GitHub Action"
-          commit_message: ${{ steps.generate-commit-info.outputs.commit-message }}
+          kubectl -n $K8S_NAMESPACE apply -f service-profile.yaml
 
   push-manifest-list:
     name: Push Manifest
