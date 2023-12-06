@@ -127,12 +127,6 @@ jobs:
       - id: arm64
         if: ${{ inputs.arm-build }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
-      - name: Check out manifest repository
-        if: ${{ inputs.upload-open-api }}
-        uses: actions/checkout@v3
-        with:
-          repository: monta-app/kube-manifests
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Get manifest info
         id: get-manifest-info
         if: ${{ inputs.upload-open-api }}
@@ -140,12 +134,17 @@ jobs:
         env:
           SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
         run: |
-          # Read namespace from config.yaml
-          K8S_NAMESPACE=$(cat apps/$SERVICE_IDENTIFIER/$STAGE/cluster/config.yaml | yq '.namespace')
+          if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
+            echo "MUST INPUT ARGOCD_TOKEN SECRET"
+            exit 1
+          fi
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo chmod +x argocd
+          K8S_NAMESPACE=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
           echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
-          # Read service name from values.yaml
-          SERVICE_NAME=$(cat apps/$SERVICE_IDENTIFIER/$STAGE/app/values.yaml | yq '.[] | select(key == "laravel" or key == "kotlin").fullnameOverride')
+          SERVICE_NAME=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
           echo "service-name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
 
   test:
