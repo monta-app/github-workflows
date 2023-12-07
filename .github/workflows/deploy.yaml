@@ -206,6 +206,93 @@ jobs:
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
+  update-open-api-spec:
+    if: ${{ inputs.upload-open-api }}
+    name: Update OpenAPI Spec
+    needs: [ init, test, build ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
+          cache: 'gradle'
+      - name: Install LinkerD CLI
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+      - name: Install kubectl CLI
+        shell: bash
+        run: |
+          curl -LO https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl
+          sudo chmod +x kubectl
+      - name: Install Teleport
+        uses: teleport-actions/setup@v1
+        with:
+          version: 14.1.5
+      - name: Authorize against Teleport
+        uses: teleport-actions/auth-k8s@v2
+        with:
+          proxy: 'teleport.monta.app:443'
+          token: github-actions
+          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
+      - name: Update Path with LinkerD CLI
+        shell: bash
+        run: |
+          echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
+      - name: Build Open API Spec
+        shell: bash
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -n "$GRADLE_MODULE" ]; then
+              ./gradlew $GRADLE_MODULE:kaptKotlin
+          else
+              ./gradlew kaptKotlin
+          fi
+      - name: Create service profile
+        id: create-service-profile
+        shell: bash
+        env:
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+          K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
+          SERVICE_NAME: ${{ needs.init.outputs.service-name }}
+        run: |
+          # Hardcoded target directory
+          TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
+
+          # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
+          if [ -n "$GRADLE_MODULE" ]; then
+              TARGET_DIR="${GRADLE_MODULE}/${TARGET_DIR}"
+          fi
+
+          # Ensure the target directory exists
+          if [ ! -d "${TARGET_DIR}" ]; then
+              echo "Error: Target directory '${TARGET_DIR}' does not exist."
+              exit 1
+          fi
+
+          cd $TARGET_DIR
+
+          # Find the first .yml file in the target directory
+          YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
+
+          # Check if a .yml file was found and display the result or an error message
+          if [ -z "${YML_FILE}" ]; then
+              echo "No .yml file found in ${TARGET_DIR}."
+              exit 1
+          fi
+
+          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
+
+          kubectl -n $K8S_NAMESPACE apply -f service-profile.yaml
+
   build:
     name: Build
     needs: init
@@ -336,93 +423,6 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  update-open-api-spec:
-    if: ${{ inputs.upload-open-api }}
-    name: Update OpenAPI Spec
-    needs: [ init, test, build ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
-      - name: Install LinkerD CLI
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
-      - name: Install kubectl CLI
-        shell: bash
-        run: |
-          curl -LO https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl
-          sudo chmod +x kubectl
-      - name: Install Teleport
-        uses: teleport-actions/setup@v1
-        with:
-          version: 14.1.5
-      - name: Authorize against Teleport
-        uses: teleport-actions/auth-k8s@v2
-        with:
-          proxy: 'teleport.monta.app:443'
-          token: github-actions
-          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
-      - name: Update Path with LinkerD CLI
-        shell: bash
-        run: |
-          echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
-      - name: Build Open API Spec
-        shell: bash
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          if [ -n "$GRADLE_MODULE" ]; then
-              ./gradlew $GRADLE_MODULE:kaptKotlin
-          else
-              ./gradlew kaptKotlin
-          fi
-      - name: Create service profile
-        id: create-service-profile
-        shell: bash
-        env:
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-          K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
-          SERVICE_NAME: ${{ needs.init.outputs.service-name }}
-        run: |
-          # Hardcoded target directory
-          TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
-
-          # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
-          if [ -n "$GRADLE_MODULE" ]; then
-              TARGET_DIR="${GRADLE_MODULE}/${TARGET_DIR}"
-          fi
-
-          # Ensure the target directory exists
-          if [ ! -d "${TARGET_DIR}" ]; then
-              echo "Error: Target directory '${TARGET_DIR}' does not exist."
-              exit 1
-          fi
-
-          cd $TARGET_DIR
-
-          # Find the first .yml file in the target directory
-          YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
-
-          # Check if a .yml file was found and display the result or an error message
-          if [ -z "${YML_FILE}" ]; then
-              echo "No .yml file found in ${TARGET_DIR}."
-              exit 1
-          fi
-
-          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
-
-          kubectl -n $K8S_NAMESPACE apply -f service-profile.yaml
 
   push-manifest-list:
     name: Push Manifest
