@@ -584,7 +584,7 @@ jobs:
         env:
           ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
         run: |
-          OLD_TAG=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params | grep image\.tag | awk '{print $2}')
+          OLD_TAG=$(./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "image.tag").value')
           ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
           ./argocd --auth-token $ARGOCD_TOKEN --server ${{ inputs.argocd-server }} app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }} -p kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
