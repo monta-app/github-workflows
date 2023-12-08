@@ -163,14 +163,14 @@ jobs:
           fi
           curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo chmod +x argocd
-          K8S_CLUSTER=$(./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.cluster')
+          K8S_CLUSTER=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.cluster')
           if [ $K8S_CLUSTER == "main-prod" ]; then
             export K8S_CLUSTER="main-production"
           fi
           echo "cluster=$K8S_CLUSTER" >> "$GITHUB_OUTPUT"
-          K8S_NAMESPACE=$(./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
+          K8S_NAMESPACE=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
           echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
-          SERVICE_NAME=$(./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
+          SERVICE_NAME=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
           echo "service-name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -617,9 +617,9 @@ jobs:
           ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
           ARGOCD_SERVER: ${{ needs.init.outputs.argocd-server }}
         run: |
-          OLD_TAG=$(./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "image.tag").value')
-          ./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }} -p kotlin.image.tag=${GITHUB_SHA}
+          OLD_TAG=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "image.tag").value')
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }} -p kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
