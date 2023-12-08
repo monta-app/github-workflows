@@ -139,7 +139,7 @@ jobs:
           sudo apt update
           sudo apt install -y curl
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -191,7 +191,7 @@ jobs:
       service-name: ${{ steps.get-manifest-info.outputs.service-name }}
     steps:
       - name: Check out manifest repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: monta-app/kube-manifests
           token: ${{ secrets.MANIFEST_REPO_PAT }}
@@ -216,7 +216,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -336,7 +336,7 @@ jobs:
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
