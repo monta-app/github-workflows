@@ -131,7 +131,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
-            echo "MUST INPUT ARGOCD_TOKEN SECRET"
+            echo "::error::MUST INPUT ARGOCD_TOKEN SECRET"
             echo "ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION"
             exit 1
           fi
@@ -157,7 +157,7 @@ jobs:
           ARGOCD_SERVER: ${{ steps.set-argocd-server.outputs.argocd-hostname }}
         run: |
           if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
-            echo "MUST INPUT ARGOCD_TOKEN SECRET"
+            echo "::error::MUST INPUT ARGOCD_TOKEN SECRET"
             echo "ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION"
             exit 1
           fi
