@@ -163,7 +163,7 @@ jobs:
           fi
           curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo chmod +x argocd
-          K8S_CLUSTER=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.cluster')
+          K8S_CLUSTER=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.name')
           if [ $K8S_CLUSTER == "main-prod" ]; then
             export K8S_CLUSTER="main-production"
           fi
