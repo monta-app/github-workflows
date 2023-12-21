@@ -619,7 +619,7 @@ jobs:
         run: |
           OLD_TAG=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "kotlin.image.tag").value')
           ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -p kotlin.revision=${GITHUB_SHA::8} -p kotlin.build=${{ github.run_number }} -p kotlin.image.tag=${GITHUB_SHA}
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set kotlin.revision=${GITHUB_SHA::8} --helm-set kotlin.build=${{ github.run_number }} --helm-set kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
