@@ -1,0 +1,82 @@
+name: 'Docker, Java and Gradle setup and checkout'
+description: |
+  Prepares the Github Workflow for a repository with Kotlin/Gradle code, by installing and setting the Java version,
+  installing docker compose, authenticating docker for the Monta develop the ECR registry. It uses other 
+  Github Actions to install and validate the JVM and Gradle.
+
+inputs:
+#  aws-account-id:
+#    description: 'AWS account identifier (integer)'
+#    required: false
+#    default: '229494932364'
+  aws-region:
+    description: 'AWS region identifier (string) assume access in'
+    required: false
+    default: 'eu-west-1'
+#  aws-iam-role-to-assume:
+#    description: 'The IAM role to assume via STS'
+#    required: false
+#    default: 'ecr-put-image'
+  aws-access-key-id:
+    description: 'AWS Access Key ID.'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key.'
+    required: true
+  docker-registry-develop:
+    description: 'The Docker registry hostname for development environment'
+    required: false
+    default: ''
+  java-version:
+    description: 'Major version of Java to set as default.'
+    required: false
+    default: '17'
+  java-distribution:
+    description: 'The Java JVM distribution to install'
+    required: false
+    default: 'corretto'
+
+runs:
+  using: composite
+  steps:
+    - name: 'Set custom env variables'
+      shell: bash
+      run: |
+        echo "PR_NUMBER=${{ github.event.number }}" >> $GITHUB_ENV
+
+    - name: 'Set up Java Virtual Machine'
+      uses: actions/setup-java@v4
+      with:
+        distribution: ${{ inputs.java-distribution }}
+        java-version: ${{ inputs.java-version }}
+
+    - name: Install docker compose
+      uses: KengoTODA/actions-setup-docker-compose@v1
+      with:
+        version: 'latest'
+
+    - name: 'Configure AWS credentials via assumed role'
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ inputs.aws-region }}
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        # role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.aws-iam-role-to-assume }}
+
+    - name: 'Login to Amazon ECR'
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: 'Validate Gradle wrapper'
+      uses: gradle/wrapper-validation-action@342dbebe7272035434f9baccc29a816ec6dd2c7b
+
+    - name: 'Restore Cache - Gradle packages'
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ github.repository }}-${{ hashFiles('buildSrc/**/Dependencies.kt', '**/*.gradle*', '**/gradle.properties', '**/gradle-wrapper.properties', '**/settings.gradle*') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-${{ github.repository }}
+          ${{ runner.os }}-gradle-
