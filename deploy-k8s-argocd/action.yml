@@ -82,6 +82,6 @@ runs:
           --auth-token $ARGOCD_TOKEN \
           --server $ARGOCD_SERVER \
           app set argocd/${{ inputs.service-identifier }}-${{ inputs.environment }} \
-          -p kotlin.revision=${GITHUB_SHA::8} \
-          -p kotlin.build=${{ github.run_number }} \
-          -p kotlin.image.tag=${{ inputs.docker-image-tag }}
+          --helm-set kotlin.revision=${GITHUB_SHA::8} \
+          --helm-set kotlin.build=${{ github.run_number }} \
+          --helm-set kotlin.image.tag=${{ inputs.docker-image-tag }}
