@@ -387,7 +387,7 @@ jobs:
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
@@ -499,7 +499,7 @@ jobs:
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       - name: build-push-manifest
         id: build-container
         env:
