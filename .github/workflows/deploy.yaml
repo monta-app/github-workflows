@@ -153,7 +153,7 @@ jobs:
         env:
           SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
           STAGE: ${{ inputs.stage }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}z
           ARGOCD_SERVER: ${{ steps.set-argocd-server.outputs.argocd-hostname }}
         run: |
           if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
@@ -322,8 +322,8 @@ jobs:
           fi
 
           linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
-
-          kubectl -n $K8S_NAMESPACE apply -f service-profile.yaml
+          bash clean-service-profile.sh
+          kubectl -n $K8S_NAMESPACE apply -f service-profile-new.yaml
 
   build:
     name: Build
