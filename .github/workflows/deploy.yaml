@@ -342,6 +342,7 @@ jobs:
                 name: PUT [Default]
               - condition:
                   method: HEAD
+                name: HEAD [Default]
               - condition:
                   method: OPTIONS
                 name: OPTIONS [Default]
