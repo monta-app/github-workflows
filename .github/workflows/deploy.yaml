@@ -171,6 +171,11 @@ jobs:
           K8S_NAMESPACE=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
           echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
           SERVICE_NAME=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
+
+          if [ $SERVICE_NAME = "null" ]; then
+            SERVICE_NAME=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app"')
+          fi
+
           echo "service-name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
