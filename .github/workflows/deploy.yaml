@@ -281,6 +281,20 @@ jobs:
         shell: bash
         run: |
           echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
+      - name: Discover build properties
+        shell: bash
+        env:
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)')
+          if [ "$GRADLE_TASK" = "kaptKotlin" ]; then
+            OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
+          elif [ "$GRADLE_TASK" = "kspKotlin" ]; then
+            OUTPUT_DIR="build/generated/ksp/main/resources/META-INF/swagger"
+          fi
+
+          echo "GRADLE_TASK=${GRADLE_MODULE}:${GRADLE_TASK}" >> "$GITHUB_ENV"
+          echo "OPENAPI_OUTPUT_DIR=${OUTPUT_DIR}" >> "$GITHUB_ENV"
       - name: Build Open API Spec
         shell: bash
         env:
@@ -288,11 +302,7 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
-          if [ -n "$GRADLE_MODULE" ]; then
-              ./gradlew $GRADLE_MODULE:kaptKotlin
-          else
-              ./gradlew kaptKotlin
-          fi
+          ./gradlew $GRADLE_TASK
       - name: Create service profile
         id: create-service-profile
         shell: bash
@@ -301,13 +311,8 @@ jobs:
           K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
           SERVICE_NAME: ${{ needs.init.outputs.service-name }}
         run: |
-          # Hardcoded target directory
-          TARGET_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
-
           # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
-          if [ -n "$GRADLE_MODULE" ]; then
-              TARGET_DIR="${GRADLE_MODULE}/${TARGET_DIR}"
-          fi
+          TARGET_DIR="${GRADLE_MODULE:-.}/$OPENAPI_OUTPUT_DIR"
 
           # Ensure the target directory exists
           if [ ! -d "${TARGET_DIR}" ]; then
