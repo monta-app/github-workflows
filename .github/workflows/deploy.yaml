@@ -286,7 +286,7 @@ jobs:
         env:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
-          GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)')
+          GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)' | head -n1)
           if [ "$GRADLE_TASK" = "kaptKotlin" ]; then
             OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
           elif [ "$GRADLE_TASK" = "kspKotlin" ]; then
