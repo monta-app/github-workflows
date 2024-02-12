@@ -311,19 +311,10 @@ jobs:
           K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
           SERVICE_NAME: ${{ needs.init.outputs.service-name }}
         run: |
-          # Check if a gradle-module parameter is supplied and if so, prepend it to the target directory
-          TARGET_DIR="${GRADLE_MODULE:-.}/$OPENAPI_OUTPUT_DIR"
-
-          # Ensure the target directory exists
-          if [ ! -d "${TARGET_DIR}" ]; then
-              echo "Error: Target directory '${TARGET_DIR}' does not exist."
-              exit 1
-          fi
-
-          cd $TARGET_DIR
-
-          # Find the first .yml file in the target directory
-          YML_FILE=$(find . -type f -name '*.yml' | head -n 1)
+          # Find the generated spec
+          YML_FILE=$(find . -type f -name '*.yml' \
+            | grep "$OPENAPI_OUTPUT_DIR" \
+            | head -n1)
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
