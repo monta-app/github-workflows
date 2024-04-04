@@ -665,31 +665,14 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
-    // will run always for this service, after it has been deployed
-    if: ${{ !cancelled() && inputs.service-identifier == 'ocpp-gateway' && inputs.stage == 'dev' }}
+    if: ${{ inputs.service-identifier == 'ocpp-gateway' && inputs.stage == 'dev' }}
     name: Deploy OCPP Gateway
     needs:
     - init
-    - deploy_by_push
-    - deploy_by_argocd
+    - push-manifest-list
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Download ArgoCD CLI
-        shell: bash
-        run: |
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo chmod +x argocd
-      // because the "actual" deployment is done by the Infra Portal, we can safely sync the rest of the resources in argocd
-      // then we wait for them to sync before sending a POST request to the Infra Portal
-      - name: ArgoCD sync and wait for the application to syncapplication
-        shell: bash
-        env:
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          ARGOCD_SERVER: ${{ needs.init.outputs.argocd-server }}
-        run: |
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app sync ${{ inputs.service-identifier }}-${{ inputs.stage }} --async
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app wait ${{ inputs.service-identifier }}-${{ inputs.stage }} --timeout 120
       - name: send POST to Infra Portal
         // this still has some static values just to get the ball rolling, will be changed later
         run: |
