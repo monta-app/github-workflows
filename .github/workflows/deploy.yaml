@@ -674,6 +674,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: send POST to Infra Portal
-        // this still has some static values just to get the ball rolling, will be changed later
+        # this still has some static values just to get the ball rolling, will be changed later
         run: |
           curl -X POST -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": 2}' https://infra-portal.staging.monta.app/${{ needs.init.outputs.service-cluster }}/${{ needs.init.outputs.service-namespace }}/create-gateway-release
