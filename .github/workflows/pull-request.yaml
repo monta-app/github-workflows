@@ -27,6 +27,7 @@ on:
 jobs:
   pr_title_checker:
     name: PR title checker
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
