@@ -64,6 +64,10 @@ on:
         type: boolean
         default: true
         description: 'If false, will use ArgoCD Updater instead of pushing to kube-manifests'
+      ocpp-gateway-replicas:
+        required: false
+        type: number
+        default: 10
     secrets:
       GHL_USERNAME:
         required: true
@@ -89,6 +93,9 @@ on:
       ARGOCD_TOKEN:
         required: false # REQUIRED WHEN USING `upload-open-api`!!!
         description: 'ArgoCD token - should be set to ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION'
+      INFRA_PORTAL_TOKEN:
+        required: false
+        description: 'Infra Portal token'
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -101,6 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       argocd-token: ${{ secrets.ARGOCD_TOKEN }}
+      infra-portal-token: ${{ secrets.INFRA_PORTAL_TOKEN }}
     timeout-minutes: 5
     outputs:
       slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
@@ -109,6 +117,7 @@ jobs:
       service-namespace: ${{ steps.get-manifest-info.outputs.namespace }}
       service-name: ${{ steps.get-manifest-info.outputs.service-name }}
       argocd-server: ${{ steps.set-argocd-server.outputs.argocd-hostname }}
+      infra-portal-server: ${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}
     steps:
       - name: Publish progress message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -146,6 +155,17 @@ jobs:
             ARGOCD_HOSTNAME="argocd.monta.app"
           fi
           echo "argocd-hostname=$ARGOCD_HOSTNAME" >> "$GITHUB_OUTPUT"
+      - id: set-infra-portal-server
+        if: ${{ env.infra-portal-token != '' }}
+        env:
+          STAGE: ${{ inputs.stage }}
+        run: |
+          if [[ $STAGE =~ dev|staging ]]; then
+            INFRA_PORTAL_HOSTNAME="infra-portal.staging.monta.app"
+          else
+            INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
+          fi
+          echo "infra-portal-hostname=$INFRA_PORTAL_HOSTNAME" >> "$GITHUB_OUTPUT"
       - name: Get manifest info
         id: get-manifest-info
         if: ${{ inputs.upload-open-api }}
@@ -665,7 +685,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
-    if: ${{ inputs.service-identifier == 'ocpp-gateway' && inputs.stage == 'dev' }}
+    if: ${{ inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' }}
     name: Deploy OCPP Gateway
     needs:
     - init
@@ -676,4 +696,4 @@ jobs:
       - name: send POST to Infra Portal
         # this still has some static values just to get the ball rolling, will be changed later
         run: |
-          curl -X POST -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": 2}' https://infra-portal.staging.monta.app/${{ needs.init.outputs.service-cluster }}/${{ needs.init.outputs.service-namespace }}/create-gateway-release
+          curl -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/${{ needs.init.outputs.service-cluster }}/${{ needs.init.outputs.service-namespace }}/create-gateway-release
