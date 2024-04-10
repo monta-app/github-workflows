@@ -30,7 +30,7 @@ on:
       php-branch:
         required: false
         type: string
-        default: "development"
+        default: "staging"
         description: 'gradle module to be built'
       java-distribution:
         required: false
