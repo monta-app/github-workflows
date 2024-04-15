@@ -58,7 +58,22 @@ on:
         required: false
         type: boolean
         default: false
-        description: 'Build both an arm64 image in addition to the x64 image'
+        description: 'DEPRECATED: Build both an arm64 image in addition to the x64 image'
+      hosted-x64:
+        required: false
+        type: boolean
+        default: false
+        description: 'Builds a x64 image, on a github hosted runner x64 machine'
+      self-hosted-x64:
+        required: false
+        type: boolean
+        default: false
+        description: 'Builds a x64 image, on a self-hosted runner x64 machine'
+      self-hosted-arm64:
+        required: false
+        type: boolean
+        default: false
+        description: 'Builds a ARM image, on a self-hosted runner ARM machine'
       push-to-manifests:
         required: false
         type: boolean
@@ -121,9 +136,13 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
       # calculates whether should run also on arm
-      - id: x64
+      - id: hosted-x64
+        if: ${{ ! inputs.self-hosted }}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
-      - id: arm64
+      - id: self-hosted-x64
+        if: ${{ inputs.self-hosted }}
+        run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
+      - id: self-hosted-arm64
         if: ${{ inputs.arm-build }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
       - id: verify-argocd-token
