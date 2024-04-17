@@ -429,6 +429,11 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR Internal
+        id: login-ecr-internal
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registries: "229494932364"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
