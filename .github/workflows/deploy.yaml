@@ -314,6 +314,25 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
+      - name: Upload Open API Spec
+        shell: bash
+        env:
+          S3_AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
+          S3_AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
+        run: |
+          # Find the generated spec
+          YML_FILE=$(find . -type f -name '*.yml' \
+            | grep "$OPENAPI_OUTPUT_DIR" \
+            | head -n1)
+
+          # Check if a .yml file was found and display the result or an error message
+          if [ -z "${YML_FILE}" ]; then
+              echo "No .yml file found in ${TARGET_DIR}."
+              exit 1
+          fi 
+          # Print the yml file
+          echo ${YML_FILE}
+
       - name: Create service profile
         id: create-service-profile
         shell: bash
