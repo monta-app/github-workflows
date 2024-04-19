@@ -332,6 +332,7 @@ jobs:
           fi 
           # Print the yml file
           echo ${YML_FILE}
+          cat ${YML_FILE}
 
       - name: Create service profile
         id: create-service-profile
