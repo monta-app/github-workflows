@@ -292,6 +292,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: 'eu-west-1'
           AWS_DEFAULT_REGION: 'eu-west-1'
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' \
@@ -328,6 +329,8 @@ jobs:
           EndOfMessage
 
           echo "this is the key:${AWS_ACCESS_KEY_ID}"
+          echo "does this even work?:${GHL_USERNAME}"
+          echo "what the fuck?:${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}"
 
           echo "Uploading catalog file from:${output_file_path}"
           aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
