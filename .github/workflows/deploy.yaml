@@ -331,8 +331,28 @@ jobs:
               exit 1
           fi 
           # Print the yml file
-          echo ${YML_FILE}
-          cat ${YML_FILE}
+          echo "Now uploading to s3:${YML_FILE}"
+          spec_file=${YML_FILE}
+          service_name=${{ inputs.service-identifier }}
+          output_file="catalog_${service_name}_api.yaml"
+
+          spec=$(cat $spec_file)
+          # Build the final spec file
+          cat << EndOfMessage > ${output_file}
+          apiVersion: backstage.io/v1alpha1
+          kind: API
+          metadata:
+            name: ${service_name}
+          spec:
+            type: openapi
+            lifecycle: production
+            owner: sre
+            system: Platform
+            definition: |
+          $(cat $spec_file | sed 's/^/    /')
+          EndOfMessage
+
+          aws s3 cp ${output_file} s3://monta-tech-docs/api/
 
       - name: Create service profile
         id: create-service-profile
