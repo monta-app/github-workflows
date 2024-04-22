@@ -94,6 +94,13 @@ on:
       ARGOCD_TOKEN:
         required: false # REQUIRED WHEN USING `upload-open-api`!!!
         description: 'ArgoCD token - should be set to ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION'
+      TECHDOCS_AWS_ACCESS_KEY_ID:
+        required: false
+        description: 'TECHDOCS AWS access key id'
+      TECHDOCS_AWS_SECRET_ACCESS_KEY:
+        required: false
+        description: 'TECHDOCS AWS secret access key'
+          
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -274,18 +281,11 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v1
-      #   with:
-      #     aws-access-key-id: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-      #     aws-region: 'eu-west-1'
       - name: Upload Open API Spec to S3 backstage bucket pls
         shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: 'eu-west-1'
           AWS_REGION: 'eu-west-1'
         run: |
           # Find the generated spec
