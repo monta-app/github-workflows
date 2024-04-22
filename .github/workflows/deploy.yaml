@@ -223,6 +223,10 @@ jobs:
     needs: [ init, test ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: 'eu-west-1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -281,10 +285,10 @@ jobs:
       #     aws-region: 'eu-west-1'
       - name: Upload Open API Spec to S3 backstage bucket
         shell: bash
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: 'eu-west-1'
+        # env:
+        #   AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+        #   AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+        #   AWS_REGION: 'eu-west-1'
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' \
