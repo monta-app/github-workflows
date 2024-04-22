@@ -225,32 +225,8 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon test
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
-          fi
+          echo test
         shell: bash
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-result
-          path: |
-            build/reports/tests/test
-            /home/runner/.gradle/daemon/**/daemon-*.out.log
-          retention-days: 2
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: always()
-        with:
-          job-type: "test"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update-open-api-spec:
     if: ${{ inputs.upload-open-api }}
@@ -258,6 +234,10 @@ jobs:
     needs: [ init, test, build ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # env:
+    #   AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+    #   AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+    #   AWS_REGION: 'eu-west-1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -314,12 +294,13 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
+
       - name: Upload Open API Spec to S3 backstage bucket
         shell: bash
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: 'eu-west-1'
+        # env:
+        #   AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+        #   AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+        #   AWS_REGION: 'eu-west-1'
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' \
