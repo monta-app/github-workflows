@@ -94,12 +94,6 @@ on:
       ARGOCD_TOKEN:
         required: false # REQUIRED WHEN USING `upload-open-api`!!!
         description: 'ArgoCD token - should be set to ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION'
-      TECHDOCS_AWS_ACCESS_KEY_ID:
-        required: false
-        description: 'TECHDOCS AWS access key id'
-      TECHDOCS_AWS_SECRET_ACCESS_KEY:
-        required: false
-        description: 'TECHDOCS AWS secret access key'
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -320,50 +314,6 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
-          - name: Upload Open API Spec to S3 backstage bucket pls
-          shell: bash
-          env:
-            AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-            AWS_REGION: 'eu-west-1'
-            AWS_DEFAULT_REGION: 'eu-west-1'
-            GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          run: |
-            # Find the generated spec
-            YML_FILE=$(find . -type f -name '*.yml' \
-              | grep "$OPENAPI_OUTPUT_DIR" \
-              | head -n1)
-            # Check if a .yml file was found and display the result or an error message
-            if [ -z "${YML_FILE}" ]; then
-                echo "No .yml file found in ${TARGET_DIR}."
-                exit 1
-            fi 
-            # Print the yml file
-            echo "Building catalog file from:${YML_FILE}"
-            spec_file=${YML_FILE}
-            service_name=${{ inputs.service-identifier }}
-            output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
-            
-            spec=$(cat $spec_file)
-            # Build the final spec file
-            echo "Saving catalog file to ${output_file_path}"
-            cat << EndOfMessage > ${output_file_path}
-            apiVersion: backstage.io/v1alpha1
-            kind: API
-            metadata:
-              name: ${service_name}
-            spec:
-              type: openapi
-              lifecycle: production
-              owner: sre
-              system: Platform
-              definition: |
-            $(cat $spec_file | sed 's/^/    /')
-            EndOfMessage
-            echo "Uploading catalog file from:${output_file_path}"
-            aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
-            echo "Upload complete."
-      
       - name: Create service profile
         id: create-service-profile
         shell: bash
