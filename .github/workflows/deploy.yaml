@@ -223,10 +223,7 @@ jobs:
     needs: [ init, test ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: 'eu-west-1'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -289,6 +286,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: 'eu-west-1'
+          AWS_REGION: 'eu-west-1'
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' \
