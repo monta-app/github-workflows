@@ -245,12 +245,6 @@ jobs:
         uses: teleport-actions/setup@v1
         with:
           version: 14.1.5
-      - name: Authorize against Teleport
-        uses: teleport-actions/auth-k8s@v2
-        with:
-          proxy: 'teleport.monta.app:443'
-          token: github-actions
-          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
       - name: Update Path with LinkerD CLI
         shell: bash
         run: |
@@ -330,6 +324,12 @@ jobs:
           aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
           echo "Upload complete."
 
+      - name: Authorize against Teleport
+        uses: teleport-actions/auth-k8s@v2
+        with:
+          proxy: 'teleport.monta.app:443'
+          token: github-actions
+          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
       - name: Create service profile
         id: create-service-profile
         shell: bash
