@@ -314,7 +314,7 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
-      - name: Upload Open API Spec
+      - name: Upload Open API Spec to S3 backstage bucket
         shell: bash
         run: |
           # Find the generated spec
@@ -333,8 +333,10 @@ jobs:
           service_name=${{ inputs.service-identifier }}
           output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
 
+          
           spec=$(cat $spec_file)
           # Build the final spec file
+          echo "Saving catalog file to ${output_file_path}"
           cat << EndOfMessage > ${output_file_path}
           apiVersion: backstage.io/v1alpha1
           kind: API
