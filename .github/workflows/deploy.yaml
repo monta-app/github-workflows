@@ -316,9 +316,6 @@ jobs:
           ./gradlew $GRADLE_TASK
       - name: Upload Open API Spec
         shell: bash
-        env:
-          S3_AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
-          S3_AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' \
@@ -331,14 +328,14 @@ jobs:
               exit 1
           fi 
           # Print the yml file
-          echo "Now uploading to s3:${YML_FILE}"
+          echo "Building catalog file from:${YML_FILE}"
           spec_file=${YML_FILE}
           service_name=${{ inputs.service-identifier }}
-          output_file="catalog_${service_name}_api.yaml"
+          output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
 
           spec=$(cat $spec_file)
           # Build the final spec file
-          cat << EndOfMessage > ${output_file}
+          cat << EndOfMessage > ${output_file_path}
           apiVersion: backstage.io/v1alpha1
           kind: API
           metadata:
@@ -352,7 +349,9 @@ jobs:
           $(cat $spec_file | sed 's/^/    /')
           EndOfMessage
 
-          aws s3 cp ${output_file} s3://monta-tech-docs/api/
+          echo "Uploading catalog file from:${output_file_path}"
+          aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
+          echo "Upload complete."
 
       - name: Create service profile
         id: create-service-profile
