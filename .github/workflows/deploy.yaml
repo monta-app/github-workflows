@@ -322,7 +322,7 @@ jobs:
           $(cat $spec_file | sed 's/^/    /')
           EndOfMessage
 
-          env | grep -v AWS_SECRET_ACCESS_KEY
+          echo $AWS_ACCESS_KEY_ID
 
           echo "Uploading catalog file from:${output_file_path}"
           aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
