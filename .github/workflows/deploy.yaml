@@ -283,7 +283,7 @@ jobs:
       #     aws-access-key-id: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
       #     aws-secret-access-key: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
       #     aws-region: 'eu-west-1'
-      - name: Upload Open API Spec to S3 backstage bucket
+      - name: Upload Open API Spec to S3 backstage bucket pls
         shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
