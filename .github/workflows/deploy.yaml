@@ -321,7 +321,7 @@ jobs:
         run: |
           ./gradlew $GRADLE_TASK
       - name: Upload Open API Spec to S3 backstage bucket pls
-        if: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+        if: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID != '' }}
         shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
