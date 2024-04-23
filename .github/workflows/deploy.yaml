@@ -59,6 +59,11 @@ on:
         type: boolean
         default: false
         description: 'Build both an arm64 image in addition to the x64 image'
+      self-hosted:
+        required: false
+        type: boolean
+        default: false
+        description: 'Builds a x64 image, on a self-hosted runner x64 machine'
       push-to-manifests:
         required: false
         type: boolean
@@ -96,6 +101,12 @@ on:
       INFRA_PORTAL_TOKEN:
         required: false
         description: 'Infra Portal token'
+      TECHDOCS_AWS_ACCESS_KEY_ID:
+        required: false
+        description: 'TECHDOCS AWS access key id'
+      TECHDOCS_AWS_SECRET_ACCESS_KEY:
+        required: false
+        description: 'TECHDOCS AWS secret access key'
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -130,9 +141,13 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
       # calculates whether should run also on arm
-      - id: x64
+      - id: hosted-x64
+        if: ${{ ! inputs.self-hosted }}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
-      - id: arm64
+      - id: self-hosted-x64
+        if: ${{ inputs.self-hosted }}
+        run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
+      - id: self-hosted-arm64
         if: ${{ inputs.arm-build }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
       - id: verify-argocd-token
@@ -269,6 +284,8 @@ jobs:
     needs: [ init, test, build ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      techdocs_key: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -325,6 +342,50 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
+      - name: Upload Open API Spec to S3 backstage bucket pls
+        if: ${{ env.techdocs_key != '' }}
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: 'eu-west-1'
+          AWS_DEFAULT_REGION: 'eu-west-1'
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+        run: |
+          # Find the generated spec
+          YML_FILE=$(find . -type f -name '*.yml' \
+            | grep "$OPENAPI_OUTPUT_DIR" \
+            | head -n1)
+          # Check if a .yml file was found and display the result or an error message
+          if [ -z "${YML_FILE}" ]; then
+              echo "No .yml file found in ${TARGET_DIR}."
+              exit 1
+          fi
+          # Print the yml file
+          echo "Building catalog file from:${YML_FILE}"
+          spec_file=${YML_FILE}
+          service_name=${{ inputs.service-identifier }}
+          output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
+
+          spec=$(cat $spec_file)
+          # Build the final spec file
+          echo "Saving catalog file to ${output_file_path}"
+          cat << EndOfMessage > ${output_file_path}
+          apiVersion: backstage.io/v1alpha1
+          kind: API
+          metadata:
+            name: ${service_name}
+          spec:
+            type: openapi
+            lifecycle: production
+            owner: sre
+            system: Platform
+            definition: |
+          $(cat $spec_file | sed 's/^/    /')
+          EndOfMessage
+          echo "Uploading catalog file from:${output_file_path}"
+          aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
+          echo "Upload complete."
       - name: Create service profile
         id: create-service-profile
         shell: bash
@@ -345,7 +406,7 @@ jobs:
           fi
 
           linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
-          
+
           cat <<EOB >> clean-service-profiles.sh
           #!/bin/bash
           yq service-profile.yaml
@@ -374,7 +435,7 @@ jobs:
           EOB
 
           bash clean-service-profiles.sh
-          
+
           kubectl -n $K8S_NAMESPACE apply -f service-profile-new.yaml
 
   build:
@@ -440,6 +501,11 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR Internal
+        id: login-ecr-internal
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registries: "229494932364"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
@@ -614,7 +680,7 @@ jobs:
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
-          sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
+          sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
         shell: bash
@@ -671,7 +737,7 @@ jobs:
         run: |
           OLD_TAG=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "kotlin.image.tag").value')
           ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set kotlin.revision=${GITHUB_SHA::8} --helm-set kotlin.build=${{ github.run_number }} --helm-set kotlin.image.tag=${GITHUB_SHA}
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set-string kotlin.revision=${GITHUB_SHA::8} --helm-set kotlin.build=${{ github.run_number }} --helm-set-string kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
