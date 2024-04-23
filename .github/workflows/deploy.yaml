@@ -337,13 +337,13 @@ jobs:
           if [ -z "${YML_FILE}" ]; then
               echo "No .yml file found in ${TARGET_DIR}."
               exit 1
-          fi 
+          fi
           # Print the yml file
           echo "Building catalog file from:${YML_FILE}"
           spec_file=${YML_FILE}
           service_name=${{ inputs.service-identifier }}
           output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
-          
+
           spec=$(cat $spec_file)
           # Build the final spec file
           echo "Saving catalog file to ${output_file_path}"
@@ -383,7 +383,7 @@ jobs:
           fi
 
           linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
-          
+
           cat <<EOB >> clean-service-profiles.sh
           #!/bin/bash
           yq service-profile.yaml
@@ -412,7 +412,7 @@ jobs:
           EOB
 
           bash clean-service-profiles.sh
-          
+
           kubectl -n $K8S_NAMESPACE apply -f service-profile-new.yaml
 
   build:
@@ -657,7 +657,7 @@ jobs:
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
           sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
-          sed -i "s/revision: .*/revision: ${GITHUB_SHA::8}/" values.yaml
+          sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
         shell: bash
@@ -714,7 +714,7 @@ jobs:
         run: |
           OLD_TAG=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "kotlin.image.tag").value')
           ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set kotlin.revision=${GITHUB_SHA::8} --helm-set kotlin.build=${{ github.run_number }} --helm-set kotlin.image.tag=${GITHUB_SHA}
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set-string kotlin.revision="${GITHUB_SHA::8}" --helm-set kotlin.build=${{ github.run_number }} --helm-set-string kotlin.image.tag=${GITHUB_SHA}
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
