@@ -55,19 +55,31 @@ runs:
       with:
         version: 'latest'
 
-    - name: 'Configure AWS credentials via assumed role'
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Configure AWS credentials via assumed role
+      uses: aws-actions/configure-aws-credentials@v1
+      if: steps.secret-check.outputs.available == 'true'
       with:
-        aws-region: ${{ inputs.aws-region }}
-        aws-access-key-id: ${{ inputs.aws-access-key-id }}
-        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
-        # role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.aws-iam-role-to-assume }}
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+        role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+        aws-region: ${{ inputs.region }}
 
-    - name: 'Login to Amazon ECR'
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      if: steps.secret-check.outputs.available == 'false'
       with:
-        registries: "229494932364,974945904635"
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ inputs.region }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Login to Amazon ECR Internal
+      id: login-ecr-internal
+      uses: aws-actions/amazon-ecr-login@v1
+      with:
+        registries: "229494932364"
 
     - name: 'Validate Gradle wrapper'
       uses: gradle/wrapper-validation-action@342dbebe7272035434f9baccc29a816ec6dd2c7b
