@@ -141,6 +141,10 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
       # calculates whether should run also on arm
+      - name: print github event for debugging
+        shell: bash
+        run: |
+          cat $GITHUB_EVENT_PATH
       - id: hosted-x64
         if: ${{ ! inputs.self-hosted }}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
