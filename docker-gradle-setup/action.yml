@@ -66,6 +66,8 @@ runs:
     - name: 'Login to Amazon ECR'
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
+      with:
+        registries: "229494932364,974945904635"
 
     - name: 'Validate Gradle wrapper'
       uses: gradle/wrapper-validation-action@342dbebe7272035434f9baccc29a816ec6dd2c7b
