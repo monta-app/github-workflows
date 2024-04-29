@@ -5,18 +5,18 @@ description: |
   Github Actions to install and validate the JVM and Gradle.
 
 inputs:
-#  aws-account-id:
-#    description: 'AWS account identifier (integer)'
-#    required: false
-#    default: '229494932364'
+  aws-account-id:
+    description: 'AWS account identifier (integer)'
+    required: false
+    default: '229494932364'
   aws-region:
     description: 'AWS region identifier (string) assume access in'
     required: false
     default: 'eu-west-1'
-#  aws-iam-role-to-assume:
-#    description: 'The IAM role to assume via STS'
-#    required: false
-#    default: 'ecr-put-image'
+  aws-iam-role-to-assume:
+    description: 'The IAM role to assume via STS'
+    required: false
+    default: 'ecr-put-image'
   aws-access-key-id:
     description: 'AWS Access Key ID.'
     required: true
@@ -57,19 +57,17 @@ runs:
 
     - name: Configure AWS credentials via assumed role
       uses: aws-actions/configure-aws-credentials@v1
-      if: steps.secret-check.outputs.available == 'true'
       with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-        role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-        aws-region: ${{ inputs.region }}
+        role-to-assume: arn:aws:iam::974945904635:role/ecr-put-image
+        role-session-name: push-new-image-to-composite-action
+        aws-region: ${{ inputs.aws-region }}
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
-      if: steps.secret-check.outputs.available == 'false'
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ inputs.region }}
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
 
     - name: Login to Amazon ECR
       id: login-ecr
