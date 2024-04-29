@@ -342,7 +342,7 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           ./gradlew $GRADLE_TASK
-      - name: Upload Open API Spec to S3 backstage bucket pls
+      - name: Upload Open API Spec to S3 backstage bucket
         if: ${{ env.techdocs_key != '' }}
         shell: bash
         env:
