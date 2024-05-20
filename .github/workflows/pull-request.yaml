@@ -25,7 +25,7 @@ on:
         required: false
         description: "Slack app token (Optional, won't publish to slack if not present)"
       SONAR_TOKEN:
-        required: true
+        required: false
         description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
   pr_title_checker:
