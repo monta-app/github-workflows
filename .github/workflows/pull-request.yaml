@@ -97,14 +97,16 @@ jobs:
           title: Code Coverage ${{ inputs.gradle-module }}
           update-comment: true
       - name: Cache SonarCloud packages
-        if: ${{ secrets.SONAR_TOKEN == '' }}
+        if: ${{ env.SONAR_TOKEN == '' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         uses: actions/cache@v3
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Run Sonarqube
-        if: ${{ secrets.SONAR_TOKEN == '' }}
+        if: ${{ env.SONAR_TOKEN == '' }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
