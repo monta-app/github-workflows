@@ -14,10 +14,6 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested"
-      run-sonarqube:
-        required: false
-        type: boolean
-        default: false
     secrets:
       GHL_USERNAME:
         required: true
@@ -28,6 +24,9 @@ on:
       SLACK_APP_TOKEN:
         required: false
         description: "Slack app token (Optional, won't publish to slack if not present)"
+      SONAR_TOKEN:
+        required: true
+        description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
   pr_title_checker:
     name: PR title checker
@@ -70,18 +69,13 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
-          RUN_SONARQUBE: ${{ inputs.run-sonarqube }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            GRADLE_COMMAND="./gradlew --no-daemon test"
+            ./gradlew --no-daemon test
           else
-            GRADLE_COMMAND="./gradlew --no-daemon $GRADLE_MODULE:test"
+            ./gradlew --no-daemon $GRADLE_MODULE:test
           fi
-          if [ "$RUN_SONARQUBE" = "true" ]; then
-            GRADLE_COMMAND="$GRADLE_COMMAND sonarqube"
-          fi
-          eval $GRADLE_COMMAND
         shell: bash
       - name: Upload test results
         if: ${{ always() }}
@@ -102,3 +96,24 @@ jobs:
           min-coverage-changed-files: 70
           title: Code Coverage ${{ inputs.gradle-module }}
           update-comment: true
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v3
+        if: ${{ secrets.SONAR_TOKEN == '' }}
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Run Sonarqube
+        if: ${{ secrets.SONAR_TOKEN == '' }}
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew --no-daemon test
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:test
+          fi
+        shell: bash
