@@ -14,6 +14,10 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested"
+      run-sonarqube:
+        required: false
+        type: boolean
+        default: false
     secrets:
       GHL_USERNAME:
         required: true
@@ -48,7 +52,7 @@ jobs:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
-      - name: Test project
+      - name: Run linter
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -56,10 +60,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon build
+            ./gradlew --no-daemon ktlintCheck
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:build
+            ./gradlew --no-daemon $GRADLE_MODULE:ktlintCheck
           fi
+        shell: bash
+      - name: Test project
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+          RUN_SONARQUBE: ${{ inputs.run-sonarqube }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]; then
+            GRADLE_COMMAND="./gradlew --no-daemon test"
+          else
+            GRADLE_COMMAND="./gradlew --no-daemon $GRADLE_MODULE:test"
+          fi
+          if [ "$RUN_SONARQUBE" = "true" ]; then
+            GRADLE_COMMAND="$GRADLE_COMMAND sonarqube"
+          fi
+          eval $GRADLE_COMMAND
         shell: bash
       - name: Upload test results
         if: ${{ always() }}
