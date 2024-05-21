@@ -24,9 +24,6 @@ on:
       SLACK_APP_TOKEN:
         required: false
         description: "Slack app token (Optional, won't publish to slack if not present)"
-      SONAR_TOKEN:
-        required: false
-        description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
   pr_title_checker:
     name: PR title checker
@@ -96,22 +93,3 @@ jobs:
           min-coverage-changed-files: 70
           title: Code Coverage ${{ inputs.gradle-module }}
           update-comment: true
-      - name: Cache SonarCloud packages
-        if: ${{ env.SONAR_TOKEN != '' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        uses: actions/cache@v3
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-      - name: Run Sonarqube
-        if: ${{ env.SONAR_TOKEN != '' }}
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          ./gradlew --no-daemon sonar
-        shell: bash
