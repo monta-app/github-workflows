@@ -150,16 +150,16 @@ jobs:
         if: ${{ ! inputs.self-hosted }}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
       - id: self-hosted-x64
-        if: ${{ inputs.self-hosted && !more-power  }}
+        if: ${{ inputs.self-hosted && !inputs.more-power  }}
         run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
       - id: self-hosted-arm64
-        if: ${{ inputs.arm-build && !more-power }}
+        if: ${{ inputs.arm-build && !inputs.more-power }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
       - id: self-hosted-x64-2xl
-        if: ${{ inputs.self-hosted && more-power  }}
+        if: ${{ inputs.self-hosted && inputs.more-power  }}
         run: echo "runner=self-hosted-x64-2xl" >> $GITHUB_OUTPUT
       - id: self-hosted-arm64-2xl
-        if: ${{ inputs.arm-build && more-power }}
+        if: ${{ inputs.arm-build && inputs.more-power }}
         run: echo "runner=self-hosted-arm64-2xl" >> $GITHUB_OUTPUT
       - id: verify-argocd-token
         if: ${{ ! inputs.push-to-manifests }}
