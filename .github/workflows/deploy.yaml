@@ -266,9 +266,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon test
+            ./gradlew --no-daemon test --parallel
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
+            ./gradlew --no-daemon $GRADLE_MODULE:test --parallel
           fi
         shell: bash
       - name: Upload test results
