@@ -64,6 +64,11 @@ on:
         type: boolean
         default: false
         description: 'Builds a x64 image, on a self-hosted runner x64 machine'
+      more-power:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enables use of a more powerful machine (8 cores, 16 GB RAM) to speed up builds.'
       push-to-manifests:
         required: false
         type: boolean
@@ -150,6 +155,9 @@ jobs:
       - id: self-hosted-arm64
         if: ${{ inputs.arm-build }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
+      - id: self-hosted-more-power
+        if: ${{ inputs.more-power }}
+        run: echo "${{ env.runner }}-2xl" >> $GITHUB_ENV
       - id: verify-argocd-token
         if: ${{ ! inputs.push-to-manifests }}
         shell: bash
