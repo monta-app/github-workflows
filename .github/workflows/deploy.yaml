@@ -64,6 +64,11 @@ on:
         type: boolean
         default: false
         description: 'Builds a x64 image, on a self-hosted runner x64 machine'
+      more-power:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enables use of a more powerful machine (8 cores, 32 GB RAM) to speed up builds.'
       push-to-manifests:
         required: false
         type: boolean
@@ -145,11 +150,17 @@ jobs:
         if: ${{ ! inputs.self-hosted }}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
       - id: self-hosted-x64
-        if: ${{ inputs.self-hosted }}
+        if: ${{ inputs.self-hosted && !inputs.more-power  }}
         run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
       - id: self-hosted-arm64
-        if: ${{ inputs.arm-build }}
+        if: ${{ inputs.arm-build && !inputs.more-power }}
         run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
+      - id: self-hosted-x64-2xl
+        if: ${{ inputs.self-hosted && inputs.more-power  }}
+        run: echo "runner=self-hosted-x64-2xl" >> $GITHUB_OUTPUT
+      - id: self-hosted-arm64-2xl
+        if: ${{ inputs.arm-build && inputs.more-power }}
+        run: echo "runner=self-hosted-arm64-2xl" >> $GITHUB_OUTPUT
       - id: verify-argocd-token
         if: ${{ ! inputs.push-to-manifests }}
         shell: bash
@@ -227,8 +238,11 @@ jobs:
   test:
     name: Test
     needs: init
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner-type }}
     timeout-minutes: 30
+    strategy:
+      matrix:
+        runner-type: ${{ fromJSON(needs.init.outputs.runners) }}
     steps:
       - name: Download curl
         id: download-curl
