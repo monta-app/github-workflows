@@ -68,7 +68,7 @@ on:
         required: false
         type: boolean
         default: false
-        description: 'Enables use of a more powerful machine (8 cores, 16 GB RAM) to speed up builds.'
+        description: 'Enables use of a more powerful machine (8 cores, 32 GB RAM) to speed up builds.'
       push-to-manifests:
         required: false
         type: boolean
