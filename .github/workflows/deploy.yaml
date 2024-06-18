@@ -488,7 +488,7 @@ jobs:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
       - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v1
+        uses: gradle/wrapper-validation-action@v3
       - name: Check for secret.AWS_ACCOUNT_ID availability
         id: secret-check
         shell: bash
