@@ -71,7 +71,7 @@ runs:
       uses: gradle/wrapper-validation-action@342dbebe7272035434f9baccc29a816ec6dd2c7b
 
     - name: 'Restore Cache - Gradle packages'
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.gradle/caches

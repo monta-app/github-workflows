@@ -20,7 +20,7 @@ runs:
 
     # Save cache for the build to speed up later builds
     - name: 'Save Cache - Gradle packages'
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: |
           ~/.gradle/caches
