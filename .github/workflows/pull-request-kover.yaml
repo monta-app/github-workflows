@@ -1,0 +1,95 @@
+name: Pull Request (with Kover)
+on:
+  workflow_call:
+    inputs:
+      action-runner:
+        required: false
+        type: string
+        description: "Runner to use for the job"
+        default: 'ubuntu-latest'
+      java-distribution:
+        required: false
+        type: string
+        default: 'corretto'
+      java-version:
+        required: false
+        type: string
+        default: '17'
+    secrets:
+      GHL_USERNAME:
+        required: true
+        description: "Github Username (Gradle plugin)"
+      GHL_PASSWORD:
+        required: true
+        description: "Github Password (Gradle plugin)"
+jobs:
+  pr_title_checker:
+    name: PR title checker
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: Slashgear/action-check-pr-title@v4
+        with:
+          regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
+          helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
+  test:
+    name: Test & Analyze
+    runs-on: ${{ inputs.action-runner }}
+    timeout-minutes: 30
+    steps:
+      # Check out the code
+      - uses: actions/checkout@v4
+        with:
+          # to check out the actual pull request commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      # Set up JDK
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
+          cache: 'gradle'
+      # Cache SonarCloud packages
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      # Run our tests with coverage
+      - name: Run test with coverage
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+        run: ./gradlew test koverXmlReport koverHtmlReport --parallel
+      # Upload test results
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-result
+          path: |
+            ${{ github.workspace }}/build/reports/kover
+            **/reports/tests/test
+            /home/runner/.gradle/daemon/**/daemon-*.out.log
+          retention-days: 2
+      # Upload results to SonarCloud
+      - name: Upload results to SonarCloud
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew sonar
+      # Add code coverage to PR
+      - name: Add coverage report to PR
+        uses: mi-kas/kover-report@v1
+        with:
+          path: ${{ github.workspace }}/build/reports/kover/report.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Code Coverage
+          update-comment: true
+          min-coverage-overall: 60
+          min-coverage-changed-files: 60
+          coverage-counter-type: LINE
