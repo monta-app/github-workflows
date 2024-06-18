@@ -22,6 +22,9 @@ on:
       GHL_PASSWORD:
         required: true
         description: "Github Password (Gradle plugin)"
+      SONAR_TOKEN:
+        required: true
+        description: "SonarCloud token"
 jobs:
   pr_title_checker:
     name: PR title checker
