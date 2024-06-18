@@ -684,7 +684,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out manifest repository
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
         with:
           repository: monta-app/kube-manifests
           path: 'manifests'
