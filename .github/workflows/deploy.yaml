@@ -514,10 +514,10 @@ jobs:
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       - name: Login to Amazon ECR Internal
         id: login-ecr-internal
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
         with:
           registries: "229494932364"
       - name: Docker meta
@@ -631,7 +631,7 @@ jobs:
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
       - name: build-push-manifest
         id: build-container
         env:
