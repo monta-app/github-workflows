@@ -27,7 +27,7 @@ on:
         description: "SonarCloud token"
 jobs:
   pr_title_checker:
-    name: PR title checker
+    name: Check PR title
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -37,7 +37,7 @@ jobs:
           regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
           helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
   test:
-    name: Test & Analyze
+    name: Test with code coverage
     runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
     steps:
@@ -62,7 +62,7 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       # Run our tests with coverage
-      - name: Run test with coverage
+      - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
