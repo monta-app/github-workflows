@@ -58,7 +58,7 @@ runs:
 
     - name: 'Docker Build'
       id: docker-build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         # For now, the local "load" does not support multiple platforms (manifests).
         # platforms: ${{ inputs.platforms }}
