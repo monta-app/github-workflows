@@ -66,7 +66,7 @@ jobs:
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-        run: ./gradlew test koverXmlReport koverHtmlReport --parallel
+        run: ./gradlew test --parallel
       # Upload test results
       - name: Upload test results
         if: ${{ always() }}

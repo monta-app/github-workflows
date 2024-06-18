@@ -2,6 +2,11 @@ name: Sonar Cloud Analysis
 on:
   workflow_call:
     inputs:
+      action-runner:
+        required: false
+        type: string
+        description: "Runner to use for the job"
+        default: 'ubuntu-latest'
       java-distribution:
         required: false
         type: string
@@ -23,7 +28,7 @@ on:
 jobs:
   sonar-cloud:
     name: Sonar Cloud Analysis
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +47,6 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-          restore-keys: ${{ runner.os }}-gradle
       - name: Build and analyze
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
