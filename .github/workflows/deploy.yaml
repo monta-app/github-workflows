@@ -522,7 +522,7 @@ jobs:
           registries: "229494932364"
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
           tags: |
