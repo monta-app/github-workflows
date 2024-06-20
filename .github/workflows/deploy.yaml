@@ -280,6 +280,7 @@ jobs:
             build/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+          overwrite: true
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()

@@ -78,6 +78,7 @@ jobs:
             **/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+          overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
         env:
