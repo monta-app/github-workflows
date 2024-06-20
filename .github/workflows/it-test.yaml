@@ -97,3 +97,4 @@ jobs:
             ./${{ inputs.tested-project-folder }}/**/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+          overwrite: true
