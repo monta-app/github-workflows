@@ -83,6 +83,7 @@ jobs:
             **/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
+          overwrite: true
       - name: add coverage to PR
         id: jacoco
         uses: madrapps/jacoco-report@v1.6.1
