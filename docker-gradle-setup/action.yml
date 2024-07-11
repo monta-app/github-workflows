@@ -68,7 +68,7 @@ runs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: 'Validate Gradle wrapper'
-      uses: gradle/actions/wrapper-validation@v3
+      uses: gradle/actions/wrapper-validation@88425854a36845f9c881450d9660b5fd46bee142
 
     - name: 'Restore Cache - Gradle packages'
       uses: actions/cache/restore@v4
