@@ -49,6 +49,7 @@ runs:
       with:
         distribution: ${{ inputs.java-distribution }}
         java-version: ${{ inputs.java-version }}
+        cache: 'gradle'
 
     - name: Install docker compose
       uses: KengoTODA/actions-setup-docker-compose@v1
@@ -69,14 +70,3 @@ runs:
 
     - name: 'Validate Gradle wrapper'
       uses: gradle/actions/wrapper-validation@87bf5ca2eab41bc2978d93f6cb0603c36a44fd08
-
-    - name: 'Restore Cache - Gradle packages'
-      uses: actions/cache/restore@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ github.repository }}-${{ hashFiles('buildSrc/**/Dependencies.kt', '**/*.gradle*', '**/gradle.properties', '**/gradle-wrapper.properties', '**/settings.gradle*') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-${{ github.repository }}
-          ${{ runner.os }}-gradle-

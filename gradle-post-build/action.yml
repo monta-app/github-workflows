@@ -10,23 +10,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # Remove some files from the Gradle cache, so they aren't cached by GitHub Actions.
-    # Restoring these files from a GitHub Actions cache might cause problems for future builds.
-    - name: 'Cleanup Gradle Cache'
-      shell: bash
-      run: |
-        rm -f ~/.gradle/caches/modules-2/modules-2.lock
-        rm -f ~/.gradle/caches/modules-2/gc.properties
-
-    # Save cache for the build to speed up later builds
-    - name: 'Save Cache - Gradle packages'
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ github.repository }}-${{ hashFiles('buildSrc/**/Dependencies.kt', '**/*.gradle*', '**/gradle-wrapper.properties') }}
-
     - name: 'Publish Test Report'
       uses: mikepenz/action-junit-report@v4
       if: success() || failure()
