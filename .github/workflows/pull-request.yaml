@@ -24,6 +24,11 @@ on:
         type: string
         default: 'jacoco'
         description: "Coverage tool [jacoco|kover]"
+      sonarcloud:
+        required: false
+        type: boolean
+        default: false
+        description: "Upload report to SonarCloud (SONAR_TOKEN must be set)"
     secrets:
       GHL_USERNAME:
         required: true
@@ -41,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: Slashgear/action-check-pr-title@v4.3.0
+      - uses: Slashgear/action-check-pr-title@v4
         with:
           regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
           helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
@@ -51,7 +56,7 @@ jobs:
     timeout-minutes: 30
     env:
       # set the gradle tasks based on the coverage tool
-      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && '$inputs.gradle-module:koverXmlReport $inputs.gradle-module:koverHtmlReport' || '$inputs.gradle-module:test' }}
+      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && format('{0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) || format('{0}:test', inputs.gradle-module) }}
     steps:
       # Checkout
       - name: Checkout
@@ -69,14 +74,14 @@ jobs:
           cache: 'gradle'
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
-#        if: ${{ secrets.SONAR_TOKEN }}
+        if: inputs.sonarcloud
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       # Run tests with coverage
-      - name: Run tests with coverage ${{ inputs.coverage-tool }}
+      - name: Run tests with coverage (${{ inputs.coverage-tool }})
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -91,7 +96,7 @@ jobs:
         shell: bash
       # Upload test results
       - name: Upload test results
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-result
@@ -103,12 +108,12 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
- #       if: ${{ secrets.SONAR_TOKEN }}
+        if: inputs.sonarcloud
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
+        run: ./gradlew --no-daemon sonar
       # Add code coverage to PR (jacoco)
       - name: Add code coverage to PR (jacoco)
         if: ${{ inputs.coverage-tool == 'jacoco' }}
