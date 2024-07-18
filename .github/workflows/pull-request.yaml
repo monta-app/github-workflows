@@ -55,8 +55,8 @@ jobs:
     runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
     env:
-      # set the gradle tasks based on the coverage tool
-      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && format('{0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) || format('{0}:test', inputs.gradle-module) }}
+      # set the gradle tasks based on the coverage tool and respecting any gradle-module used as input
+      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) || format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }}
     steps:
       # Checkout
       - name: Checkout
@@ -85,14 +85,8 @@ jobs:
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon ktlintCheck ${{ env.GRADLE_TASKS }} --parallel
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:ktlintCheck $GRADLE_MODULE:${{ env.GRADLE_TASKS }} --parallel
-          fi
+        run: ./gradlew --no-daemon ${{ env.GRADLE_TASKS }} --parallel
         shell: bash
       # Upload test results
       - name: Upload test results
