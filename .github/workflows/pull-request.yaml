@@ -69,7 +69,7 @@ jobs:
           cache: 'gradle'
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
-        if: ${{ secrets.SONAR_TOKEN }}
+#        if: ${{ secrets.SONAR_TOKEN }}
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -98,9 +98,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon ${{ GRADLE_TASKS }} --parallel
+            ./gradlew --no-daemon ${{ env.GRADLE_TASKS }} --parallel
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:${{ GRADLE_TASKS }} --parallel
+            ./gradlew --no-daemon $GRADLE_MODULE:${{ env.GRADLE_TASKS }} --parallel
           fi
         shell: bash
       # Upload test results
@@ -117,7 +117,7 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
-        if: ${{ secrets.SONAR_TOKEN }}
+ #       if: ${{ secrets.SONAR_TOKEN }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
