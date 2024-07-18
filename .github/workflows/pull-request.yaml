@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 30
     env:
       # set the gradle tasks based on the coverage tool
-      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && 'koverXmlReport koverHtmlReport' || 'test' }}
+      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && '$inputs.gradle-module:koverXmlReport $inputs.gradle-module:koverHtmlReport' || '$inputs.gradle-module:test' }}
     steps:
       # Checkout
       - name: Checkout
@@ -75,20 +75,6 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      # Run linter
-      - name: Run linter
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon ktlintCheck
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:ktlintCheck
-          fi
-        shell: bash
       # Run tests with coverage
       - name: Run tests with coverage ${{ inputs.coverage-tool }}
         env:
@@ -98,9 +84,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon ${{ env.GRADLE_TASKS }} --parallel
+            ./gradlew --no-daemon ktlintCheck ${{ env.GRADLE_TASKS }} --parallel
           else
-            ./gradlew --no-daemon $GRADLE_MODULE:${{ env.GRADLE_TASKS }} --parallel
+            ./gradlew --no-daemon $GRADLE_MODULE:ktlintCheck $GRADLE_MODULE:${{ env.GRADLE_TASKS }} --parallel
           fi
         shell: bash
       # Upload test results
@@ -123,8 +109,8 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./gradlew sonar
-      # Add code coverage to PR
-      - name: add code coverage to PR (jacoco)
+      # Add code coverage to PR (jacoco)
+      - name: Add code coverage to PR (jacoco)
         if: ${{ inputs.coverage-tool == 'jacoco' }}
         id: jacoco
         uses: madrapps/jacoco-report@v1.6.1
@@ -135,7 +121,7 @@ jobs:
           min-coverage-overall: 70
           min-coverage-changed-files: 70
           update-comment: true
-      # Add code coverage to PR
+      # Add code coverage to PR (kover)
       - name: Add code coverage to PR (kover)
         if: ${{ inputs.coverage-tool == 'kover' }}
         uses: mi-kas/kover-report@v1
@@ -147,7 +133,8 @@ jobs:
           min-coverage-changed-files: 70
           update-comment: true
           coverage-counter-type: LINE
-      - name: Publish Test Results
+      # Publish test results
+      - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
