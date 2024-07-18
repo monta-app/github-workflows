@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 30
     env:
       # set the gradle tasks based on the coverage tool
-      GRADLE_TASKS: ${{ coverage-tool == 'kover' && 'koverXmlReport koverHtmlReport' || 'test' }}
+      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && 'koverXmlReport koverHtmlReport' || 'test' }}
     steps:
       # Checkout
       - name: Checkout
@@ -69,7 +69,7 @@ jobs:
           cache: 'gradle'
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
-        if: ${{ SONAR_TOKEN }}
+        if: ${{ secrets.SONAR_TOKEN }}
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -90,7 +90,7 @@ jobs:
           fi
         shell: bash
       # Run tests with coverage
-      - name: Run tests with coverage ${{ coverage-tool }}
+      - name: Run tests with coverage ${{ inputs.coverage-tool }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -117,7 +117,7 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
-        if: ${{ SONAR_TOKEN }}
+        if: ${{ secrets.SONAR_TOKEN }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -125,7 +125,7 @@ jobs:
         run: ./gradlew sonar
       # Add code coverage to PR
       - name: add code coverage to PR (jacoco)
-        if: ${{ coverage-tool == 'jacoco' }}
+        if: ${{ inputs.coverage-tool == 'jacoco' }}
         id: jacoco
         uses: madrapps/jacoco-report@v1.6.1
         with:
@@ -137,7 +137,7 @@ jobs:
           update-comment: true
       # Add code coverage to PR
       - name: Add code coverage to PR (kover)
-        if: ${{ coverage-tool == 'kover' }}
+        if: ${{ inputs.coverage-tool == 'kover' }}
         uses: mi-kas/kover-report@v1
         with:
           title: Code Coverage ${{ inputs.gradle-module }}
