@@ -2,11 +2,6 @@ name: Publish TechDocs Site
 
 on:
   workflow_call:
-    inputs:
-      repository-name:
-        required: true
-        type: string
-        description: 'Name of your repository'
     secrets:
       TECHDOCS_AWS_ACCESS_KEY_ID:
         required: true
@@ -27,7 +22,7 @@ jobs:
       AWS_REGION: 'eu-west-1'
       ENTITY_NAMESPACE: 'default'
       ENTITY_KIND: 'Component'
-      ENTITY_NAME: ${{ inputs.repository-name }}
+      ENTITY_NAME: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout code
