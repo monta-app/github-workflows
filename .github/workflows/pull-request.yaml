@@ -1,7 +1,12 @@
-name: Build and test
+name: Build and test (Jacoco)
 on:
   workflow_call:
     inputs:
+      action-runner:
+        required: false
+        type: string
+        description: "Runner to use for the job"
+        default: 'ubuntu-latest'
       java-distribution:
         required: false
         type: string
@@ -13,7 +18,12 @@ on:
       gradle-module:
         required: false
         type: string
-        description: "Name of the gradle module being tested"
+        description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
+      sonarcloud:
+        required: false
+        type: boolean
+        default: false
+        description: "Upload report to SonarCloud (SONAR_TOKEN must be set)"
     secrets:
       GHL_USERNAME:
         required: true
@@ -21,63 +31,59 @@ on:
       GHL_PASSWORD:
         required: true
         description: "Github Password (Gradle plugin)"
-      SLACK_APP_TOKEN:
+      SONAR_TOKEN:
         required: false
-        description: "Slack app token (Optional, won't publish to slack if not present)"
+        description: "SonarCloud token"
 jobs:
   pr_title_checker:
-    name: PR title checker
+    name: Check PR title
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: Slashgear/action-check-pr-title@v4.3.0
+      - uses: Slashgear/action-check-pr-title@v4
         with:
           regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
           helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test with code coverage
+    runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
     steps:
+      # Checkout
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # to check out the actual pull request commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      # Set up JDK
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
-      - name: Run linter
+      # Cache SonarCloud packages
+      - name: Cache SonarCloud packages
+        if: inputs.sonarcloud
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      # Run tests with coverage
+      - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon ktlintCheck
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:ktlintCheck
-          fi
+        # set the gradle tasks respecting any gradle-module used as input
+        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }} --parallel
         shell: bash
-      - name: Test project
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon test
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:test
-          fi
-        shell: bash
+      # Upload test results
       - name: Upload test results
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-result
@@ -86,17 +92,26 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
           overwrite: true
-      - name: add coverage to PR
-        id: jacoco
+      # Upload results to SonarCloud
+      - name: Upload results to SonarCloud
+        if: inputs.sonarcloud
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew --no-daemon sonar
+      # Add code coverage to PR
+      - name: Add code coverage to PR
         uses: madrapps/jacoco-report@v1.6.1
         with:
+          title: Code Coverage ${{ inputs.gradle-module }}
           paths: ${{ github.workspace }}/**/jacocoTestReport.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 70
           min-coverage-changed-files: 70
-          title: Code Coverage ${{ inputs.gradle-module }}
           update-comment: true
-      - name: Publish Test Results
+      # Publish test results
+      - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
