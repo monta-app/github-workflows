@@ -1,12 +1,19 @@
 name: Publish TechDocs Site
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "mkdocs.yml"
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      repository-name:
+        required: true
+        type: string
+        description: 'just put github.event.repository.name'
+    secrets:
+      TECHDOCS_AWS_ACCESS_KEY_ID:
+        required: true
+        description: 'TECHDOCS AWS access key id'
+      TECHDOCS_AWS_SECRET_ACCESS_KEY:
+        required: true
+        description: 'TECHDOCS AWS secret access key'
 
 
 jobs:
