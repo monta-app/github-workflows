@@ -6,7 +6,7 @@ on:
       repository-name:
         required: true
         type: string
-        description: 'just put github.event.repository.name'
+        description: 'Name of your repository'
     secrets:
       TECHDOCS_AWS_ACCESS_KEY_ID:
         required: true
