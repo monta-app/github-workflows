@@ -1,4 +1,4 @@
-name: Build and test
+name: Build and test (Jacoco)
 on:
   workflow_call:
     inputs:
@@ -19,11 +19,6 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
-      coverage-tool:
-        required: false
-        type: string
-        default: 'jacoco'
-        description: "Coverage tool [jacoco|kover]"
       sonarcloud:
         required: false
         type: boolean
@@ -54,9 +49,6 @@ jobs:
     name: Test with code coverage
     runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
-    env:
-      # set the gradle tasks based on the coverage tool and respecting any gradle-module used as input
-      GRADLE_TASKS: ${{ inputs.coverage-tool == 'kover' && format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) || format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }}
     steps:
       # Checkout
       - name: Checkout
@@ -81,12 +73,13 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       # Run tests with coverage
-      - name: Run tests with coverage (${{ inputs.coverage-tool }})
+      - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew --no-daemon ${{ env.GRADLE_TASKS }} --parallel
+        # set the gradle tasks respecting any gradle-module used as input
+        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }} --parallel
         shell: bash
       # Upload test results
       - name: Upload test results
@@ -95,7 +88,6 @@ jobs:
         with:
           name: test-result
           path: |
-            ${{ github.workspace }}/build/reports/kover
             **/reports/tests/test
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
@@ -108,10 +100,8 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./gradlew --no-daemon sonar
-      # Add code coverage to PR (jacoco)
-      - name: Add code coverage to PR (jacoco)
-        if: ${{ inputs.coverage-tool == 'jacoco' }}
-        id: jacoco
+      # Add code coverage to PR
+      - name: Add code coverage to PR
         uses: madrapps/jacoco-report@v1.6.1
         with:
           title: Code Coverage ${{ inputs.gradle-module }}
@@ -120,18 +110,6 @@ jobs:
           min-coverage-overall: 70
           min-coverage-changed-files: 70
           update-comment: true
-      # Add code coverage to PR (kover)
-      - name: Add code coverage to PR (kover)
-        if: ${{ inputs.coverage-tool == 'kover' }}
-        uses: mi-kas/kover-report@v1
-        with:
-          title: Code Coverage ${{ inputs.gradle-module }}
-          path: ${{ github.workspace }}/build/reports/kover/report.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
-          min-coverage-overall: 70
-          min-coverage-changed-files: 70
-          update-comment: true
-          coverage-counter-type: LINE
       # Publish test results
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2

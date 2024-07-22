@@ -1,4 +1,4 @@
-name: Pull Request (with Kover)
+name: Build and test (Kover)
 on:
   workflow_call:
     inputs:
@@ -15,6 +15,15 @@ on:
         required: false
         type: string
         default: '17'
+      gradle-module:
+        required: false
+        type: string
+        description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
+      sonarcloud:
+        required: false
+        type: boolean
+        default: false
+        description: "Upload report to SonarCloud (SONAR_TOKEN must be set)"
     secrets:
       GHL_USERNAME:
         required: true
@@ -23,7 +32,7 @@ on:
         required: true
         description: "Github Password (Gradle plugin)"
       SONAR_TOKEN:
-        required: true
+        required: false
         description: "SonarCloud token"
 jobs:
   pr_title_checker:
@@ -32,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: Slashgear/action-check-pr-title@v4.3.0
+      - uses: Slashgear/action-check-pr-title@v4
         with:
           regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
           helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
@@ -41,8 +50,9 @@ jobs:
     runs-on: ${{ inputs.action-runner }}
     timeout-minutes: 30
     steps:
-      # Check out the code
-      - uses: actions/checkout@v4
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           # to check out the actual pull request commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha }}
@@ -56,20 +66,24 @@ jobs:
           cache: 'gradle'
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
+        if: inputs.sonarcloud
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      # Run our tests with coverage
+      # Run tests with coverage
       - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-        run: ./gradlew test koverXmlReport koverHtmlReport --parallel
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # set the gradle tasks respecting any gradle-module used as input
+        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) }} --parallel
+        shell: bash
       # Upload test results
       - name: Upload test results
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-result
@@ -81,19 +95,29 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
+        if: inputs.sonarcloud
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
+        run: ./gradlew --no-daemon sonar
       # Add code coverage to PR
-      - name: Add coverage report to PR
+      - name: Add code coverage to PR
         uses: mi-kas/kover-report@v1
         with:
+          title: Code Coverage ${{ inputs.gradle-module }}
           path: ${{ github.workspace }}/build/reports/kover/report.xml
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: Code Coverage
+          min-coverage-overall: 70
+          min-coverage-changed-files: 70
           update-comment: true
-          min-coverage-overall: 60
-          min-coverage-changed-files: 60
           coverage-counter-type: LINE
+      # Publish test results
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            **/build/test-results/**/*.xml
+            **/build/test-results/**/*.trx
+            **/build/test-results/**/*.json
