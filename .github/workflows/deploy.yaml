@@ -181,6 +181,14 @@ jobs:
             ARGOCD_HOSTNAME="argocd.monta.app"
           fi
           echo "argocd-hostname=$ARGOCD_HOSTNAME" >> "$GITHUB_OUTPUT"
+      - id: verify-infra-portal-token
+        if: ${{ inputs.service-identifier == 'ocpp-gateway' }}
+        shell: bash
+        run: |
+          if [ "${{ secrets.INFRA_PORTAL_TOKEN }}" == '' ]; then
+            echo "::error::MUST INPUT INFRA_PORTAL_TOKEN SECRET"
+            exit 1
+          fi
       - id: set-infra-portal-server
         if: ${{ env.infra-portal-token != '' }}
         env:
@@ -777,4 +785,4 @@ jobs:
       - name: send POST to Infra Portal
         # this still has some static values just to get the ball rolling, will be changed later
         run: |
-          curl -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/${{ needs.init.outputs.service-cluster }}/${{ needs.init.outputs.service-namespace }}/create-gateway-release
+          curl -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/ocpp-${{ inputs.stage }}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release
