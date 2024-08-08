@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
+      gradle-parallel-tests:
+        required: false
+        type: boolean
+        default: true
+        description: "Run gradle tests in parallel"
       sonarcloud:
         required: false
         type: boolean
@@ -79,7 +84,7 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # set the gradle tasks respecting any gradle-module used as input
-        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }} --parallel
+        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
         shell: bash
       # Upload test results
       - name: Upload test results
