@@ -182,7 +182,7 @@ jobs:
           fi
           echo "argocd-hostname=$ARGOCD_HOSTNAME" >> "$GITHUB_OUTPUT"
       - id: verify-infra-portal-token
-        if: ${{ inputs.service-identifier == 'ocpp-gateway' }}
+        if: ${{ inputs.service-identifier == 'ocpp-gateway' || inputs.push-to-manifests == false }}
         shell: bash
         run: |
           if [ "${{ secrets.INFRA_PORTAL_TOKEN }}" == '' ]; then
@@ -757,10 +757,24 @@ jobs:
         env:
           ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
           ARGOCD_SERVER: ${{ needs.init.outputs.argocd-server }}
+        run: >
+          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }}
+          --helm-set-string kotlin.revision=${GITHUB_SHA::8}
+          --helm-set kotlin.build=${{ github.run_number }}
+          --helm-set-string kotlin.image.tag=${GITHUB_SHA}
+          --helm-set-string static.revision=${GITHUB_SHA::8}
+          --helm-set static.build=${{ github.run_number }}
+          --helm-set-string static.image.tag=${GITHUB_SHA}
+      - name: Update Infra Portal
+        shell: bash
         run: |
-          OLD_TAG=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --show-params -o yaml | yq -e=0 '.spec.source.helm.parameters[] | select(.name == "kotlin.image.tag").value')
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app patch ${{ inputs.service-identifier }}-${{ inputs.stage }} --patch='[{"op": "replace", "path": "/spec/info/0", "value": {"name": "Source Code Diff", "value": "'"https://github.com/${{ github.repository }}/compare/${OLD_TAG::8}...${GITHUB_SHA::8}"'"}}]'
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} --helm-set-string kotlin.revision=${GITHUB_SHA::8} --helm-set kotlin.build=${{ github.run_number }} --helm-set-string kotlin.image.tag=${GITHUB_SHA}
+          response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Accept: application/json" -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" --data '{"name": "'"${{ inputs.service-identifier }}-${{ inputs.stage }}"'", "tag": "'"${GITHUB_SHA}"'"}' https://${{ needs.init.outputs.infra-portal-server }}/deploy/webhook)
+          if [[ $response_code != "200" ]]; then
+            echo "::error::$(cat resp_body.txt)"
+            exit 1
+          else
+            cat resp_body.txt
+          fi
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
