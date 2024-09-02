@@ -799,7 +799,12 @@ jobs:
       - name: send POST to Infra Portal
         # this still has some static values just to get the ball rolling, will be changed later
         run: |
-          response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/ocpp-${{ inputs.stage }}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
+          if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
+            cluster=staging
+          else
+            cluster=production
+          fi
+          response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
           if [[ $response_code != "200" ]]; then
             echo "::error::$(cat resp_body.txt)"
             exit 1
