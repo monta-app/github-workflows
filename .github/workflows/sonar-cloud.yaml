@@ -47,6 +47,13 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+      - name: Inspect gradle tasks
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+        run: |
+          COVERAGE_TASK=$(./gradlew :tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
+          echo "COVERAGE_TASK=${COVERAGE_TASK}" >> "$GITHUB_ENV"
       - name: Build and analyze
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -54,4 +61,4 @@ jobs:
           # Needed to get PR information, if any
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew check sonar
+        run: ./gradlew check $COVERAGE_TASK sonar
