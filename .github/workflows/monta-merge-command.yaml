@@ -1,0 +1,51 @@
+name: Pull Request Commands to auto-merge PRs to staging or production branch
+
+on:
+  workflow_call:
+    outputs:
+      base_branch:
+        description: "The base branch that the workflow merged to. Used to determine subsequent deployment actions."
+        value: ${{ jobs.monta-merge.outputs.base_branch }}
+
+jobs:
+  monta-merge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/monta-merge') }}
+    outputs:
+      base_branch: ${{ steps.get-branch.outputs.base_branch }}
+    steps:
+    - name: Get branch names of PR
+      id: get-branch
+      env:
+        REPO: ${{ github.repository }}
+        PR_NO: ${{ github.event.issue.number }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        export PR_DATA=$(gh pr view $PR_NO --repo $REPO --json headRefName,baseRefName,mergeable)
+        echo head_branch=$(jq -nr "$PR_DATA | .headRefName") >> "$GITHUB_OUTPUT"
+        echo base_branch=$(jq -nr "$PR_DATA | .baseRefName") >> "$GITHUB_OUTPUT"
+        echo mergeable=$(jq -nr "$PR_DATA | .mergeable") >> "$GITHUB_OUTPUT"
+
+    - name: Check out base branch
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ steps.get-branch.outputs.base_branch }}
+
+    - name: Merge changes
+      # Only develop -> staging or staging -> production
+      if: | 
+        ${{ steps.get-branch.outputs.mergeable == 'MERGEABLE' && 
+          (
+            (steps.get-branch.outputs.head_branch == 'develop' 
+              && steps.get-branch.outputs.base_branch == 'staging') || 
+            (steps.get-branch.outputs.head_branch == 'staging' 
+              && steps.get-branch.outputs.base_branch == 'production')
+          ) 
+        }}
+      env:
+        HEAD_BRANCH: ${{ steps.get-branch.outputs.head_branch }}
+        BASE_BRANCH: ${{ steps.get-branch.outputs.base_branch }}
+      run: |
+        git merge --ff-only origin/$HEAD_BRANCH
+        git push origin $BASE_BRANCH

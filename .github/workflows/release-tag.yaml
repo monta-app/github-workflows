@@ -1,0 +1,41 @@
+name: Auto-create the release tag
+
+on:
+  workflow_call:
+    outputs:
+      tag_exists:
+        description: "Indicates whether a tag already exists for the latest commit."
+        value: ${{ jobs.create-tag.outputs.tag_exists }}
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag_exists: ${{ steps.check-tag.outputs.tag_exists }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if the latest commit is already tagged
+        id: check-tag
+        run: |
+          git fetch --tags
+          if git describe --exact-match --tags $(git rev-parse HEAD); then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create the release tag
+        if: steps.check-tag.outputs.tag_exists == 'false'
+        run: |
+          TAG_NAME=$(date -u +%Y-%m-%d-%H-%M)
+          TAG_MESSAGE="Release $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a "$TAG_NAME" -m "$TAG_MESSAGE"
+          git push origin "$TAG_NAME"
