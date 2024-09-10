@@ -1,0 +1,29 @@
+name: Auto-create PR to promote develop to staging
+
+on:
+  workflow_call:
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  REPO: ${{github.repository}}
+
+jobs:
+  auto_create_pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto create staging PR if it does not exist
+        run: |
+          OPEN_PR=$(gh pr view develop --repo $REPO --jq 'select(.state == "OPEN" and .baseRefName == "staging")' --json number,state,baseRefName || echo "")
+
+          if [ -z "$OPEN_PR" ]; then
+            TITLE='release: staging'
+            BODY='Update staging with latest changes from develop. Approve this PR and merge it by commenting `/monta-merge`.'
+            gh pr create \
+              --repo $REPO \
+              --base staging \
+              --head develop \
+              --title "$TITLE" \
+              --body "$BODY"
+          else
+            echo "PR already exists"
+          fi
