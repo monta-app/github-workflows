@@ -10,7 +10,6 @@ on:
 jobs:
   monta-merge:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/monta-merge') }}
     outputs:
       base_branch: ${{ steps.get-branch.outputs.base_branch }}
     steps:
