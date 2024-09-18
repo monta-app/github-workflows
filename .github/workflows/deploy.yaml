@@ -145,10 +145,13 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
-      # calculates whether should run also on arm
+      # calculates runner, including whether it should also run on arm
       - id: hosted-x64
-        if: ${{ ! inputs.self-hosted }}
+        if: ${{ !inputs.self-hosted && !inputs.more-power}}
         run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
+      - id: hosted-x64-xl
+        if: ${{ !inputs.self-hosted && inputs.more-power}}
+        run: echo "runner=linux-x64-xl" >> $GITHUB_OUTPUT
       - id: self-hosted-x64
         if: ${{ inputs.self-hosted && !inputs.more-power  }}
         run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
