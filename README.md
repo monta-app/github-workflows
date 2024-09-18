@@ -79,7 +79,7 @@ jobs:
   trigger-staging-deploy:
     needs: monta-merge
     if: ${{ needs.monta-merge.outputs.base_branch == 'staging' }}
-    # change this to your deploy workflow
+    # Update this to your deployment workflow, and ensure it runs on workflow_call
     uses: ./.github/workflows/deploy_staging.yaml 
     secrets: inherit
 
@@ -97,7 +97,7 @@ jobs:
 
   trigger-production-deploy:
     needs: trigger-production-tag-release
-    # change this to your deploy workflow
+    # Update this to your deployment workflow, and ensure it runs on workflow_call
     uses: ./.github/workflows/deploy_production.yaml
     if: ${{ needs.trigger-production-tag-release.outputs.tag_exists == 'false' }}
     secrets: inherit
