@@ -494,6 +494,21 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Ensure commit belongs to release branch
+        if: ${{ inputs.stage == 'production' }}
+        run: |
+          # Fetch release branch candidates (! to allow non-existence)
+          ! git fetch origin master
+          ! git fetch origin main
+
+          # Check which branches contain the current HEAD (! to allow no grep matches)
+          ! IS_MAIN=$(git branch -r --contains HEAD --format '%(refname)' | grep -E '^refs/remotes/origin/(master|main)$')
+
+          # Fail if no matches
+          if [ -z "$IS_MAIN" ]; then
+            echo "Deployed ref is not part of release branch. Use main/master for production deploys."
+            exit 1
+          fi
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
