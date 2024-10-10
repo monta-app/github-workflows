@@ -388,10 +388,10 @@ jobs:
               exit 1
           fi
           # Print the yml file
-          echo "Building catalog file from:${YML_FILE}"
+          echo "Building catalog file from: ${YML_FILE}"
           spec_file=${YML_FILE}
           service_name=${{ inputs.service-identifier }}
-          output_file_path="$OPENAPI_OUTPUT_DIR/catalog_${service_name}_api.yaml"
+          output_file_path="catalog_${service_name}_api.yaml"
 
           spec=$(cat $spec_file)
           # Build the final spec file
@@ -409,7 +409,7 @@ jobs:
             definition: |
           $(cat $spec_file | sed 's/^/    /')
           EndOfMessage
-          echo "Uploading catalog file from:${output_file_path}"
+          echo "Uploading catalog file from: ${output_file_path}"
           aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
           echo "Upload complete."
       - name: Create service profile
