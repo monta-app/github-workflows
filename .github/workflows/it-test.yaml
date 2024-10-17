@@ -59,6 +59,10 @@ jobs:
           mode: "services"
           profiles: "app,identity"
           aws-account-id: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
+      - name: Run PHP migrations
+        run: |
+          docker compose exec -T app php artisan migrate --seed
+        shell: bash
 
       #######################################################
       #######################################################
