@@ -69,4 +69,4 @@ runs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: 'Validate Gradle wrapper'
-      uses: gradle/actions/wrapper-validation@87bf5ca2eab41bc2978d93f6cb0603c36a44fd08
+      uses: gradle/actions/wrapper-validation@bb0c460cbf5354b0cddd15bacdf0d6aaa3e5a32b
