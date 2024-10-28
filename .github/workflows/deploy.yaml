@@ -387,6 +387,22 @@ jobs:
               echo "No .yml file found in ${TARGET_DIR}."
               exit 1
           fi
+
+          # Read team and division from catalog-info.yaml
+          if [ -e catalog-info.yaml ]; then
+            # Extract the 'owner' and 'system' values, removing anything after a '#'
+            OWNER=$(grep '^\s*owner:' catalog-info.yaml | sed 's/.*owner: \([^#]*\).*/\1/' | xargs)
+            SYSTEM=$(grep '^\s*system:' catalog-info.yaml | sed 's/.*system: \([^#]*\).*/\1/' | xargs)
+          else
+            # Set default values if file does not exist
+            OWNER=SRE
+            SYSTEM=Platform
+          fi
+
+          # Export the values as GitHub environment variables
+          echo "OWNER=$OWNER" >> $GITHUB_ENV
+          echo "SYSTEM=$SYSTEM" >> $GITHUB_ENV
+
           # Print the yml file
           echo "Building catalog file from: ${YML_FILE}"
           spec_file=${YML_FILE}
@@ -404,8 +420,8 @@ jobs:
           spec:
             type: openapi
             lifecycle: production
-            owner: sre
-            system: Platform
+            owner: ${OWNER}
+            system: ${SYSTEM}
             definition: |
           $(cat $spec_file | sed 's/^/    /')
           EndOfMessage
