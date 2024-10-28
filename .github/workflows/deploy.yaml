@@ -391,10 +391,10 @@ jobs:
           # Read team and division from catalog-info.yaml
           backstage_owner=SRE
           backstage_system=Platform
-          if [ -e catalog-info.yaml ]; then
+          if [ -e ./catalog-info.yaml ]; then
             # Extract the 'owner' and 'system' values, removing anything after a '#'
-            OWNER=$(grep '^\s*owner:' catalog-info.yaml | sed 's/.*owner: \([^#]*\).*/\1/' | xargs)
-            SYSTEM=$(grep '^\s*system:' catalog-info.yaml | sed 's/.*system: \([^#]*\).*/\1/' | xargs)
+            OWNER=$(grep '^\s*owner:' ./catalog-info.yaml | sed 's/.*owner: \([^#]*\).*/\1/' | xargs)
+            SYSTEM=$(grep '^\s*system:' ./catalog-info.yaml | sed 's/.*system: \([^#]*\).*/\1/' | xargs)
           fi
 
           # Print the yml file
