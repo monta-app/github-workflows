@@ -397,10 +397,6 @@ jobs:
             SYSTEM=$(grep '^\s*system:' catalog-info.yaml | sed 's/.*system: \([^#]*\).*/\1/' | xargs)
           fi
 
-          # Export the values as GitHub environment variables
-          echo "OWNER=$OWNER" >> $GITHUB_ENV
-          echo "SYSTEM=$SYSTEM" >> $GITHUB_ENV
-
           # Print the yml file
           echo "Building catalog file from: ${YML_FILE}"
           spec_file=${YML_FILE}
