@@ -389,8 +389,8 @@ jobs:
           fi
 
           # Read team and division from catalog-info.yaml
-          OWNER=SRE
-          SYSTEM=Platform
+          backstage_owner=SRE
+          backstage_system=Platform
           if [ -e catalog-info.yaml ]; then
             # Extract the 'owner' and 'system' values, removing anything after a '#'
             OWNER=$(grep '^\s*owner:' catalog-info.yaml | sed 's/.*owner: \([^#]*\).*/\1/' | xargs)
@@ -414,8 +414,8 @@ jobs:
           spec:
             type: openapi
             lifecycle: production
-            owner: ${OWNER}
-            system: ${SYSTEM}
+            owner: ${backstage_owner}
+            system: ${backstage_system}
             definition: |
           $(cat $spec_file | sed 's/^/    /')
           EndOfMessage
