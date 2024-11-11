@@ -78,6 +78,10 @@ on:
         required: false
         type: number
         default: 10
+      run-tests:
+        required: false
+        type: boolean
+        default: true
     secrets:
       GHL_USERNAME:
         required: true
@@ -251,6 +255,7 @@ jobs:
     needs: init
     runs-on: ${{ matrix.runner-type }}
     timeout-minutes: 30
+    if: ${{ inputs.run-tests }}
     strategy:
       matrix:
         runner-type: ${{ fromJSON(needs.init.outputs.runners) }}
