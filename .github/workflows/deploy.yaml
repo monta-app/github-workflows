@@ -310,7 +310,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update-open-api-spec:
-    if: ${{ always() && inputs.upload-open-api && needs.build.result == 'success' && needs.init.result == 'success' && (!inputs.run-tests || (inputs.run-tests && needs.test.result == 'success')) }}
+    if: ${{ ! failure() && inputs.upload-open-api }}
     name: Update OpenAPI Spec
     needs: [ init, test, build ]
     runs-on: ubuntu-latest
@@ -608,7 +608,7 @@ jobs:
   push-manifest-list:
     name: Push Manifest
     needs: [ init, build, test ]
-    if: ${{ always() && needs.build.result == 'success' && needs.init.result == 'success' && (!inputs.run-tests || (inputs.run-tests && needs.test.result == 'success')) }}
+    if: ${{ ! failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -692,7 +692,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_push:
-    if: ${{ always() && inputs.push-to-manifests && needs.push-manifest-list.result == 'success' && needs.init.result == 'success' }}
+    if: ${{ ! failure() && inputs.push-to-manifests }}
     name: Deploy (push)
     needs:
     - push-manifest-list
@@ -747,7 +747,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_argocd:
-    if: ${{ always() && ! inputs.push-to-manifests && needs.push-manifest-list.result == 'success' && needs.init.result == 'success' }}
+    if: ${{ ! failure() && ! inputs.push-to-manifests }}
     name: Deploy (ArgoCD)
     needs:
     - push-manifest-list
