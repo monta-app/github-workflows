@@ -310,7 +310,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update-open-api-spec:
-    if: ${{ inputs.upload-open-api }}
+    if: ${{ always() && inputs.upload-open-api && needs.build.result == 'success' && needs.init.result == 'success' && (!inputs.run-tests || (inputs.run-tests && needs.test.result == 'success')) }}
     name: Update OpenAPI Spec
     needs: [ init, test, build ]
     runs-on: ubuntu-latest
@@ -608,7 +608,7 @@ jobs:
   push-manifest-list:
     name: Push Manifest
     needs: [ init, build, test ]
-    if: success()
+    if: ${{ always() && needs.build.result == 'success' && needs.init.result == 'success' && (!inputs.run-tests || (inputs.run-tests && needs.test.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -692,7 +692,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_push:
-    if: ${{ inputs.push-to-manifests }}
+    if: ${{ always() && inputs.push-to-manifests && needs.push-manifest-list.result == 'success' && needs.init.result == 'success' }}
     name: Deploy (push)
     needs:
     - push-manifest-list
@@ -747,7 +747,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_argocd:
-    if: ${{ ! inputs.push-to-manifests }}
+    if: ${{ always() && ! inputs.push-to-manifests && needs.push-manifest-list.result == 'success' && needs.init.result == 'success' }}
     name: Deploy (ArgoCD)
     needs:
     - push-manifest-list
@@ -796,7 +796,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
-    if: ${{ inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' }}
+    if: ${{ always() && inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' && needs.push-manifest-list.result == 'success' && needs.init.result == 'success' }}
     name: Deploy OCPP Gateway
     needs:
     - init
