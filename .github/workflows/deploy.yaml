@@ -571,6 +571,34 @@ jobs:
             ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
 
+  notify-if-migrations-in-production:
+    name: Notify if migrations in production
+    runs-on: ubuntu-latest
+    if: ${{ inputs.stage == 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # current and preceding commit to check diff
+      - name: Get changed migration files
+        id: changed-migration-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/resources/db/migration/**
+            **/*.sql
+      - name: Notify if migration files changed
+        uses: rtCamp/action-slack-notify@v2
+        if: steps.changed-migration-files.outputs.any_changed == 'true'
+        env:
+          MSG_MINIMAL: true #'ref,commit'
+          SLACK_CHANNEL: migration-deploys
+          SLACK_ICON: 'https://avatars.slack-edge.com/2020-10-24/1463567065009_39967124f549f50e3faf_512.png'
+          SLACK_MESSAGE: "Service: ${{ inputs.service-name }}\nSee: ${{ github.event.compare }}"
+          SLACK_TITLE: "PR with migrations being deployed to production! :eyetwitch:"
+          SLACK_USERNAME: 'Monta Bot'
+          SLACK_WEBHOOK: 'https://hooks.slack.com/services/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'
+          SLACK_FOOTER: 'Powered by Monta! #EVBetter'
+
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
   update_build_fail:
     name: Update Slack message for build fail
