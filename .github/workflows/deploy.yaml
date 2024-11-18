@@ -601,7 +601,7 @@ jobs:
           SLACK_MESSAGE: "Service: ${{ inputs.service-name }}\nSee: ${{ github.event.compare }}"
           SLACK_TITLE: "PR with migrations being deployed to production! :eyetwitch:"
           SLACK_USERNAME: 'Monta Bot'
-          SLACK_WEBHOOK: 'https://hooks.slack.com/services/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'
+          SLACK_WEBHOOK: 'https://hooks.slack.com/services/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'
           SLACK_FOOTER: 'Powered by Monta! #EVBetter'
 
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
