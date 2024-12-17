@@ -84,7 +84,7 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # set the gradle tasks respecting any gradle-module used as input
-        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:test', inputs.gradle-module) }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+        run: ./gradlew --no-daemon ${{ inputs.gradle-module && format('{0}:ktlintCheck {0}:test', inputs.gradle-module) || 'ktlintCheck test' }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
         shell: bash
       # Upload test results
       - name: Upload test results
