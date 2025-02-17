@@ -5,18 +5,18 @@ description: |
   Github Actions to install and validate the JVM and Gradle.
 
 inputs:
-#  aws-account-id:
-#    description: 'AWS account identifier (integer)'
-#    required: false
-#    default: '229494932364'
+  #  aws-account-id:
+  #    description: 'AWS account identifier (integer)'
+  #    required: false
+  #    default: '229494932364'
   aws-region:
     description: 'AWS region identifier (string) assume access in'
     required: false
     default: 'eu-west-1'
-#  aws-iam-role-to-assume:
-#    description: 'The IAM role to assume via STS'
-#    required: false
-#    default: 'ecr-put-image'
+  #  aws-iam-role-to-assume:
+  #    description: 'The IAM role to assume via STS'
+  #    required: false
+  #    default: 'ecr-put-image'
   aws-access-key-id:
     description: 'AWS Access Key ID.'
     required: true
@@ -35,6 +35,10 @@ inputs:
     description: 'The Java JVM distribution to install'
     required: false
     default: 'corretto'
+  skip-gradle-validation:
+    description: 'Set to true to skip Gradle wrapper validation'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -69,4 +73,5 @@ runs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: 'Validate Gradle wrapper'
+      if: ${{ inputs.skip-gradle-validation != 'true' }}
       uses: gradle/actions/wrapper-validation@87bf5ca2eab41bc2978d93f6cb0603c36a44fd08
