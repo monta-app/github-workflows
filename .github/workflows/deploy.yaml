@@ -332,8 +332,10 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
       - name: Install kubectl CLI
         shell: bash
+        env:
+          K8S_VERSION: v1.30.10
         run: |
-          curl -LO https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl
+          curl -LO https://dl.k8s.io/release/{{ env.K8S_VERSION }}/bin/linux/amd64/kubectl
           sudo chmod +x kubectl
       - name: Install Teleport
         uses: teleport-actions/setup@v1
