@@ -471,6 +471,9 @@ jobs:
               - condition:
                   method: OPTIONS
                 name: OPTIONS [Default]
+              - condition:
+                  method: DELETE
+                name: DELETE [Default]
           EOT
           yq service-profile-new.yaml
           EOB
