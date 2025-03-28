@@ -335,7 +335,7 @@ jobs:
         env:
           K8S_VERSION: v1.30.10
         run: |
-          curl -LO https://dl.k8s.io/release/{{ env.K8S_VERSION }}/bin/linux/amd64/kubectl
+          curl -LO https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubectl
           sudo chmod +x kubectl
       - name: Install Teleport
         uses: teleport-actions/setup@v1
