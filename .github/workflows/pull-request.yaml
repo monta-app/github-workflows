@@ -107,7 +107,7 @@ jobs:
         run: ./gradlew --no-daemon sonar
       # Add code coverage to PR
       - name: Add code coverage to PR
-        uses: madrapps/jacoco-report@v1.6.1
+        uses: madrapps/jacoco-report@v1.7.1
         with:
           title: Code Coverage ${{ inputs.gradle-module }}
           paths: ${{ github.workspace }}/**/jacocoTestReport.xml
