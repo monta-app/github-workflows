@@ -589,7 +589,7 @@ jobs:
           fetch-depth: 2 # current and preceding commit to check diff
       - name: Get changed migration files
         id: changed-migration-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/resources/db/migration/**
