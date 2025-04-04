@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    ":semanticCommitTypeAll(chore)"
-  ]
+  "extends": ["config:recommended"],
+  "semanticCommits": "enabled",
+  "onboardingConfigFileName": ".github/renovate.json",
+  "onboardingPrTitle": "configure renovate",
+  "prConcurrentLimit": 2,
+  "rebaseWhen": "conflicted"
 }
