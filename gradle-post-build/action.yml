@@ -11,14 +11,14 @@ runs:
   using: composite
   steps:
     - name: 'Publish Test Report'
-      uses: mikepenz/action-junit-report@v4
+      uses: mikepenz/action-junit-report@v5
       if: success() || failure()
       with:
         token: ${{ inputs.github-token }}
         report_paths: "**/build/test-results/test/TEST-*.xml"
 
     - name: 'Publish Integration Test Report'
-      uses: mikepenz/action-junit-report@v4
+      uses: mikepenz/action-junit-report@v5
       if: success() || failure()
       with:
         token: ${{ inputs.github-token }}
