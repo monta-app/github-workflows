@@ -32,8 +32,8 @@ on:
       kover-report-path:
         required: false
         type: string
-        description: "Path to the Kover report XML file for code coverage"
-        default: '${{ github.workspace }}/build/reports/kover/report.xml'
+        description: "Path to the Kover report XML file for code coverage (relative to workspace or absolute)"
+        default: 'build/reports/kover/report.xml'
     secrets:
       GHL_USERNAME:
         required: true
@@ -111,7 +111,6 @@ jobs:
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./gradlew --no-daemon sonar
-      # Add code coverage to PR
       - name: Add code coverage to PR
         uses: mi-kas/kover-report@v1
         with:
