@@ -74,4 +74,4 @@ runs:
 
     - name: 'Validate Gradle wrapper'
       if: ${{ inputs.skip-gradle-validation != 'true' }}
-      uses: gradle/actions/wrapper-validation@87bf5ca2eab41bc2978d93f6cb0603c36a44fd08
+      uses: gradle/actions/wrapper-validation@787f6c043d4a67a754aba88c7841669a3130ea65
