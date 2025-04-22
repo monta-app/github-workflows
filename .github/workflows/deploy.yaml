@@ -839,7 +839,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
-    if: ${{ ( inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' ) }}
+    if: ${{ inputs.service-identifier == 'ocpp-gateway' }}
     name: Deploy OCPP Gateway
     needs:
     - init
