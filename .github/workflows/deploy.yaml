@@ -310,6 +310,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update-open-api-spec:
+    # The conditional here is needed, to support when `test` is skipped
     if: ${{ ! failure() && ! cancelled() && inputs.upload-open-api }}
     name: Update OpenAPI Spec
     needs: [ init, test, build ]
@@ -649,6 +650,7 @@ jobs:
   push-manifest-list:
     name: Push Manifest
     needs: [ init, build, test ]
+    # The conditional here is needed, to support when `test` is skipped
     if: ${{ ! failure() && ! cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -733,7 +735,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_push:
-    if: ${{ ! failure() && ! cancelled() && inputs.push-to-manifests }}
+    if: ${{ inputs.push-to-manifests }}
     name: Deploy (push)
     needs:
     - push-manifest-list
@@ -788,7 +790,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_argocd:
-    if: ${{ ! failure() && ! cancelled() && ! inputs.push-to-manifests }}
+    if: ${{ ! inputs.push-to-manifests }}
     name: Deploy (ArgoCD)
     needs:
     - push-manifest-list
@@ -837,7 +839,7 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
-    if: ${{ ! failure() && ! cancelled() && ( inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' ) }}
+    if: ${{ inputs.service-identifier == 'ocpp-gateway' }}
     name: Deploy OCPP Gateway
     needs:
     - init
