@@ -34,6 +34,11 @@ on:
         type: string
         description: "Path to the Kover report XML file for code coverage (relative to workspace or absolute)"
         default: 'build/reports/kover/report.xml'
+      test-timeout-minutes:
+        required: false
+        type: number
+        description: "Timeout for the test job in minutes"
+        default: 30
     secrets:
       GHL_USERNAME:
         required: true
@@ -58,7 +63,7 @@ jobs:
   test:
     name: Test with code coverage
     runs-on: ${{ inputs.action-runner }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
       # Checkout
       - name: Checkout
