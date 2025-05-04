@@ -93,8 +93,15 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # set the gradle tasks respecting any gradle-module used as input
-        run: ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+        # Check if gradle-module is provided and format the command accordingly
+        run: |
+          if [ -z "${{ inputs.gradle-module }}" ]; then
+            # For root project (no module specified)
+            ./gradlew --no-daemon ktlintCheck koverXmlReport koverHtmlReport ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+          else
+            # For specific module
+            ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+          fi
         shell: bash
       # Upload test results
       - name: Upload test results
