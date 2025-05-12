@@ -32,6 +32,10 @@ on:
         type: string
         description: Name of the docker file to be built
         default: "Dockerfile"
+      additional-build-args:
+        required: false
+        type: string
+        description: "Optional additional build arguments to pass to the Docker build process. Specify each argument on a new line in the format KEY=VALUE. These arguments will be appended to the existing build-args list."
       java-distribution:
         required: false
         type: string
@@ -573,6 +577,7 @@ jobs:
             JAVA_VERSION=${{ inputs.java-docker-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
+            ${{ inputs.additional-build-args }}
           # For pruning built image on self-hosted runner based on this run's ID
           labels: |
             GITHUB_RUN_ID=${{ github.run_id }}
