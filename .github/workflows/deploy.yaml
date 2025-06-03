@@ -120,6 +120,15 @@ on:
       TECHDOCS_AWS_SECRET_ACCESS_KEY:
         required: false
         description: 'TECHDOCS AWS secret access key'
+      SENTRY_AUTH_TOKEN:
+        required: false
+        description: "Sentry Auth Token, this value is injected into the secrets of a docker image"
+      AWS_CDN_ACCESS_KEY_ID:
+        required: false
+        description: "AWS CDN Secret Access ID, this value is injected into the secrets of a docker image"
+      AWS_CDN_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS CDN Secret Access Key, this value is injected into the secrets of a docker image"
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read
@@ -583,6 +592,12 @@ jobs:
             GITHUB_RUN_ID=${{ github.run_id }}
             ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
+          secrets: |
+            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
+            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
   notify-if-migrations-in-production:
     name: Notify if migrations in production
