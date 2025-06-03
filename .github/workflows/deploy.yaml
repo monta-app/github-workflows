@@ -596,8 +596,8 @@ jobs:
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
+            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
 
   notify-if-migrations-in-production:
     name: Notify if migrations in production
