@@ -57,26 +57,14 @@ on:
         description: 'Working directory for test commands'
     secrets:
       AWS_ACCOUNT_ID:
-        required: false
+        required: true
         description: 'AWS account id'
-      AWS_ACCESS_KEY_ID:
-        required: false
-        description: 'AWS access key id'
-      AWS_SECRET_ACCESS_KEY:
-        required: false
-        description: 'AWS secret access key'
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
-      ARGOCD_TOKEN:
-        required: false
-        description: 'ArgoCD token - should be set to ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION'
-      INFRA_PORTAL_TOKEN:
-        required: false
-        description: 'Infra Portal token'
       SENTRY_AUTH_TOKEN:
         required: false
         description: "Sentry Auth Token, this value is injected into the secrets of a docker image"
@@ -116,26 +104,6 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
-      - id: verify-argocd-token
-        if: ${{ ! inputs.push-to-manifests }}
-        shell: bash
-        run: |
-          if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
-            echo "::error::MUST INPUT ARGOCD_TOKEN SECRET"
-            echo "ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION"
-            exit 1
-          fi
-      - id: set-argocd-server
-        if: ${{ env.argocd-token != '' }}
-        env:
-          STAGE: ${{ inputs.stage }}
-        run: |
-          if [[ $STAGE =~ dev|staging ]]; then
-            ARGOCD_HOSTNAME="argocd.staging.monta.app"
-          else
-            ARGOCD_HOSTNAME="argocd.monta.app"
-          fi
-          echo "argocd-hostname=$ARGOCD_HOSTNAME" >> "$GITHUB_OUTPUT"
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: failure()
@@ -204,28 +172,11 @@ jobs:
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'true'
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
@@ -318,28 +269,11 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'true'
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
