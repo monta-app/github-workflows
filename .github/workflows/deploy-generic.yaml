@@ -251,12 +251,14 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-  push-manifest-list:
-    name: Push Manifest
-    needs: [ init, build, test ]
+  deploy_by_push:
     if: ${{ ! failure() && ! cancelled() }}
+    name: Deploy (push)
+    needs:
+      - build
+      - init
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Publish progress message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -269,46 +271,6 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: build-push-manifest
-        id: build-container
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-        shell: bash
-        run: |
-          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-          # Tag the image with both SHA and latest
-          docker tag $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:latest
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: failure()
-        with:
-          job-type: "deploy"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-  deploy_by_push:
-    if: ${{ ! failure() && ! cancelled() }}
-    name: Deploy (push)
-    needs:
-      - push-manifest-list
-      - init
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
       - name: Check out manifest repository
         uses: actions/checkout@v4
         with:
