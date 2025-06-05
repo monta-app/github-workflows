@@ -187,7 +187,7 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}
           tags: |
-            type=sha,format=long
+            type=sha,format=long,prefix=,suffix=
           flavor: |
             latest=false
       - name: Build
