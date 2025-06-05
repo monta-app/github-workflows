@@ -185,7 +185,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}
           tags: |
             type=sha,format=long
           flavor: |
