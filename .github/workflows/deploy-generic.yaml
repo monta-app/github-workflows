@@ -55,6 +55,10 @@ on:
         type: string
         default: '.'
         description: 'Working directory for test commands'
+      ecr-repository-name:
+        required: false
+        type: string
+        description: 'Custom ECR repository name. If not specified, defaults to service-identifier'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -185,7 +189,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}
           tags: |
             type=sha,format=long,prefix=,suffix=
           flavor: |
