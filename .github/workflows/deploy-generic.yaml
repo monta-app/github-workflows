@@ -59,6 +59,11 @@ on:
         required: false
         type: string
         description: 'Custom ECR repository name. If not specified, defaults to service-identifier'
+      build-architecture:
+        required: false
+        type: string
+        description: 'Architecture to build for (amd64 or arm64). If not specified, defaults to amd64'
+        default: 'amd64'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -122,7 +127,7 @@ jobs:
   test:
     name: Test
     needs: init
-    runs-on: linux-x64-xl
+    runs-on: linux-x64
     timeout-minutes: 30
     if: ${{ inputs.run-tests }}
     steps:
@@ -160,7 +165,7 @@ jobs:
   build:
     name: Build
     needs: init
-    runs-on: linux-x64-xl
+    runs-on: ${{ inputs.build-architecture == 'arm64' && 'linux-arm64' || 'linux-x64' }}
     timeout-minutes: 30
     steps:
       - name: Publish progress message to slack
@@ -185,6 +190,8 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -202,6 +209,7 @@ jobs:
           file: ./${{ inputs.docker-file-name }}
           push: true
           no-cache: true
+          platforms: linux/${{ inputs.build-architecture }}
           build-args: |
             ${{ inputs.additional-build-args }}
           # For pruning built image on self-hosted runner based on this run's ID
