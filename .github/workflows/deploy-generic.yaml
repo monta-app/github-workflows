@@ -157,15 +157,14 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-  build:
-    name: Build
+  notify_build_start:
+    name: Update Slack message for build
     needs: init
-    runs-on: linux-x64-xl
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Publish progress message to slack
+      - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
         with:
           job-type: "build"
           job-status: "progress"
@@ -174,6 +173,21 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
+  build:
+    name: Build
+    needs: notify_build_start
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: linux-x64
+          - platform: linux/arm64
+            arch: arm64
+            runner: linux-arm64
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Configure AWS credentials via assumed role
@@ -191,9 +205,7 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}
           tags: |
-            type=sha,format=long,prefix=,suffix=
-          flavor: |
-            latest=false
+            type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
       - name: Build
         id: build
         uses: docker/build-push-action@v6
@@ -213,31 +225,43 @@ jobs:
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
             AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
-  # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
-  update_build_fail:
-    name: Update Slack message for build fail
-    needs: [ init, build ]
-    if: failure()
+  create_manifest:
+    name: Create Multi-Arch Manifest
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          job-type: "build"
-          job-status: ${{ needs.build.result }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-  update_build_success:
-    name: Update Slack message for build success
-    needs: [ init, build ]
-    if: success()
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: create-manifest-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Create and push manifest
+        run: |
+          # Enable experimental features
+          export DOCKER_CLI_EXPERIMENTAL=enabled
+          
+          # Define the base image name and tag
+          BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}"
+          SHA_TAG="${{ github.sha }}"
+          
+          # Create manifest list
+          docker manifest create ${BASE_IMAGE}:${SHA_TAG} \
+            ${BASE_IMAGE}:${SHA_TAG}-amd64 \
+            ${BASE_IMAGE}:${SHA_TAG}-arm64
+          
+          # Push the manifest
+          docker manifest push ${BASE_IMAGE}:${SHA_TAG}
+  notify_build_finished:
+    name: Update Slack message for build
+    needs: [ init, build, create_manifest ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    if: always()
     steps:
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -251,10 +275,9 @@ jobs:
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
   deploy_by_push:
-    if: ${{ ! failure() && ! cancelled() }}
     name: Deploy (push)
     needs:
-      - build
+      - create_manifest
       - init
     runs-on: ubuntu-latest
     timeout-minutes: 5
