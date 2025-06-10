@@ -59,11 +59,6 @@ on:
         required: false
         type: string
         description: 'Custom ECR repository name. If not specified, defaults to service-identifier'
-      build-architecture:
-        required: false
-        type: string
-        description: 'Architecture to build for (amd64 or arm64). If not specified, defaults to amd64'
-        default: 'amd64'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -165,8 +160,16 @@ jobs:
   build:
     name: Build
     needs: init
-    runs-on: ${{ inputs.build-architecture == 'arm64' && 'linux-arm64' || 'linux-x64' }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: linux-x64
+          - platform: linux/arm64
+            runner: linux-arm64
     steps:
       - name: Publish progress message to slack
         uses: monta-app/slack-notifier-cli-action@main
@@ -200,27 +203,36 @@ jobs:
           tags: |
             type=sha,format=long,prefix=,suffix=
           flavor: |
-            latest=false
-      - name: Build
+            latest=true
+      - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./${{ inputs.docker-file-name }}
-          push: true
-          no-cache: true
-          platforms: linux/${{ inputs.build-architecture }}
-          build-args: |
-            ${{ inputs.additional-build-args }}
-          # For pruning built image on self-hosted runner based on this run's ID
+          platforms: ${{ matrix.platform }}
           labels: |
             GITHUB_RUN_ID=${{ github.run_id }}
             ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            ${{ inputs.additional-build-args }}
+          outputs: type=image,name=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }},push-by-digest=true,name-canonical=true,push=true
           secrets: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
             AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
   # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
   update_build_fail:
     name: Update Slack message for build fail
@@ -258,11 +270,51 @@ jobs:
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: ${{ inputs.slack-channel-id }}
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
+  merge:
+    name: Merge platform images
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-manifest-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}
+          tags: |
+            type=sha,format=long,prefix=,suffix=
+          flavor: |
+            latest=true
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}@sha256:%s ' *)
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}:${{ steps.meta.outputs.version }}
   deploy_by_push:
     if: ${{ ! failure() && ! cancelled() }}
     name: Deploy (push)
     needs:
-      - build
+      - merge
       - init
     runs-on: ubuntu-latest
     timeout-minutes: 5
