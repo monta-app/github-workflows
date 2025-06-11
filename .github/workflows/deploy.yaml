@@ -48,11 +48,6 @@ on:
         required: false
         type: string
         default: "17.0.8"
-      slack-channel-id:
-        required: false
-        type: string
-        description: 'ID of slack channel to notify with build status. Default value is the "deployment" channel, only override in special cases.'
-        default: "C01KL9FUPNK"
       upload-open-api:
         required: false
         type: boolean
@@ -161,7 +156,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
       # calculates runner, including whether it should also run on arm
       - id: hosted-x64
         if: ${{ !inputs.self-hosted && !inputs.more-power}}
@@ -260,7 +255,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
 
   test:
@@ -319,7 +314,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update-open-api-spec:
@@ -523,7 +518,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
       - name: Checkout
         uses: actions/checkout@v4
@@ -644,7 +639,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   update_build_success:
@@ -663,7 +658,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   push-manifest-list:
@@ -682,7 +677,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
       - name: Check for secret.AWS_ACCOUNT_ID availability
         id: secret-check
@@ -749,7 +744,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_push:
@@ -804,7 +799,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_by_argocd:
@@ -853,7 +848,7 @@ jobs:
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: ${{ inputs.slack-channel-id }}
+          slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ needs.init.outputs.slack-message-id }}
 
   deploy_ocpp_gateway:
