@@ -2,11 +2,14 @@ name: Sonar Cloud Analysis
 on:
   workflow_call:
     inputs:
-      action-runner:
+      runner-size:
         required: false
-        type: string
         description: "Runner to use for the job"
-        default: 'ubuntu-latest'
+        default: "normal"
+        type: choice
+        options:
+          - "normal"
+          - "large"
       java-distribution:
         required: false
         type: string
@@ -14,7 +17,7 @@ on:
       java-version:
         required: false
         type: string
-        default: '17'
+        default: '21'
     secrets:
       GHL_USERNAME:
         required: true
@@ -26,9 +29,14 @@ on:
         required: true
         description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
+  get-runner:
+    uses: ./.github/workflows/components/runner-size-converter.yaml
+    with:
+      runner-size: ${{ inputs.runner-size }}
   sonar-cloud:
     name: Sonar Cloud Analysis
-    runs-on: ${{ inputs.action-runner }}
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
