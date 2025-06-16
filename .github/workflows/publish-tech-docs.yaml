@@ -1,4 +1,4 @@
-name: Publish TechDocs Site
+name: Publish Tech Docs (Backstage)
 
 on:
   workflow_call:
