@@ -1,0 +1,123 @@
+name: Build and test (React/TypeScript)
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: false
+        description: "Runner to use for the job"
+        default: "normal"
+        type: choice
+        options:
+          - "normal"
+          - "large"
+      node-version:
+        required: false
+        type: string
+        default: 'lts/jod'
+        description: "Node.js version to use"
+      pnpm-version:
+        required: false
+        type: string
+        default: '10'
+        description: "pnpm version to use"
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+        description: "Working directory for frontend code"
+      build-timeout-minutes:
+        required: false
+        type: number
+        description: "Timeout for the build job in minutes"
+        default: 15
+      lint-command:
+        required: false
+        type: string
+        default: 'pnpm run lint'
+        description: "Command to run for linting"
+      build-command:
+        required: false
+        type: string
+        default: 'pnpm run build'
+        description: "Command to run for building"
+      test-command:
+        required: false
+        type: string
+        default: 'pnpm run test'
+        description: "Command to run for testing (optional)"
+jobs:
+  get-runner:
+    uses: ./.github/workflows/components/runner-size-converter.yaml
+    with:
+      runner-size: ${{ inputs.runner-size }}
+  pr_title_checker:
+    name: Check PR title
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: Slashgear/action-check-pr-title@v4
+        with:
+          regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
+          helpMessage: "Example: 'feat(app-ui): Add new dashboard component (WEB-123)'"
+  lint:
+    name: Linter
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    timeout-minutes: ${{ inputs.build-timeout-minutes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install pnpm
+        run: npm i -g pnpm
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: pnpm install
+      - name: Run ESLint with reviewdog
+        uses: reviewdog/action-eslint@v1
+        with:
+          reporter: github-check
+          fail_level: error
+          workdir: ${{ inputs.working-directory }}
+  lint-build-test:
+    name: Lint & Build & Test
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    timeout-minutes: ${{ inputs.build-timeout-minutes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.working-directory }}
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: pnpm install
+      - name: Lint check
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.lint-command }}
+      - name: Run tests
+        if: ${{ inputs.test-command != '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.test-command }}
+      - name: Build check
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
