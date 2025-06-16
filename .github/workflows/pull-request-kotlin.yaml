@@ -104,7 +104,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-result
+          name: ${{ inputs.gradle-module || 'test-result' }}
           path: |
             ${{ github.workspace }}/build/reports/kover
             **/reports/tests/test
