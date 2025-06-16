@@ -4,12 +4,9 @@ on:
     inputs:
       runner-size:
         required: false
-        description: "Runner to use for the job"
+        type: string
+        description: "Runner to use for the job (normal, or large)"
         default: "normal"
-        type: choice
-        options:
-          - "normal"
-          - "large"
       node-version:
         required: false
         type: string
@@ -47,7 +44,7 @@ on:
         description: "Command to run for testing (optional)"
 jobs:
   get-runner:
-    uses: ./.github/workflows/components/runner-size-converter.yaml
+    uses: component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
   pr_title_checker:

@@ -4,12 +4,9 @@ on:
     inputs:
       runner-size:
         required: false
-        description: "Runner to use for the job"
+        type: string
+        description: "Runner to use for the job (normal, or large)"
         default: "normal"
-        type: choice
-        options:
-          - "normal"
-          - "large"
       java-distribution:
         required: false
         type: string
@@ -18,6 +15,10 @@ on:
         required: false
         type: string
         default: '21'
+      gradle-module:
+        required: false
+        type: string
+        description: 'Name of the gradle module being tested'
     secrets:
       GHL_USERNAME:
         required: true
@@ -30,7 +31,7 @@ on:
         description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
   get-runner:
-    uses: ./.github/workflows/components/runner-size-converter.yaml
+    uses: component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
   sonar-cloud:
@@ -59,8 +60,13 @@ jobs:
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
-          COVERAGE_TASK=$(./gradlew :tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
+          if [ -z "$GRADLE_MODULE" ]; then
+            COVERAGE_TASK=$(./gradlew :tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
+          else
+            COVERAGE_TASK=$(./gradlew $GRADLE_MODULE:tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
+          fi
           echo "COVERAGE_TASK=${COVERAGE_TASK}" >> "$GITHUB_ENV"
       - name: Build and analyze
         env:
@@ -69,4 +75,10 @@ jobs:
           # Needed to get PR information, if any
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew check $COVERAGE_TASK sonar
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew check $COVERAGE_TASK sonar
+          else
+            ./gradlew $GRADLE_MODULE:check $GRADLE_MODULE:$COVERAGE_TASK $GRADLE_MODULE:sonar
+          fi
