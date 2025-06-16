@@ -57,31 +57,6 @@ jobs:
         with:
           regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
           helpMessage: "Example: 'feat(app-ui): Add new dashboard component (WEB-123)'"
-  lint:
-    name: Linter
-    needs: get-runner
-    runs-on: ${{ needs.get-runner.outputs.runner-name }}
-    timeout-minutes: ${{ inputs.build-timeout-minutes }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-      - name: Install pnpm
-        run: npm i -g pnpm
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: pnpm install
-      - name: Run ESLint with reviewdog
-        uses: reviewdog/action-eslint@2fee6dd72a5419ff4113f694e2068d2a03bb35dd
-        with:
-          reporter: github-pr-review
-          workdir: ${{ inputs.working-directory }}
   lint-build-test:
     name: Lint & Build & Test
     needs: get-runner
