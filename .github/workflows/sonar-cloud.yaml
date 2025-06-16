@@ -52,29 +52,15 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      - name: Inspect gradle tasks
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            COVERAGE_TASK=$(./gradlew :tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
-          else
-            COVERAGE_TASK=$(./gradlew $GRADLE_MODULE:tasks | grep -Eo '(koverXmlReport|jacocoTestReport)' | head -n1)
-          fi
-          echo "COVERAGE_TASK=${COVERAGE_TASK}" >> "$GITHUB_ENV"
       - name: Build and analyze
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          # Needed to get PR information, if any
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew check $COVERAGE_TASK sonar
+            ./gradlew check koverXmlReport sonar
           else
-            ./gradlew $GRADLE_MODULE:check $GRADLE_MODULE:$COVERAGE_TASK $GRADLE_MODULE:sonar
+            ./gradlew $GRADLE_MODULE:check $GRADLE_MODULE:koverXmlReport $GRADLE_MODULE:sonar
           fi
