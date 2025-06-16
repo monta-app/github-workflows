@@ -78,10 +78,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: pnpm install
       - name: Run ESLint with reviewdog
-        uses: reviewdog/action-eslint@v1
+        uses: reviewdog/action-eslint@2fee6dd72a5419ff4113f694e2068d2a03bb35dd
         with:
-          reporter: github-check
-          fail_level: error
+          reporter: github-pr-review
           workdir: ${{ inputs.working-directory }}
   lint-build-test:
     name: Lint & Build & Test
