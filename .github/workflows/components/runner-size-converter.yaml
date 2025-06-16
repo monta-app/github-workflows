@@ -1,0 +1,34 @@
+name: Convert runner size to runner name
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: true
+        type: string
+        description: "Runner size (normal or large)"
+    outputs:
+      runner-name:
+        description: "Converted runner name"
+        value: ${{ jobs.convert.outputs.runner-name }}
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    outputs:
+      runner-name: ${{ steps.convert-runner.outputs.runner-name }}
+    steps:
+      - name: Convert runner size to runner name
+        id: convert-runner
+        run: |
+          case "${{ inputs.runner-size }}" in
+            "normal")
+              echo "runner-name=linux-x64" >> $GITHUB_OUTPUT
+              ;;
+            "large")
+              echo "runner-name=linux-x64-xl" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Error: Invalid runner size '${{ inputs.runner-size }}'"
+              exit 1
+              ;;
+          esac

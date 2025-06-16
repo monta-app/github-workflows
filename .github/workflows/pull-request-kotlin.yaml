@@ -1,12 +1,15 @@
-name: Build and test (Kover)
+name: Build and test (Kotlin)
 on:
   workflow_call:
     inputs:
-      action-runner:
+      runner-size:
         required: false
-        type: string
         description: "Runner to use for the job"
-        default: 'ubuntu-latest'
+        default: "normal"
+        type: choice
+        options:
+          - "normal"
+          - "large"
       java-distribution:
         required: false
         type: string
@@ -14,21 +17,11 @@ on:
       java-version:
         required: false
         type: string
-        default: '17'
+        default: '21'
       gradle-module:
         required: false
         type: string
         description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
-      gradle-parallel-tests:
-        required: false
-        type: boolean
-        default: true
-        description: "Run gradle tests in parallel"
-      sonarcloud:
-        required: false
-        type: boolean
-        default: false
-        description: "Upload report to SonarCloud (SONAR_TOKEN must be set)"
       kover-report-path:
         required: false
         type: string
@@ -47,9 +40,13 @@ on:
         required: true
         description: "Github Password (Gradle plugin)"
       SONAR_TOKEN:
-        required: false
+        required: true
         description: "SonarCloud token"
 jobs:
+  get-runner:
+    uses: ./.github/workflows/components/runner-size-converter.yaml
+    with:
+      runner-size: ${{ inputs.runner-size }}
   pr_title_checker:
     name: Check PR title
     if: ${{ github.event_name == 'pull_request' }}
@@ -62,7 +59,8 @@ jobs:
           helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
   test:
     name: Test with code coverage
-    runs-on: ${{ inputs.action-runner }}
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
       # Checkout
@@ -81,7 +79,6 @@ jobs:
           cache: 'gradle'
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
-        if: inputs.sonarcloud
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -97,10 +94,10 @@ jobs:
         run: |
           if [ -z "${{ inputs.gradle-module }}" ]; then
             # For root project (no module specified)
-            ./gradlew --no-daemon ktlintCheck koverXmlReport koverHtmlReport ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+            ./gradlew --no-daemon ktlintCheck koverXmlReport koverHtmlReport --parallel
           else
             # For specific module
-            ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) }} ${{ inputs.gradle-parallel-tests && '--parallel' || ''}}
+            ./gradlew --no-daemon ${{ format('{0}:ktlintCheck {0}:koverXmlReport {0}:koverHtmlReport', inputs.gradle-module) }} --parallel
           fi
         shell: bash
       # Upload test results
@@ -117,7 +114,6 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
-        if: inputs.sonarcloud
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
