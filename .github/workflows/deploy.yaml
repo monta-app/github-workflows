@@ -36,14 +36,10 @@ on:
         required: false
         type: string
         description: "Optional additional build arguments to pass to the Docker build process. Specify each argument on a new line in the format KEY=VALUE. These arguments will be appended to the existing build-args list."
-      java-distribution:
-        required: false
-        type: string
-        default: "corretto"
       java-version:
         required: false
         type: string
-        default: "17"
+        default: "21"
       java-docker-version:
         required: false
         type: string
@@ -279,7 +275,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: ${{ inputs.java-distribution }}
+          distribution: corretto
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
       - name: Test project
@@ -331,7 +327,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: ${{ inputs.java-distribution }}
+          distribution: corretto
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
       - name: Install LinkerD CLI
@@ -525,7 +521,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: ${{ inputs.java-distribution }}
+          distribution: corretto
           java-version: ${{ inputs.java-version }}
       - name: Check for secret.AWS_ACCOUNT_ID availability
         id: secret-check
@@ -751,8 +747,8 @@ jobs:
     if: ${{ ! failure() && ! cancelled() && inputs.push-to-manifests }}
     name: Deploy (push)
     needs:
-    - push-manifest-list
-    - init
+      - push-manifest-list
+      - init
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -806,8 +802,8 @@ jobs:
     if: ${{ ! failure() && ! cancelled() && ! inputs.push-to-manifests }}
     name: Deploy (ArgoCD)
     needs:
-    - push-manifest-list
-    - init
+      - push-manifest-list
+      - init
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -855,8 +851,8 @@ jobs:
     if: ${{ ! failure() && ! cancelled() && ( inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' ) }}
     name: Deploy OCPP Gateway
     needs:
-    - init
-    - push-manifest-list
+      - init
+      - push-manifest-list
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

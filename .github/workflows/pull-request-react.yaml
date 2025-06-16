@@ -44,7 +44,7 @@ on:
         description: "Command to run for testing (optional)"
 jobs:
   get-runner:
-    uses: component-runner-size-converter.yaml
+    uses: ./.github/workflows/component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
   pr_title_checker:

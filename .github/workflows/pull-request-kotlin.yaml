@@ -41,7 +41,7 @@ on:
         description: "SonarCloud token"
 jobs:
   get-runner:
-    uses: component-runner-size-converter.yaml
+    uses: ./.github/workflows/component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
   pr_title_checker:
@@ -71,7 +71,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: ${{ inputs.java-distribution }}
+          distribution: corretto
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
       # Cache SonarCloud packages
