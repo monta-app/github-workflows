@@ -40,10 +40,6 @@ on:
         required: false
         type: string
         default: "21"
-      java-docker-version:
-        required: false
-        type: string
-        default: "17.0.8"
       upload-open-api:
         required: false
         type: boolean
@@ -574,7 +570,6 @@ jobs:
           push: true
           no-cache: true
           build-args: |
-            JAVA_VERSION=${{ inputs.java-docker-version }}
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
             ${{ inputs.additional-build-args }}
