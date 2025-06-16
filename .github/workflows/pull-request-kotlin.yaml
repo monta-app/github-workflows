@@ -25,6 +25,11 @@ on:
         type: number
         description: "Timeout for the test job in minutes"
         default: 30
+      skip-sonar:
+        required: false
+        type: boolean
+        description: "Allow you to skip using Sonar Cloud, only to be used for common modules"
+        default: false
     secrets:
       GHL_USERNAME:
         required: true
@@ -73,6 +78,7 @@ jobs:
       # Cache SonarCloud packages
       - name: Cache SonarCloud packages
         uses: actions/cache@v4
+        if: ${{ !inputs.skip-sonar }}
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
@@ -107,6 +113,7 @@ jobs:
           overwrite: true
       # Upload results to SonarCloud
       - name: Upload results to SonarCloud
+        if: ${{ !inputs.skip-sonar }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
