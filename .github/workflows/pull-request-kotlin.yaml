@@ -7,10 +7,6 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
-      java-distribution:
-        required: false
-        type: string
-        default: 'corretto'
       java-version:
         required: false
         type: string
