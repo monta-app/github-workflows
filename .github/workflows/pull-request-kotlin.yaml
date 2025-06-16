@@ -118,7 +118,15 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew --no-daemon sonar
+        # Check if gradle-module is provided and format the command accordingly
+        run: |
+          if [ -z "${{ inputs.gradle-module }}" ]; then
+            # For root project (no module specified)
+            ./gradlew --no-daemon sonar
+          else
+            # For specific module
+            ./gradlew --no-daemon ${{ format('{0}:sonar', inputs.gradle-module) }}
+          fi
       - name: Add code coverage to PR
         uses: mi-kas/kover-report@v1
         with:
