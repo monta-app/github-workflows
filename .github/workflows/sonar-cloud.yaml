@@ -60,7 +60,7 @@ jobs:
           GRADLE_MODULE: ${{ inputs.gradle-module }}
         run: |
           if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew check koverXmlReport sonar
+            ./gradlew --no-daemon koverXmlReport sonar --parallel
           else
-            ./gradlew $GRADLE_MODULE:check $GRADLE_MODULE:koverXmlReport $GRADLE_MODULE:sonar
+            ./gradlew --no-daemon $GRADLE_MODULE:koverXmlReport $GRADLE_MODULE:sonar --parallel
           fi
