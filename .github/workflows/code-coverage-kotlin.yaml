@@ -1,0 +1,83 @@
+name: Sonar Cloud Analysis
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: false
+        type: string
+        description: "Runner to use for the job (normal, or large)"
+        default: "normal"
+      java-version:
+        required: false
+        type: string
+        description: "Java version to use"
+        default: "21"
+      gradle-module:
+        required: false
+        type: string
+        description: "Name of the gradle module being tested - only needed if you want to test one module in a multi-module project"
+      kover-report-path:
+        required: false
+        type: string
+        description: "Path to the Kover report XML file"
+        default: "build/reports/kover/report.xml"
+      catalog-info-path:
+        required: false
+        type: string
+        description: "Path to the catalog-info.yaml file"
+        default: "catalog-info.yaml"
+      test-timeout-minutes:
+        required: false
+        type: number
+        description: "Timeout for the test job in minutes"
+        default: 30
+    secrets:
+      TAILSCALE_AUTHKEY:
+        required: true
+        description: "Tailscale authentication key"
+      GHL_USERNAME:
+        required: true
+        description: "Github Username (Gradle plugin)"
+      GHL_PASSWORD:
+        required: true
+        description: "Github Password (Gradle plugin)"
+      GITHUB_TOKEN:
+        required: false
+        description: "GitHub token for pushing metrics"
+
+jobs:
+  test-and-coverage:
+    runs-on: ${{ inputs.runner-size }}
+    timeout-minutes: ${{ inputs.test-timeout-minutes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          hostname: "GithubActions"
+          args: "--login-server https://headscale.monta.com --accept-routes"
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: "corretto"
+          cache: "gradle"
+      - name: Run tests with Kover
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        uses: ./.github/actions/gradle-multi-module
+        with:
+          gradle-module: ${{ inputs.gradle-module }}
+          gradle-tasks: "koverXmlReport"
+      - name: Push coverage to Prometheus
+        uses: monta-app/push-kover-prometheus-action@main
+        with:
+          push-gateway-url: "https://pushgateway.vpn.staging.monta.app"
+          kover-report-path: ${{ inputs.kover-report-path }}
+          catalog-info-path: ${{ inputs.catalog-info-path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
