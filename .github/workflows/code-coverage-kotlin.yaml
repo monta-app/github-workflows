@@ -36,9 +36,6 @@ on:
         description: "Timeout for the test job in minutes"
         default: 30
     secrets:
-      TAILSCALE_AUTHKEY:
-        required: true
-        description: "Tailscale authentication key"
       GHL_USERNAME:
         required: true
         description: "Github Username (Gradle plugin)"
