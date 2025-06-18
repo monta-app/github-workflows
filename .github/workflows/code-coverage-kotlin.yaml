@@ -2,6 +2,10 @@ name: Sonar Cloud Analysis
 on:
   workflow_call:
     inputs:
+      service-name:
+        required: true
+        type: string
+        description: "The name of the project that will appear in the reporting, must be in kebab-case format"
       runner-size:
         required: false
         type: string
@@ -52,6 +56,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Validate service-name format
+        run: |
+          if ! echo "${{ inputs.service-name }}" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*$'; then
+            echo "Error: service-name '${{ inputs.service-name }}' is not in kebab-case format"
+            echo "Expected format: lowercase letters and numbers separated by hyphens (e.g., 'my-service-name')"
+            exit 1
+          fi
+          echo "✓ service-name '${{ inputs.service-name }}' is valid"
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
@@ -77,6 +89,7 @@ jobs:
         uses: monta-app/push-kover-prometheus-action@main
         with:
           push-gateway-url: "https://pushgateway.vpn.staging.monta.app"
+          service-name: ${{ inputs.service-name }}
           kover-report-path: ${{ inputs.kover-report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
         env:
