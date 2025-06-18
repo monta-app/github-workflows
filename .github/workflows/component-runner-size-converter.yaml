@@ -16,6 +16,7 @@ on:
 
 jobs:
   convert:
+    name: Get server configuration
     runs-on: ubuntu-latest
     outputs:
       runner-name: ${{ steps.convert-runner.outputs.runner-name }}
