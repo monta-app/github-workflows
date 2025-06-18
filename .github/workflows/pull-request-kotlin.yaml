@@ -89,7 +89,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: ./.github/actions/gradle-multi-module
+        uses: ./.github/actions/gradle-multi-module/
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'ktlintCheck koverXmlReport koverHtmlReport'
@@ -112,7 +112,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        uses: ./.github/actions/gradle-multi-module
+        uses: ./.github/actions/gradle-multi-module/
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
