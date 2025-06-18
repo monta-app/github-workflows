@@ -30,6 +30,16 @@ on:
         type: string
         description: "Path to the catalog-info.yaml file"
         default: "catalog-info.yaml"
+      cloc-source-path:
+        required: false
+        type: string
+        description: 'Path to analyze for total lines of code counting (defaults to current directory)'
+        default: '.'
+      cloc-exclude-dirs:
+        required: false
+        type: string
+        description: 'Comma-separated list of directories to exclude from LOC count when analyzing subdirectories'
+        default: 'build,target,dist,node_modules,.gradle,.idea,out'
       test-timeout-minutes:
         required: false
         type: number
@@ -87,6 +97,10 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: "koverXmlReport"
+      - name: Install cloc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cloc
       - name: Push coverage to Prometheus
         uses: monta-app/push-kover-prometheus-action@main
         with:
@@ -94,3 +108,5 @@ jobs:
           service-name: ${{ inputs.service-name }}
           kover-report-path: ${{ inputs.kover-report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
+          cloc-source-path: ${{ inputs.cloc-source-path }}
+          cloc-exclude-dirs: ${{ inputs.cloc-exclude-dirs }}
