@@ -57,10 +57,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon koverXmlReport sonar --parallel
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:koverXmlReport $GRADLE_MODULE:sonar --parallel
-          fi
+        uses: ./.github/actions/gradle-multi-module
+        with:
+          gradle-module: ${{ inputs.gradle-module }}
+          gradle-tasks: 'koverXmlReport sonar'

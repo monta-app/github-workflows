@@ -1,0 +1,30 @@
+name: 'Gradle Multi-Module Command Runner'
+description: 'Runs Gradle tasks with conditional module-specific targeting'
+inputs:
+  gradle-module:
+    description: 'Name of the gradle module (optional for root project)'
+    required: false
+  gradle-tasks:
+    description: 'Space-separated list of Gradle tasks to run'
+    required: true
+  gradle-args:
+    description: 'Additional Gradle arguments'
+    required: false
+    default: '--no-daemon --parallel'
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Gradle tasks
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.gradle-module }}" ]; then
+          # For root project (no module specified)
+          ./gradlew ${{ inputs.gradle-args }} ${{ inputs.gradle-tasks }}
+        else
+          # For specific module - prefix each task with module name
+          PREFIXED_TASKS=""
+          for task in ${{ inputs.gradle-tasks }}; do
+            PREFIXED_TASKS="$PREFIXED_TASKS ${{ inputs.gradle-module }}:$task"
+          done
+          ./gradlew ${{ inputs.gradle-args }} $PREFIXED_TASKS
+        fi
