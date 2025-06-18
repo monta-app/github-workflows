@@ -19,6 +19,7 @@ runs:
       run: |
         if [ -z "${{ inputs.gradle-module }}" ]; then
           # For root project (no module specified)
+          echo "Running command: ./gradlew ${{ inputs.gradle-args }} ${{ inputs.gradle-tasks }}"
           ./gradlew ${{ inputs.gradle-args }} ${{ inputs.gradle-tasks }}
         else
           # For specific module - prefix each task with module name
@@ -26,5 +27,6 @@ runs:
           for task in ${{ inputs.gradle-tasks }}; do
             PREFIXED_TASKS="$PREFIXED_TASKS ${{ inputs.gradle-module }}:$task"
           done
+          echo "Running command: ./gradlew ${{ inputs.gradle-args }} $PREFIXED_TASKS"
           ./gradlew ${{ inputs.gradle-args }} $PREFIXED_TASKS
         fi
