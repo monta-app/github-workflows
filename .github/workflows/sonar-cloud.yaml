@@ -57,7 +57,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        uses: ./.github/actions/gradle-multi-module/
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'koverXmlReport sonar'
