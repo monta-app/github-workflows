@@ -1,4 +1,4 @@
-name: Sonar Cloud Analysis
+name: Code Coverage (Kotlin)
 on:
   workflow_call:
     inputs:
@@ -44,8 +44,13 @@ on:
         description: "Github Password (Gradle plugin)"
 
 jobs:
-  test-and-coverage:
-    runs-on: ${{ inputs.runner-size }}
+  get-runner:
+    uses: ./.github/workflows/component-runner-size-converter.yaml
+    with:
+      runner-size: ${{ inputs.runner-size }}
+  code-coverage-report:
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
       - name: Checkout code
