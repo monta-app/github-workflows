@@ -1,7 +1,7 @@
 # Reusable workflow to convert runner size strings to actual GitHub runner names
 # Maps "normal" to "linux-x64" and "large" to "linux-x64-xl" for consistent runner selection
 # Github issue: https://github.com/orgs/community/discussions/10773
-name: Convert runner size to runner name
+name: Determine runner size
 on:
   workflow_call:
     inputs:
