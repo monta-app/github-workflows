@@ -2,22 +2,22 @@ name: Deploy
 on:
   workflow_call:
     inputs:
+      stage:
+        required: true
+        type: string
+        description: 'stage being released (dev,staging,production)'
       service-name:
-        required: false
+        required: true
         type: string
         description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
       service-emoji:
-        required: false
+        required: true
         type: string
         description: 'An emoji to identify your service by :)'
       service-identifier:
         required: true
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
-      stage:
-        required: true
-        type: string
-        description: 'stage being released (dev,staging,production)'
       image-tag:
         required: true
         type: string

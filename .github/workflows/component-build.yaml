@@ -2,12 +2,16 @@ name: Build
 on:
   workflow_call:
     inputs:
+      stage:
+        required: true
+        type: string
+        description: 'stage being released (dev,staging,production)'
       service-name:
-        required: false
+        required: true
         type: string
         description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
       service-emoji:
-        required: false
+        required: true
         type: string
         description: 'An emoji to identify your service by :)'
       service-identifier:
@@ -109,7 +113,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{inputs.stage}}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
@@ -118,7 +122,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
             type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
       - name: Build and push
@@ -153,7 +157,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: create-manifest-${{ inputs.service-identifier }}
+          role-session-name: create-manifest-${{ inputs.service-identifier }}-${{inputs.stage}}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
@@ -164,7 +168,7 @@ jobs:
           export DOCKER_CLI_EXPERIMENTAL=enabled
           
           # Define the base image name and tag
-          BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}"
+          BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}"
           SHA_TAG="${{ github.sha }}"
           
           # Create manifest list

@@ -10,11 +10,11 @@ on:
       stage:
         required: true
         type: string
-        description: 'Environment stage (e.g. dev, staging, production)'
+        description: 'stage being released (dev,staging,production)'
       service-name:
         required: true
         type: string
-        description: 'Proper name for your service i.e Cloud Emulator'
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
       service-emoji:
         required: true
         type: string
@@ -22,7 +22,7 @@ on:
       service-identifier:
         required: true
         type: string
-        description: 'Identifier of the service being released i.e ocpp-cloud-emulator'
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
       gradle-module:
         required: true
         type: string
@@ -83,7 +83,7 @@ permissions:
 jobs:
   test:
     name: Test
-    uses: monta-app/github-workflows/.github/workflows/component-test-kotlin.yaml@v3
+    uses: ./.github/workflows/component-test-kotlin.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
       service-name: ${{ inputs.service-name }}
@@ -98,8 +98,9 @@ jobs:
   build:
     name: Build
     needs: test
-    uses: monta-app/github-workflows/.github/workflows/component-build.yaml@v3
+    uses: ./.github/workflows/component-build.yaml
     with:
+      stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       service-identifier: ${{ inputs.service-identifier }}
@@ -120,7 +121,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
-    uses: monta-app/github-workflows/.github/workflows/component-deploy.yaml@v3
+    uses: ./.github/workflows/component-deploy.yaml
     with:
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
