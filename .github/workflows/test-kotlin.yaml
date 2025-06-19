@@ -1,0 +1,206 @@
+name: Test Java/Kotlin
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: false
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: false
+        type: string
+        description: 'An emoji to identify your service by :)'
+      gradle-module:
+        required: false
+        type: string
+        description: 'Name of the gradle module being tested'
+      java-distribution:
+        required: false
+        type: string
+        default: "corretto"
+        description: 'Java distribution to use'
+      java-version:
+        required: false
+        type: string
+        default: "17"
+        description: 'Java version to use'
+      run-tests:
+        required: false
+        type: boolean
+        default: true
+        description: 'Whether to run tests'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'Existing Slack message ID to update'
+      self-hosted:
+        required: false
+        type: boolean
+        default: false
+        description: 'Use self-hosted runners'
+      more-power:
+        required: false
+        type: boolean
+        default: false
+        description: 'Use more powerful runners'
+      arm-build:
+        required: false
+        type: boolean
+        default: false
+        description: 'Also run tests on ARM architecture'
+    secrets:
+      GHL_USERNAME:
+        required: true
+        description: 'Github Username (Gradle plugin)'
+      GHL_PASSWORD:
+        required: true
+        description: 'Github Password (Gradle plugin)'
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app token'
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for subsequent updates'
+        value: ${{ jobs.init.outputs.slack-message-id }}
+      test-results:
+        description: 'Test results status'
+        value: ${{ jobs.test.result }}
+
+jobs:
+  init:
+    name: Initialize Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
+      runners: ${{ toJSON(steps.*.outputs.runner) }}
+    steps:
+      - name: Publish initial message to slack (if no message ID provided)
+        if: ${{ inputs.slack-message-id == '' }}
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          job-type: "test"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+
+      - name: Update existing slack message
+        if: ${{ inputs.slack-message-id != '' }}
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "test"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ inputs.slack-message-id }}
+
+      # Calculate runners based on inputs
+      - id: hosted-x64
+        if: ${{ !inputs.self-hosted && !inputs.more-power }}
+        run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
+
+      - id: hosted-x64-xl
+        if: ${{ !inputs.self-hosted && inputs.more-power }}
+        run: echo "runner=linux-x64-xl" >> $GITHUB_OUTPUT
+
+      - id: self-hosted-x64
+        if: ${{ inputs.self-hosted && !inputs.more-power }}
+        run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
+
+      - id: self-hosted-arm64
+        if: ${{ inputs.arm-build && !inputs.more-power }}
+        run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
+
+      - id: self-hosted-x64-2xl
+        if: ${{ inputs.self-hosted && inputs.more-power }}
+        run: echo "runner=self-hosted-x64-2xl" >> $GITHUB_OUTPUT
+
+      - id: self-hosted-arm64-2xl
+        if: ${{ inputs.arm-build && inputs.more-power }}
+        run: echo "runner=self-hosted-arm64-2xl" >> $GITHUB_OUTPUT
+
+      - name: Publish result message to slack (on failure)
+        uses: monta-app/slack-notifier-cli-action@main
+        if: failure()
+        with:
+          job-type: "test"
+          job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
+
+  test:
+    name: Test
+    needs: init
+    runs-on: ${{ matrix.runner-type }}
+    timeout-minutes: 30
+    if: ${{ inputs.run-tests }}
+    strategy:
+      matrix:
+        runner-type: ${{ fromJSON(needs.init.outputs.runners) }}
+    steps:
+      - name: Install dependencies
+        if: ${{ !contains(matrix.runner-type, 'self-hosted') }}
+        shell: bash
+        run: |
+          if command -v curl &> /dev/null; then
+            echo "curl is already installed"
+          else
+            sudo apt update
+            sudo apt install -y curl
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
+          cache: 'gradle'
+
+      - name: Run Gradle tests
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$GRADLE_MODULE" ]; then
+            ./gradlew --no-daemon test --parallel
+          else
+            ./gradlew --no-daemon $GRADLE_MODULE:test --parallel
+          fi
+        shell: bash
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-result-${{ matrix.runner-type }}
+          path: |
+            build/reports/tests/test
+            **/build/reports/tests/test
+            /home/runner/.gradle/daemon/**/daemon-*.out.log
+          retention-days: 2
+          overwrite: true
+
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: always()
+        with:
+          job-type: "test"
+          job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
