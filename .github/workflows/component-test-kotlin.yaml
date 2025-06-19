@@ -23,6 +23,10 @@ on:
         type: string
         default: "21"
         description: 'Java version to use'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'Slack message ID from initialization for updates'
     secrets:
       GHL_USERNAME:
         required: true
@@ -33,10 +37,6 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
-    outputs:
-      slack-message-id:
-        description: 'Slack message ID for subsequent updates'
-        value: ${{ jobs.test.outputs.slack-message-id }}
 
 permissions:
   contents: read
@@ -53,30 +53,15 @@ jobs:
     needs: get-runner
     runs-on: ${{ needs.get-runner.outputs.runner-name }}
     timeout-minutes: 30
-    outputs:
-      slack-message-id: ${{ steps.send-slack-message.outputs.slack-message-id }}
     steps:
-      - name: Send slack message
-        id: send-slack-message
-        uses: monta-app/slack-notifier-cli-action@main
-        with:
-          job-type: "test"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
-
       - name: Test project
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -86,7 +71,6 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test'
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,7 +82,6 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
           overwrite: true
-
       - name: Publish result message to slack
         uses: monta-app/slack-notifier-cli-action@main
         if: always()
@@ -109,4 +92,4 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.send-slack-message.outputs.slack-message-id }}
+          slack-message-id: ${{ inputs.slack-message-id }}

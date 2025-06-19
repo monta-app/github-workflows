@@ -1,0 +1,47 @@
+name: Initialize
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: true
+        type: string
+        description: 'An emoji to identify your service by :)'
+    secrets:
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app token'
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for subsequent updates'
+        value: ${{ jobs.initialize.outputs.slack-message-id }}
+      slack-channel-id:
+        description: 'Slack channel ID for subsequent updates'
+        value: ${{ jobs.initialize.outputs.slack-channel-id }}
+
+permissions:
+  contents: read
+
+jobs:
+  initialize:
+    name: Initialize
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      slack-message-id: ${{ steps.send-slack-message.outputs.slack-message-id }}
+      slack-channel-id: ${{ steps.send-slack-message.outputs.slack-channel-id }}
+    steps:
+      - name: Send slack message
+        id: send-slack-message
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "test"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"

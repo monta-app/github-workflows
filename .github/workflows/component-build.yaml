@@ -63,9 +63,6 @@ on:
         required: false
         description: "AWS CDN Secret Access Key, this value is injected into the secrets of a docker image"
     outputs:
-      slack-message-id:
-        description: 'Slack message ID for subsequent updates'
-        value: ${{ jobs.notify-build-start.outputs.slack-message-id }}
       image-tag:
         description: 'The image tag that was built'
         value: ${{ jobs.create-manifest.outputs.image-tag }}
@@ -79,8 +76,6 @@ jobs:
     name: Notify Build Start
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
     steps:
       - name: Update existing slack message
         uses: monta-app/slack-notifier-cli-action@main
@@ -194,4 +189,4 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.notify-build-start.outputs.slack-message-id }}
+          slack-message-id: ${{ inputs.slack-message-id }}

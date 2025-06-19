@@ -83,8 +83,18 @@ permissions:
   actions: read
 
 jobs:
+  initialize:
+    name: Initialize
+    uses: ./.github/workflows/component-initialize.yaml
+    with:
+      service-name: ${{ inputs.service-name }}
+      service-emoji: ${{ inputs.service-emoji }}
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+
   test:
     name: Test
+    needs: initialize
     uses: ./.github/workflows/component-test-kotlin.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -92,14 +102,14 @@ jobs:
       service-emoji: ${{ inputs.service-emoji }}
       gradle-module: ${{ inputs.gradle-module }}
       java-version: ${{ inputs.java-version }}
+      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
-
   build:
     name: Build
-    needs: test
+    needs: initialize
     uses: ./.github/workflows/component-build.yaml
     with:
       stage: ${{ inputs.stage }}
@@ -110,7 +120,7 @@ jobs:
       docker-file-name: ${{ inputs.docker-file-name }}
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
-      slack-message-id: ${{ needs.test.outputs.slack-message-id }}
+      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -122,7 +132,10 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: build
+    needs:
+      - initialize
+      - test
+      - build
     uses: ./.github/workflows/component-deploy.yaml
     with:
       service-name: ${{ inputs.service-name }}
@@ -130,7 +143,7 @@ jobs:
       service-identifier: ${{ inputs.service-identifier }}
       stage: ${{ inputs.stage }}
       image-tag: ${{ needs.build.outputs.image-tag }}
-      slack-message-id: ${{ needs.build.outputs.slack-message-id }}
+      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
