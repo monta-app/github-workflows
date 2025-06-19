@@ -58,6 +58,7 @@ on:
 
 jobs:
   get-runner:
+    name: Determine runner size
     uses: ./.github/workflows/component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}

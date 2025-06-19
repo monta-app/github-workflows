@@ -1,0 +1,80 @@
+name: Build and test (React/TypeScript with Bun)
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: false
+        type: string
+        description: "Runner to use for the job (normal, or large)"
+        default: "normal"
+      bun-version:
+        required: false
+        type: string
+        default: 'latest'
+        description: "Bun version to use"
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+        description: "Working directory for frontend code"
+      build-timeout-minutes:
+        required: false
+        type: number
+        description: "Timeout for the build job in minutes"
+        default: 15
+      lint-command:
+        required: false
+        type: string
+        default: 'bun run lint'
+        description: "Command to run for linting"
+      build-command:
+        required: false
+        type: string
+        default: 'bun run build'
+        description: "Command to run for building"
+      test-command:
+        required: false
+        type: string
+        default: 'bun run test'
+        description: "Command to run for testing (optional)"
+jobs:
+  get-runner:
+    name: Determine runner size
+    uses: ./.github/workflows/component-runner-size-converter.yaml
+    with:
+      runner-size: ${{ inputs.runner-size }}
+  pr_title_checker:
+    name: Check PR title
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
+  lint-build-test:
+    name: Lint & Build & Test
+    needs: get-runner
+    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    timeout-minutes: ${{ inputs.build-timeout-minutes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "latest"
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: bun install
+      - name: Lint check
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.lint-command }}
+      - name: Run tests
+        if: ${{ inputs.test-command != '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.test-command }}
+      - name: Build check
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}

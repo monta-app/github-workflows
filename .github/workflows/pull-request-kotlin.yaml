@@ -42,6 +42,7 @@ on:
         description: "SonarCloud token"
 jobs:
   get-runner:
+    name: Determine runner size
     uses: ./.github/workflows/component-runner-size-converter.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -51,10 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: Slashgear/action-check-pr-title@v4
-        with:
-          regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
-          helpMessage: "Example: 'feat(app-api): Add new vehicle integration (SERVER-123)'"
+      - uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
   test:
     name: Test with code coverage
     needs: get-runner

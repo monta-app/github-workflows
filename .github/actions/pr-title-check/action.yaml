@@ -1,0 +1,10 @@
+name: 'PR Title Check'
+description: 'Check PR title format against conventional commit standards'
+runs:
+  using: composite
+  steps:
+    - name: Check PR title
+      uses: Slashgear/action-check-pr-title@v4
+      with:
+        regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
+        helpMessage: "Example: 'feat(app-ui): Add new dashboard component (WEB-123)'"
