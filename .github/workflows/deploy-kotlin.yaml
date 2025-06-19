@@ -6,7 +6,8 @@ on:
       runner-size:
         required: false
         type: string
-        description: 'Runner size for the test job'
+        description: "Runner to use for the job (normal, or large)"
+        default: "normal"
       stage:
         required: true
         type: string
