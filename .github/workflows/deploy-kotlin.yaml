@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         description: 'Runner size for the test job'
+      stage:
+        required: true
+        type: string
+        description: 'Environment stage (e.g. dev, staging, production)'
       service-name:
         required: true
         type: string
@@ -29,8 +33,9 @@ on:
         default: "21"
         description: 'Java version to use'
       region:
-        required: true
+        required: false
         type: string
+        default: "eu-west-1"
         description: 'AWS region to deploy to'
       docker-file-name:
         required: true
@@ -41,13 +46,9 @@ on:
         type: string
         description: 'Additional build arguments for Docker'
       ecr-repository-name:
-        required: true
+        required: false
         type: string
         description: 'ECR repository name override'
-      stage:
-        required: true
-        type: string
-        description: 'Environment stage (e.g. dev, staging, production)'
     secrets:
       GHL_USERNAME:
         required: true
