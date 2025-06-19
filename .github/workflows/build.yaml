@@ -1,0 +1,197 @@
+name: Build
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: false
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: false
+        type: string
+        description: 'An emoji to identify your service by :)'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      region:
+        required: true
+        type: string
+        default: 'eu-west-1'
+        description: 'AWS region'
+      docker-file-name:
+        required: false
+        type: string
+        description: Name of the docker file to be built
+        default: "Dockerfile"
+      additional-build-args:
+        required: false
+        type: string
+        description: "Optional additional build arguments to pass to the Docker build process. Specify each argument on a new line in the format KEY=VALUE."
+      ecr-repository-name:
+        required: false
+        type: string
+        description: 'Custom ECR repository name. If not specified, defaults to service-identifier'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'Existing Slack message ID to update'
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+        description: 'AWS account id'
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app token'
+      SENTRY_AUTH_TOKEN:
+        required: false
+        description: "Sentry Auth Token, this value is injected into the secrets of a docker image"
+      AWS_CDN_ACCESS_KEY_ID:
+        required: false
+        description: "AWS CDN Secret Access ID, this value is injected into the secrets of a docker image"
+      AWS_CDN_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS CDN Secret Access Key, this value is injected into the secrets of a docker image"
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for subsequent updates'
+        value: ${{ jobs.notify_build_start.outputs.slack-message-id }}
+      image-tag:
+        description: 'The image tag that was built'
+        value: ${{ jobs.create_manifest.outputs.image-tag }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  notify_build_start:
+    name: Notify Build Start
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
+    steps:
+      - name: Publish initial message to slack (if no message ID provided)
+        if: ${{ inputs.slack-message-id == '' }}
+        uses: monta-app/slack-notifier-cli-action@main
+        id: publish-slack
+        with:
+          job-type: "build"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+      - name: Update existing slack message
+        if: ${{ inputs.slack-message-id != '' }}
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "build"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ inputs.slack-message-id }}
+  build:
+    name: Build Multi-Arch
+    needs: notify_build_start
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: linux-x64
+          - platform: linux/arm64
+            arch: arm64
+            runner: linux-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}
+          tags: |
+            type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ inputs.docker-file-name }}
+          push: true
+          no-cache: true
+          build-args: |
+            ${{ inputs.additional-build-args }}
+          labels: |
+            GITHUB_RUN_ID=${{ github.run_id }}
+            ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          secrets: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
+            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+  create_manifest:
+    name: Create Multi-Arch Manifest
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      image-tag: ${{ github.sha }}
+    steps:
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: create-manifest-${{ inputs.service-identifier }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Create and push manifest
+        run: |
+          # Enable experimental features
+          export DOCKER_CLI_EXPERIMENTAL=enabled
+          
+          # Define the base image name and tag
+          BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || inputs.service-identifier }}"
+          SHA_TAG="${{ github.sha }}"
+          
+          # Create manifest list
+          docker manifest create ${BASE_IMAGE}:${SHA_TAG} \
+            ${BASE_IMAGE}:${SHA_TAG}-amd64 \
+            ${BASE_IMAGE}:${SHA_TAG}-arm64
+          
+          # Push the manifest
+          docker manifest push ${BASE_IMAGE}:${SHA_TAG}
+  notify_build_finished:
+    name: Notify Build Finished
+    needs: [ notify_build_start, build, create_manifest ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    steps:
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "build"
+          job-status: ${{ needs.build.result }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ needs.notify_build_start.outputs.slack-message-id }}

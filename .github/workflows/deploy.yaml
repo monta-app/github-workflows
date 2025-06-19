@@ -14,652 +14,43 @@ on:
         required: true
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
-      gradle-module:
-        required: false
-        type: string
-        description: 'Name of the gradle module being tested'
-      region:
-        required: true
-        type: string
-        default: 'eu-west-1'
-        description: 'AWS region'
       stage:
         required: true
         type: string
         description: 'stage being released (dev,staging,production)'
-      docker-file-name:
+      image-tag:
+        required: true
+        type: string
+        description: 'Docker image tag to deploy'
+      slack-message-id:
         required: false
         type: string
-        description: Name of the docker file to be built
-        default: "Dockerfile"
-      additional-build-args:
-        required: false
-        type: string
-        description: "Optional additional build arguments to pass to the Docker build process. Specify each argument on a new line in the format KEY=VALUE. These arguments will be appended to the existing build-args list."
-      java-version:
-        required: false
-        type: string
-        default: "21"
-      upload-open-api:
-        required: false
-        type: boolean
-        default: false
-        description: 'Upload open api specification to the kube manifests repository'
-      arm-build:
-        required: false
-        type: boolean
-        default: false
-        description: 'Build both an arm64 image in addition to the x64 image'
-      self-hosted:
-        required: false
-        type: boolean
-        default: false
-        description: 'Builds a x64 image, on a self-hosted runner x64 machine'
-      more-power:
-        required: false
-        type: boolean
-        default: false
-        description: 'Enables use of a more powerful machine (8 cores, 32 GB RAM) to speed up builds.'
-      push-to-manifests:
-        required: false
-        type: boolean
-        default: true
-        description: 'If false, will use ArgoCD Updater instead of pushing to kube-manifests'
-      ocpp-gateway-replicas:
-        required: false
-        type: number
-        default: 10
-      run-tests:
-        required: false
-        type: boolean
-        default: true
+        description: 'Existing Slack message ID to update'
     secrets:
-      GHL_USERNAME:
-        required: true
-        description: 'Github Username (Gradle plugin)'
-      GHL_PASSWORD:
-        required: true
-        description: 'Github Password (Gradle plugin)'
-      AWS_ACCOUNT_ID:
-        required: false
-        description: 'AWS account id'
-      AWS_ACCESS_KEY_ID:
-        required: false
-        description: 'AWS access key id'
-      AWS_SECRET_ACCESS_KEY:
-        required: false
-        description: 'AWS secret access key'
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub personal access token'
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
-      ARGOCD_TOKEN:
-        required: false # REQUIRED WHEN USING `upload-open-api`!!!
-        description: 'ArgoCD token - should be set to ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION'
-      INFRA_PORTAL_TOKEN:
-        required: false
-        description: 'Infra Portal token'
-      TECHDOCS_AWS_ACCESS_KEY_ID:
-        required: false
-        description: 'TECHDOCS AWS access key id'
-      TECHDOCS_AWS_SECRET_ACCESS_KEY:
-        required: false
-        description: 'TECHDOCS AWS secret access key'
-      SENTRY_AUTH_TOKEN:
-        required: false
-        description: "Sentry Auth Token, this value is injected into the secrets of a docker image"
-      AWS_CDN_ACCESS_KEY_ID:
-        required: false
-        description: "AWS CDN Secret Access ID, this value is injected into the secrets of a docker image"
-      AWS_CDN_SECRET_ACCESS_KEY:
-        required: false
-        description: "AWS CDN Secret Access Key, this value is injected into the secrets of a docker image"
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for subsequent updates'
+        value: ${{ jobs.deploy.outputs.slack-message-id }}
+
 permissions:
-  id-token: write # This is required for requesting the JWT
   contents: read
-  actions: read # This is required for 8398a7/action-slack
 
 jobs:
-  # needed in order for test and build to start independently while updating the same slack message
-  init:
-    name: Sending first Slack message
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
-    env:
-      argocd-token: ${{ secrets.ARGOCD_TOKEN }}
-      infra-portal-token: ${{ secrets.INFRA_PORTAL_TOKEN }}
     timeout-minutes: 5
     outputs:
-      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-      runners: ${{ toJSON(steps.*.outputs.runner) }}
-      service-cluster: ${{ steps.get-manifest-info.outputs.cluster }}
-      service-namespace: ${{ steps.get-manifest-info.outputs.namespace }}
-      service-name: ${{ steps.get-manifest-info.outputs.service-name }}
-      argocd-server: ${{ steps.set-argocd-server.outputs.argocd-hostname }}
-      infra-portal-server: ${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}
+      slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
     steps:
-      - name: Publish progress message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
-        with:
-          job-type: "test"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-      # calculates runner, including whether it should also run on arm
-      - id: hosted-x64
-        if: ${{ !inputs.self-hosted && !inputs.more-power}}
-        run: echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
-      - id: hosted-x64-xl
-        if: ${{ !inputs.self-hosted && inputs.more-power}}
-        run: echo "runner=linux-x64-xl" >> $GITHUB_OUTPUT
-      - id: self-hosted-x64
-        if: ${{ inputs.self-hosted && !inputs.more-power  }}
-        run: echo "runner=self-hosted-x64" >> $GITHUB_OUTPUT
-      - id: self-hosted-arm64
-        if: ${{ inputs.arm-build && !inputs.more-power }}
-        run: echo "runner=self-hosted-arm64" >> $GITHUB_OUTPUT
-      - id: self-hosted-x64-2xl
-        if: ${{ inputs.self-hosted && inputs.more-power  }}
-        run: echo "runner=self-hosted-x64-2xl" >> $GITHUB_OUTPUT
-      - id: self-hosted-arm64-2xl
-        if: ${{ inputs.arm-build && inputs.more-power }}
-        run: echo "runner=self-hosted-arm64-2xl" >> $GITHUB_OUTPUT
-      - id: verify-argocd-token
-        if: ${{ ! inputs.push-to-manifests }}
-        shell: bash
-        run: |
-          if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
-            echo "::error::MUST INPUT ARGOCD_TOKEN SECRET"
-            echo "ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION"
-            exit 1
-          fi
-      - id: set-argocd-server
-        if: ${{ env.argocd-token != '' }}
-        env:
-          STAGE: ${{ inputs.stage }}
-        run: |
-          if [[ $STAGE =~ dev|staging ]]; then
-            ARGOCD_HOSTNAME="argocd.staging.monta.app"
-          else
-            ARGOCD_HOSTNAME="argocd.monta.app"
-          fi
-          echo "argocd-hostname=$ARGOCD_HOSTNAME" >> "$GITHUB_OUTPUT"
-      - id: verify-infra-portal-token
-        if: ${{ inputs.service-identifier == 'ocpp-gateway' || inputs.push-to-manifests == false }}
-        shell: bash
-        run: |
-          if [ "${{ secrets.INFRA_PORTAL_TOKEN }}" == '' ]; then
-            echo "::error::MUST INPUT INFRA_PORTAL_TOKEN SECRET"
-            exit 1
-          fi
-      - id: set-infra-portal-server
-        if: ${{ env.infra-portal-token != '' }}
-        env:
-          STAGE: ${{ inputs.stage }}
-        run: |
-          if [[ $STAGE =~ dev|staging ]]; then
-            INFRA_PORTAL_HOSTNAME="infra-portal.staging.monta.app"
-          else
-            INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
-          fi
-          echo "infra-portal-hostname=$INFRA_PORTAL_HOSTNAME" >> "$GITHUB_OUTPUT"
-      - name: Get manifest info
-        id: get-manifest-info
-        if: ${{ inputs.upload-open-api }}
-        shell: bash
-        env:
-          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          ARGOCD_SERVER: ${{ steps.set-argocd-server.outputs.argocd-hostname }}
-        run: |
-          if [ "${{ secrets.ARGOCD_TOKEN }}" == '' ]; then
-            echo "::error::MUST INPUT ARGOCD_TOKEN SECRET"
-            echo "ARGOCD_TOKEN_STAGING / ARGOCD_TOKEN_PRODUCTION"
-            exit 1
-          fi
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo chmod +x argocd
-          K8S_CLUSTER=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.name')
-          if [ $K8S_CLUSTER == "main-prod" ]; then
-            export K8S_CLUSTER="main-production"
-          fi
-          echo "cluster=$K8S_CLUSTER" >> "$GITHUB_OUTPUT"
-          K8S_NAMESPACE=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app get argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} -o yaml | yq '.spec.destination.namespace')
-          echo "namespace=$K8S_NAMESPACE" >> "$GITHUB_OUTPUT"
-          SERVICE_NAME=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app.kubernetes.io/name"')
-
-          if [ $SERVICE_NAME = "null" ]; then
-            SERVICE_NAME=$(./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app manifests argocd/${{ inputs.service-identifier }}-${{ inputs.stage }} | yq 'select(di == 1) | .metadata.labels."app"')
-          fi
-
-          echo "service-name=$SERVICE_NAME" >> "$GITHUB_OUTPUT"
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: failure()
-        with:
-          job-type: "test"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id }}
-
-  test:
-    name: Test
-    needs: init
-    runs-on: ${{ matrix.runner-type }}
-    timeout-minutes: 30
-    if: ${{ inputs.run-tests }}
-    strategy:
-      matrix:
-        runner-type: ${{ fromJSON(needs.init.outputs.runners) }}
-    steps:
-      - name: Download curl
-        id: download-curl
-        shell: bash
-        run: |
-          sudo apt update
-          sudo apt install -y curl
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: corretto
-          java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
-      - name: Test project
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$GRADLE_MODULE" ]; then
-            ./gradlew --no-daemon test --parallel
-          else
-            ./gradlew --no-daemon $GRADLE_MODULE:test --parallel
-          fi
-        shell: bash
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-result
-          path: |
-            build/reports/tests/test
-            /home/runner/.gradle/daemon/**/daemon-*.out.log
-          retention-days: 2
-          overwrite: true
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: always()
-        with:
-          job-type: "test"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  update-open-api-spec:
-    if: ${{ ! failure() && ! cancelled() && inputs.upload-open-api }}
-    name: Update OpenAPI Spec
-    needs: [ init, test, build ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      techdocs_key: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: corretto
-          java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
-      - name: Install LinkerD CLI
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
-      - name: Install kubectl CLI
-        shell: bash
-        env:
-          K8S_VERSION: v1.30.10
-        run: |
-          curl -LO https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubectl
-          sudo chmod +x kubectl
-      - name: Install Teleport
-        uses: teleport-actions/setup@v1
-        with:
-          version: 15.3.7
-      - name: Authorize against Teleport
-        uses: teleport-actions/auth-k8s@v2
-        with:
-          proxy: 'teleport.monta.app:443'
-          token: github-actions
-          kubernetes-cluster: ${{ needs.init.outputs.service-cluster }}
-      - name: Update Path with LinkerD CLI
-        shell: bash
-        run: |
-          echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
-      - name: Discover build properties
-        shell: bash
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)' | head -n1)
-          if [ "$GRADLE_TASK" = "kaptKotlin" ]; then
-            OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
-          elif [ "$GRADLE_TASK" = "kspKotlin" ]; then
-            OUTPUT_DIR="build/generated/ksp/main/resources/META-INF/swagger"
-          fi
-
-          echo "GRADLE_TASK=${GRADLE_MODULE}:${GRADLE_TASK}" >> "$GITHUB_ENV"
-          echo "OPENAPI_OUTPUT_DIR=${OUTPUT_DIR}" >> "$GITHUB_ENV"
-      - name: Build Open API Spec
-        shell: bash
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-        run: |
-          ./gradlew $GRADLE_TASK
-      - name: Upload Open API Spec to S3 backstage bucket
-        if: ${{ env.techdocs_key != '' }}
-        shell: bash
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: 'eu-west-1'
-          AWS_DEFAULT_REGION: 'eu-west-1'
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-        run: |
-          # Find the generated spec
-          YML_FILE=$(find . -type f -name '*.yml' \
-            | grep "$OPENAPI_OUTPUT_DIR" \
-            | head -n1)
-          # Check if a .yml file was found and display the result or an error message
-          if [ -z "${YML_FILE}" ]; then
-              echo "No .yml file found in ${TARGET_DIR}."
-              exit 1
-          fi
-
-          # Read team and division from catalog-info.yaml
-          backstage_owner=SRE
-          backstage_system=Platform
-          if [ -e ./catalog-info.yaml ]; then
-            # Extract the 'owner' and 'system' values, removing anything after a '#'
-            OWNER=$(grep '^\s*owner:' ./catalog-info.yaml | sed 's/.*owner: ?\([^#]*\).*/\1/' | xargs)
-            SYSTEM=$(grep '^\s*system:' ./catalog-info.yaml | sed 's/.*system: ?\([^#]*\).*/\1/' | xargs)
-          fi
-
-          # Print the yml file
-          echo "Building catalog file from: ${YML_FILE}"
-          spec_file=${YML_FILE}
-          service_name=${{ inputs.service-identifier }}
-          output_file_path="catalog_${service_name}_api.yaml"
-
-          spec=$(cat $spec_file)
-          # Build the final spec file
-          echo "Saving catalog file to ${output_file_path}"
-          cat << EndOfMessage > ${output_file_path}
-          apiVersion: backstage.io/v1alpha1
-          kind: API
-          metadata:
-            name: ${service_name}
-          spec:
-            type: openapi
-            lifecycle: production
-            owner: ${backstage_owner}
-            system: ${backstage_system}
-            definition: |
-          $(cat $spec_file | sed 's/^/    /')
-          EndOfMessage
-          echo "Uploading catalog file from: ${output_file_path}"
-          aws s3 cp ${output_file_path} s3://monta-tech-docs/api/
-          echo "Upload complete."
-      - name: Create service profile
-        id: create-service-profile
-        shell: bash
-        env:
-          GRADLE_MODULE: ${{ inputs.gradle-module }}
-          K8S_NAMESPACE: ${{ needs.init.outputs.service-namespace }}
-          SERVICE_NAME: ${{ needs.init.outputs.service-name }}
-        run: |
-          # Find the generated spec
-          YML_FILE=$(find . -type f -name '*.yml' \
-            | grep "$OPENAPI_OUTPUT_DIR" \
-            | head -n1)
-
-          # Check if a .yml file was found and display the result or an error message
-          if [ -z "${YML_FILE}" ]; then
-              echo "No .yml file found in ${TARGET_DIR}."
-              exit 1
-          fi
-
-          linkerd profile --ignore-cluster -n $K8S_NAMESPACE --open-api $YML_FILE $SERVICE_NAME >> service-profile.yaml
-
-          cat <<EOB >> clean-service-profiles.sh
-          #!/bin/bash
-          yq service-profile.yaml
-          yq service-profile.yaml | yq 'del(.spec.routes[].responseClasses)' service-profile.yaml > service-profile-new.yaml
-          cat <<EOT >> service-profile-new.yaml
-              - condition:
-                  method: POST
-                name: POST [Default]
-              - condition:
-                  method: GET
-                name: GET [Default]
-              - condition:
-                  method: PATCH
-                name: PATCH [Default]
-              - condition:
-                  method: PUT
-                name: PUT [Default]
-              - condition:
-                  method: HEAD
-                name: HEAD [Default]
-              - condition:
-                  method: OPTIONS
-                name: OPTIONS [Default]
-              - condition:
-                  method: DELETE
-                name: DELETE [Default]
-          EOT
-          yq service-profile-new.yaml
-          EOB
-
-          bash clean-service-profiles.sh
-
-          kubectl -n $K8S_NAMESPACE apply -f service-profile-new.yaml
-
-  build:
-    name: Build
-    needs: init
-    runs-on: ${{ matrix.runner-type }}
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        runner-type: ${{ fromJSON(needs.init.outputs.runners) }}
-    steps:
-      - name: Download curl
-        if: runner.arch == 'X64'
-        id: download-curl
-        shell: bash
-        run: |
-          sudo apt update
-          sudo apt install -y curl
-      - name: Publish progress message to slack
-        if: runner.arch == 'X64'
-        uses: monta-app/slack-notifier-cli-action@main
-        id: publish-slack
-        with:
-          job-type: "build"
-          job-status: "progress"
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: corretto
-          java-version: ${{ inputs.java-version }}
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: Login to Amazon ECR Internal
-        id: login-ecr-internal
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registries: "229494932364"
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service-identifier }}-${{ inputs.stage }}
-          tags: |
-            type=sha,format=long,prefix=,suffix=-${{ runner.arch }}
-          flavor: |
-            latest=false
-            prefix=
-            suffix=
-      - name: Build
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./${{ inputs.docker-file-name }}
-          push: true
-          no-cache: true
-          build-args: |
-            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
-            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-            ${{ inputs.additional-build-args }}
-          # For pruning built image on self-hosted runner based on this run's ID
-          labels: |
-            GITHUB_RUN_ID=${{ github.run_id }}
-            ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
-          secrets: |
-            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
-            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
-            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
-
-  notify-if-migrations-in-production:
-    name: Notify if migrations in production
-    runs-on: ubuntu-latest
-    if: ${{ inputs.stage == 'production' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2 # current and preceding commit to check diff
-      - name: Get changed migration files
-        id: changed-migration-files
-        uses: tj-actions/changed-files@v46
-        with:
-          files: |
-            **/resources/db/migration/**
-            **/*.sql
-      - name: Notify if migration files changed
-        uses: rtCamp/action-slack-notify@v2
-        if: steps.changed-migration-files.outputs.any_changed == 'true'
-        env:
-          MSG_MINIMAL: true #'ref,commit'
-          SLACK_CHANNEL: migration-deploys
-          SLACK_ICON: 'https://avatars.slack-edge.com/2020-10-24/1463567065009_39967124f549f50e3faf_512.png'
-          SLACK_MESSAGE: "Service: ${{ inputs.service-name }}\nSee: ${{ github.event.compare }}"
-          SLACK_TITLE: "PR with migrations being deployed to production! :eyetwitch:"
-          SLACK_USERNAME: 'Monta Bot'
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_FOOTER: 'Powered by Monta! #EVBetter'
-
-  # needed because can't run slack notifier cli on arm64, so can't update with always() in the same build job
-  update_build_fail:
-    name: Update Slack message for build fail
-    needs: [ init, build ]
-    if: failure()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          job-type: "build"
-          job-status: ${{ needs.build.result }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  update_build_success:
-    name: Update Slack message for build success
-    needs: [ init, build ]
-    if: success()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: ${{ always() }}
-        with:
-          job-type: "build"
-          job-status: ${{ needs.build.result }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  push-manifest-list:
-    name: Push Manifest
-    needs: [ init, build, test ]
-    if: ${{ ! failure() && ! cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Publish progress message to slack
+      - name: Publish initial message to slack (if no message ID provided)
+        if: ${{ inputs.slack-message-id == '' }}
         uses: monta-app/slack-notifier-cli-action@main
         id: publish-slack
         with:
@@ -669,95 +60,28 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-      - name: Check for secret.AWS_ACCOUNT_ID availability
-        id: secret-check
-        shell: bash
-        run: |
-          if [ "${{ secrets.AWS_ACCOUNT_ID }}" != '' ]; then
-            echo "available=true" >> $GITHUB_OUTPUT;
-          else
-            echo "available=false" >> $GITHUB_OUTPUT;
-          fi
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{ inputs.stage }}
-          aws-region: ${{ inputs.region }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        if: steps.secret-check.outputs.available == 'false'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: build-push-manifest
-        id: build-container
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          SERVICE_NAME: ${{ inputs.service-identifier }}
-          STAGE: ${{ inputs.stage }}
-          ARM_BUILD: ${{ inputs.arm-build }}
-        shell: bash
-        run: |
-          ECR_IMAGE_URL=$ECR_REGISTRY/$SERVICE_NAME-$STAGE
-
-          if [ $ARM_BUILD = "true" ]; then
-            docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-            docker manifest annotate --arch arm64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-ARM64
-          else
-            docker manifest create $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
-          fi
-          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:${{ github.sha }} $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest inspect $ECR_IMAGE_URL:${{ github.sha }}
-          docker manifest push $ECR_IMAGE_URL:${{ github.sha }}
-
-          if [ $ARM_BUILD = "true" ]; then
-            docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64 $ECR_IMAGE_URL:${{ github.sha }}-X64
-            docker manifest annotate --arch arm64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-ARM64
-          else
-            docker manifest create $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
-          fi
-          docker manifest annotate --arch amd64 $ECR_IMAGE_URL:latest $ECR_IMAGE_URL:${{ github.sha }}-X64
-          docker manifest inspect $ECR_IMAGE_URL:latest
-          docker manifest push $ECR_IMAGE_URL:latest
-      - name: Publish result message to slack
+      - name: Update existing slack message
+        if: ${{ inputs.slack-message-id != '' }}
         uses: monta-app/slack-notifier-cli-action@main
-        if: failure()
         with:
           job-type: "deploy"
-          job-status: ${{ job.status }}
+          job-status: "progress"
           service-name: ${{ inputs.service-name }}
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  deploy_by_push:
-    if: ${{ ! failure() && ! cancelled() && inputs.push-to-manifests }}
-    name: Deploy (push)
-    needs:
-      - push-manifest-list
-      - init
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
+          slack-message-id: ${{ inputs.slack-message-id }}
       - name: Check out manifest repository
         uses: actions/checkout@v4
         with:
           repository: monta-app/kube-manifests
           path: 'manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update image name
+      - name: Update image tag
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
-          sed -i "s/tag: .*/tag: ${{ github.sha }}/" values.yaml
+          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
@@ -775,15 +99,15 @@ jobs:
           git config --local user.name "GitHub Action"
           git commit -am "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
         shell: bash
-      - name: Push
+      - name: Push changes
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
           repository: monta-app/kube-manifests
       - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
         if: always()
+        uses: monta-app/slack-notifier-cli-action@main
         with:
           job-type: "deploy"
           job-status: ${{ job.status }}
@@ -791,78 +115,4 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  deploy_by_argocd:
-    if: ${{ ! failure() && ! cancelled() && ! inputs.push-to-manifests }}
-    name: Deploy (ArgoCD)
-    needs:
-      - push-manifest-list
-      - init
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Download ArgoCD CLI
-        shell: bash
-        run: |
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo chmod +x argocd
-      - name: ArgoCD update application
-        shell: bash
-        env:
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          ARGOCD_SERVER: ${{ needs.init.outputs.argocd-server }}
-        run: >
-          ./argocd --grpc-web --auth-token $ARGOCD_TOKEN --server $ARGOCD_SERVER app set argocd/${{ inputs.service-identifier }}-${{ inputs.stage }}
-          --helm-set-string kotlin.revision=${GITHUB_SHA::8}
-          --helm-set kotlin.build=${{ github.run_number }}
-          --helm-set-string kotlin.image.tag=${GITHUB_SHA}
-          --helm-set-string static.revision=${GITHUB_SHA::8}
-          --helm-set static.build=${{ github.run_number }}
-          --helm-set-string static.image.tag=${GITHUB_SHA}
-      - name: Update Infra Portal
-        shell: bash
-        run: |
-          response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Accept: application/json" -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" --data '{"name": "'"${{ inputs.service-identifier }}-${{ inputs.stage }}"'", "tag": "'"${GITHUB_SHA}"'"}' https://${{ needs.init.outputs.infra-portal-server }}/deploy/webhook)
-          if [[ $response_code != "200" ]]; then
-            echo "::error::$(cat resp_body.txt)"
-            exit 1
-          else
-            cat resp_body.txt
-          fi
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: always()
-        with:
-          job-type: "deploy"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.init.outputs.slack-message-id }}
-
-  deploy_ocpp_gateway:
-    if: ${{ ! failure() && ! cancelled() && ( inputs.service-identifier == 'ocpp-gateway' || inputs.service-identifier == 'ocpp-v201-gateway' ) }}
-    name: Deploy OCPP Gateway
-    needs:
-      - init
-      - push-manifest-list
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: send POST to Infra Portal
-        # this still has some static values just to get the ball rolling, will be changed later
-        run: |
-          if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
-            cluster=staging
-          else
-            cluster=production
-          fi
-          response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ secrets.INFRA_PORTAL_TOKEN }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${GITHUB_SHA}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ secrets.AWS_ACCOUNT_ID }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ needs.init.outputs.infra-portal-server }}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
-          if [[ $response_code != "200" ]]; then
-            echo "::error::$(cat resp_body.txt)"
-            exit 1
-          else
-            cat resp_body.txt
-          fi
+          slack-message-id: ${{ steps.publish-slack.outputs.slack-message-id || inputs.slack-message-id }}
