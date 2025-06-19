@@ -61,17 +61,17 @@ on:
     outputs:
       slack-message-id:
         description: 'Slack message ID for subsequent updates'
-        value: ${{ jobs.notify_build_start.outputs.slack-message-id }}
+        value: ${{ jobs.notify-build-start.outputs.slack-message-id }}
       image-tag:
         description: 'The image tag that was built'
-        value: ${{ jobs.create_manifest.outputs.image-tag }}
+        value: ${{ jobs.create-manifest.outputs.image-tag }}
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  notify_build_start:
+  notify-build-start:
     name: Notify Build Start
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -90,7 +90,7 @@ jobs:
           slack-message-id: ${{ inputs.slack-message-id }}
   build:
     name: Build Multi-Arch
-    needs: notify_build_start
+    needs: notify-build-start
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -141,7 +141,7 @@ jobs:
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
             AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
-  create_manifest:
+  create-manifest:
     name: Create Multi-Arch Manifest
     needs: build
     runs-on: ubuntu-latest
@@ -174,9 +174,9 @@ jobs:
           
           # Push the manifest
           docker manifest push ${BASE_IMAGE}:${SHA_TAG}
-  notify_build_finished:
+  notify-build-finished:
     name: Notify Build Finished
-    needs: [ notify_build_start, build, create_manifest ]
+    needs: [ notify-build-start, build, create-manifest ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
@@ -190,4 +190,4 @@ jobs:
           service-emoji: ${{ inputs.service-emoji }}
           slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
           slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ needs.notify_build_start.outputs.slack-message-id }}
+          slack-message-id: ${{ needs.notify-build-start.outputs.slack-message-id }}
