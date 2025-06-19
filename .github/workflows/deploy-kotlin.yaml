@@ -40,8 +40,8 @@ on:
       docker-file-name:
         required: false
         type: string
-        default: "."
-        description: 'Dockerfile path'
+        description: Name of the docker file to be built
+        default: "Dockerfile"
       additional-build-args:
         required: false
         type: string
