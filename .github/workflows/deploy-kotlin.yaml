@@ -24,7 +24,7 @@ on:
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
       gradle-module:
-        required: true
+        required: false
         type: string
         description: 'Name of the Gradle module being tested'
       java-version:
@@ -38,8 +38,9 @@ on:
         default: "eu-west-1"
         description: 'AWS region to deploy to'
       docker-file-name:
-        required: true
+        required: false
         type: string
+        default: "."
         description: 'Dockerfile path'
       additional-build-args:
         required: false
