@@ -1,14 +1,18 @@
 # GitHub Workflows v3 Migration Guide
 
 ## Overview
-This guide documents the migration from v2 to v3 of the GitHub deployment workflows, which introduces multi-architecture support and improved workflow composition.
+
+This guide documents the migration from v2 to v3 of the GitHub deployment workflows, which introduces multi-architecture
+support and improved workflow composition.
 
 ## Key Changes
 
 ### 1. Workflow File Updates
 
 #### Deploy Workflows (dev, staging, production)
+
 **Before (v2):**
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy.yaml@v2
 with:
@@ -23,9 +27,11 @@ with:
 ```
 
 **After (v3):**
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
 with:
+  runner-size: "normal"
   stage: dev
   service-name: "Integrations Service"
   service-emoji: "🫶"
@@ -33,6 +39,7 @@ with:
 ```
 
 **What changed:**
+
 - Workflow path changed from `deploy.yaml` to `deploy-kotlin.yaml`
 - Version updated from `@v2` to `@v3`
 - Removed explicit parameters that are now defaults:
@@ -41,9 +48,13 @@ with:
     - `more-power: true`
     - `java-version: 21`
 - `stage` parameter moved to the top for clarity
+- `runner-size` now determines your runner size (can be normal or large please decide whats best for your project but
+  don't just default to large if you don't need it :D)
 
 #### Pull Request Workflow
+
 **Before (v2):**
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yaml@v2
 with:
@@ -52,13 +63,16 @@ with:
 ```
 
 **After (v3):**
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
 with:
-  runner-size: "large"
+  runner-size: "normal"
+  java-version: 21 // Default is java 21 (leave out if you don't need it)
 ```
 
 **What changed:**
+
 - Workflow renamed from `pull-request-kover.yaml` to `pull-request-kotlin.yaml`
 - `action-runner` parameter replaced with `runner-size`
 - Java version no longer needs to be specified (handled by the workflow)
@@ -66,7 +80,9 @@ with:
 ### 2. Dockerfile Improvements
 
 #### Build Stage Optimization
+
 **Before:**
+
 ```dockerfile
 ARG GHL_USERNAME=NA
 ARG GHL_PASSWORD=NA
@@ -76,6 +92,7 @@ RUN ./gradlew --no-daemon clean buildLayers
 ```
 
 **After:**
+
 ```dockerfile
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=GHL_USERNAME \
@@ -86,12 +103,15 @@ RUN --mount=type=cache,target=/root/.gradle \
 ```
 
 **What changed:**
+
 - Implements Docker BuildKit cache mounting for Gradle dependencies
 - Uses secret mounting instead of build args for better security
 - Credentials are read from mounted secrets at build time
 
 #### ENTRYPOINT Format
+
 **Before:**
+
 ```dockerfile
 ENTRYPOINT java \
  -server \
@@ -105,11 +125,13 @@ ENTRYPOINT java \
 ```
 
 **After:**
+
 ```dockerfile
 ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseContainerSupport", "-XX:InitialRAMPercentage=50", "-XX:MaxRAMPercentage=75", "-XX:+UseStringDeduplication", "-jar", "/home/app/application.jar"]
 ```
 
 **What changed:**
+
 - Changed to exec form (JSON array) for better signal handling
 - Improves container shutdown behavior
 
