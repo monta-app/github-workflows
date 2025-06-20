@@ -108,10 +108,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cloc
-      - name: Push coverage to Prometheus
+      - name: Push coverage to Dev Lens
         uses: monta-app/push-kover-prometheus-action@main
         with:
-          push-gateway-url: "https://pushgateway.vpn.staging.monta.app"
+          endpoint-url: "https://dev-lens.vpn.staging.monta.app/metrics"
           service-name: ${{ inputs.service-name }}
           kover-report-path: ${{ inputs.kover-report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
