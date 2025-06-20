@@ -7,7 +7,7 @@ A composite action that converts runner size and architecture inputs into GitHub
 ```yaml
 - name: Get runner name
   id: runner
-  uses: ./.github/actions/runner-size-converter
+  uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
   with:
     runner-size: 'large'
     architecture: 'arm64'  # Optional, defaults to 'x64'
