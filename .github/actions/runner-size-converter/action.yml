@@ -1,0 +1,56 @@
+name: 'Runner Size Converter'
+description: 'Convert runner size and architecture to GitHub runner names'
+author: 'Your Organization'
+
+inputs:
+  runner-size:
+    description: 'Runner size (normal or large)'
+    required: true
+  architecture:
+    description: 'Runner architecture (x64 or arm64)'
+    required: false
+    default: 'x64'
+
+outputs:
+  runner-name:
+    description: 'The converted runner name'
+    value: ${{ steps.convert.outputs.runner-name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Convert runner size to runner name
+      id: convert
+      shell: bash
+      run: |
+        ARCH="${{ inputs.architecture }}"
+        SIZE="${{ inputs.runner-size }}"
+        
+        # Validate architecture
+        case "$ARCH" in
+          "x64"|"arm64")
+            ;;
+          *)
+            echo "Error: Invalid architecture '$ARCH'. Must be 'x64' or 'arm64'"
+            exit 1
+            ;;
+        esac
+        
+        # Validate size
+        case "$SIZE" in
+          "normal"|"large")
+            ;;
+          *)
+            echo "Error: Invalid runner size '$SIZE'. Must be 'normal' or 'large'"
+            exit 1
+            ;;
+        esac
+        
+        # Build runner name
+        RUNNER_NAME="linux-$ARCH"
+        if [ "$SIZE" = "large" ]; then
+          RUNNER_NAME="$RUNNER_NAME-xl"
+        fi
+        
+        echo "runner-name=$RUNNER_NAME" >> $GITHUB_OUTPUT
+        echo "Selected runner: $RUNNER_NAME"

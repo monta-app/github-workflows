@@ -38,22 +38,24 @@ on:
         default: 'bun run test'
         description: "Command to run for testing (optional)"
 jobs:
-  get-runner:
-    name: Determine runner size
-    uses: ./.github/workflows/component-runner-size-converter.yaml
-    with:
-      runner-size: ${{ inputs.runner-size }}
-  pr_title_checker:
-    name: Check PR title
-    if: ${{ github.event_name == 'pull_request' }}
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
-      - uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
+      - name: Check PR title
+        uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
+      - name: Get runner name
+        id: runner
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        with:
+          runner-size: ${{ inputs.runner-size }}
   lint-build-test:
     name: Lint & Build & Test
-    needs: get-runner
-    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    needs: setup
+    runs-on: ${{ needs.setup.outputs.runner-name }}
     timeout-minutes: ${{ inputs.build-timeout-minutes }}
     steps:
       - name: Checkout repository

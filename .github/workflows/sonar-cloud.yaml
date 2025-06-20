@@ -26,15 +26,21 @@ on:
         required: true
         description: "Sonar token (Optional, won't publish to sonar if not present)"
 jobs:
-  get-runner:
-    name: Determine runner size
-    uses: ./.github/workflows/component-runner-size-converter.yaml
-    with:
-      runner-size: ${{ inputs.runner-size }}
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      runner-name: ${{ steps.runner.outputs.runner-name }}
+    steps:
+      - name: Get runner name
+        id: runner
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        with:
+          runner-size: ${{ inputs.runner-size }}
   sonar-cloud:
     name: Sonar Cloud Analysis
-    needs: get-runner
-    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    needs: setup
+    runs-on: ${{ needs.setup.outputs.runner-name }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

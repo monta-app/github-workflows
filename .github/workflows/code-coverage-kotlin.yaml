@@ -57,14 +57,20 @@ on:
         description: "Github Password (Gradle plugin)"
 
 jobs:
-  get-runner:
-    name: Determine runner size
-    uses: ./.github/workflows/component-runner-size-converter.yaml
-    with:
-      runner-size: ${{ inputs.runner-size }}
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      runner-name: ${{ steps.runner.outputs.runner-name }}
+    steps:
+      - name: Get runner name
+        id: runner
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        with:
+          runner-size: ${{ inputs.runner-size }}
   code-coverage-report:
-    needs: get-runner
-    runs-on: ${{ needs.get-runner.outputs.runner-name }}
+    needs: setup
+    runs-on: ${{ needs.setup.outputs.runner-name }}
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
       - name: Checkout code
