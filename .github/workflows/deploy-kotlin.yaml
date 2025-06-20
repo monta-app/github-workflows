@@ -112,6 +112,7 @@ jobs:
     needs: initialize
     uses: ./.github/workflows/component-build.yaml
     with:
+      runner-size: ${{ inputs.runner-size }}
       stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}

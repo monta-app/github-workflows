@@ -2,6 +2,11 @@ name: Build
 on:
   workflow_call:
     inputs:
+      runner-size:
+        required: false
+        type: string
+        default: 'normal'
+        description: 'Runner size (normal or large)'
       stage:
         required: true
         type: string
@@ -72,11 +77,28 @@ permissions:
   contents: read
 
 jobs:
-  notify-build-start:
-    name: Notify Build Start
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      runner-x64: ${{ steps.runner-x64.outputs.runner-name }}
+      runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get x64 runner name
+        id: runner-x64
+        uses: ./.github/actions/runner-size-converter
+        with:
+          runner-size: ${{ inputs.runner-size }}
+          architecture: x64
+      - name: Get arm64 runner name
+        id: runner-arm64
+        uses: ./.github/actions/runner-size-converter
+        with:
+          runner-size: ${{ inputs.runner-size }}
+          architecture: arm64
       - name: Update existing slack message
         uses: monta-app/slack-notifier-cli-action@main
         with:
@@ -89,7 +111,7 @@ jobs:
           slack-message-id: ${{ inputs.slack-message-id }}
   build:
     name: Build Multi-Arch
-    needs: notify-build-start
+    needs: setup
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -97,10 +119,10 @@ jobs:
         include:
           - platform: linux/amd64
             arch: amd64
-            runner: linux-x64
+            runner: ${{ needs.setup.outputs.runner-x64 }}
           - platform: linux/arm64
             arch: arm64
-            runner: linux-arm64
+            runner: ${{ needs.setup.outputs.runner-arm64 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,7 +197,10 @@ jobs:
           docker manifest push ${BASE_IMAGE}:${SHA_TAG}
   notify-build-finished:
     name: Notify Build Finished
-    needs: [ notify-build-start, build, create-manifest ]
+    needs:
+      - setup
+      - build
+      - create-manifest
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
