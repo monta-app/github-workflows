@@ -25,9 +25,29 @@ uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
 - `more-power: true`
 - `java-version: 21`
 
-**Add/Update:**
+**Parameter Updates:**
 
-- `runner-size: "normal"` (or "large" if needed)
+- Always wrap values in quotes: `stage: "production"`
+- Always include `runner-size: "normal"` (or `"large"` if needed)
+- Order parameters: `stage` first, then `runner-size`, then remaining parameters
+
+**Secrets Configuration:**
+
+Only pass these secrets to the workflow (use only the ones from your original deployment):
+
+- `GHL_USERNAME`
+- `GHL_PASSWORD` 
+- `AWS_ACCOUNT_ID`
+- `SLACK_APP_TOKEN`
+- `MANIFEST_REPO_PAT`
+- `SENTRY_AUTH_TOKEN`
+- `AWS_CDN_ACCESS_KEY_ID`
+- `AWS_CDN_SECRET_ACCESS_KEY`
+
+**AWS Secret Migration:**
+- `PRODUCTION_AWS_ACCESS_KEY_ID` → `AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}`
+- `STAGING_AWS_ACCESS_KEY_ID` → `AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}`
+- Internal repos → `AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}`
 
 #### Pull Request Workflow
 
