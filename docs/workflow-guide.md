@@ -1,0 +1,576 @@
+# GitHub Workflows Documentation Guide
+
+This guide provides a comprehensive overview of all reusable GitHub workflows in this repository. Each workflow is designed to be called from your repository's workflows to standardize CI/CD processes across projects.
+
+## Table of Contents
+
+1. [Code Coverage (Kotlin)](#code-coverage-kotlin)
+2. [Component Build](#component-build)
+3. [Component Deploy](#component-deploy)
+4. [Component Initialize](#component-initialize)
+5. [Component Test (Kotlin)](#component-test-kotlin)
+6. [Deploy Kotlin](#deploy-kotlin)
+7. [Publish Tech Docs](#publish-tech-docs)
+8. [Pull Request Kotlin](#pull-request-kotlin)
+9. [Pull Request React (Bun)](#pull-request-react-bun)
+10. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+11. [SonarCloud Analysis](#sonarcloud-analysis)
+
+---
+
+## Code Coverage (Kotlin)
+
+**File:** `code-coverage-kotlin.yaml`  
+**Purpose:** Runs tests with code coverage reporting for Kotlin projects and pushes metrics to Prometheus.
+
+### What it does:
+1. Validates service name format (must be kebab-case)
+2. Connects to Tailscale VPN
+3. Sets up Java environment
+4. Runs tests with Kover coverage reporting
+5. Counts lines of code with `cloc`
+6. Pushes coverage metrics to Prometheus
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `service-name` | Yes | - | Project name in kebab-case format (e.g., "my-service") |
+| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
+| `java-version` | No | "21" | Java version to use |
+| `gradle-module` | No | - | Gradle module name for multi-module projects |
+| `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
+| `catalog-info-path` | No | "catalog-info.yaml" | Path to Backstage catalog file |
+| `cloc-source-path` | No | "." | Path to analyze for lines of code |
+| `cloc-exclude-dirs` | No | "build,target,dist,node_modules,.gradle,.idea,out" | Directories to exclude from LOC count |
+| `test-timeout-minutes` | No | 30 | Test timeout in minutes |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `TAILSCALE_AUTHKEY` | Yes | Tailscale authentication key |
+| `GHL_USERNAME` | Yes | GitHub username for Gradle dependencies |
+| `GHL_PASSWORD` | Yes | GitHub token for Gradle dependencies |
+
+### Example Usage:
+```yaml
+jobs:
+  code-coverage:
+    uses: monta-app/github-workflows/.github/workflows/code-coverage-kotlin.yaml@v3
+    with:
+      service-name: "my-kotlin-service"
+      java-version: "21"
+    secrets:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+```
+
+---
+
+## Component Build
+
+**File:** `component-build.yaml`  
+**Purpose:** Builds multi-architecture Docker images and pushes them to Amazon ECR.
+
+### What it does:
+1. Updates Slack with build progress
+2. Builds Docker images for both AMD64 and ARM64 architectures
+3. Pushes images to ECR with architecture-specific tags
+4. Creates a multi-arch manifest
+5. Notifies Slack of build completion
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
+| `service-name` | Yes | - | Display name (e.g., "OCPP Service") |
+| `service-emoji` | Yes | - | Emoji for Slack notifications |
+| `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
+| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
+| `region` | No | "eu-west-1" | AWS region |
+| `docker-file-name` | No | "Dockerfile" | Dockerfile name |
+| `additional-build-args` | No | - | Additional Docker build arguments |
+| `ecr-repository-name` | No | - | Custom ECR repository name |
+| `slack-message-id` | No | - | Existing Slack message ID to update |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `AWS_ACCOUNT_ID` | Yes | AWS account ID |
+| `SLACK_APP_TOKEN` | Yes | Slack app token |
+| `GHL_USERNAME` | No | GitHub username (required for Kotlin) |
+| `GHL_PASSWORD` | No | GitHub token (required for Kotlin) |
+| `SENTRY_AUTH_TOKEN` | No | Sentry authentication token |
+| `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key ID |
+| `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret access key |
+
+### Outputs:
+- `image-tag`: The SHA tag of the built image
+
+### Example Usage:
+```yaml
+jobs:
+  build:
+    uses: monta-app/github-workflows/.github/workflows/component-build.yaml@v3
+    with:
+      stage: "staging"
+      service-name: "Vehicle Service"
+      service-emoji: "🚗"
+      service-identifier: "vehicle"
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+---
+
+## Component Deploy
+
+**File:** `component-deploy.yaml`  
+**Purpose:** Deploys a service by updating Kubernetes manifests in the kube-manifests repository.
+
+### What it does:
+1. Updates Slack with deployment progress
+2. Checks out the kube-manifests repository
+3. Updates image tag and metadata in values.yaml
+4. Updates deployment history in config.yaml
+5. Commits and pushes changes to trigger ArgoCD deployment
+6. Notifies Slack of deployment status
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
+| `service-name` | Yes | - | Display name (e.g., "OCPP Service") |
+| `service-emoji` | Yes | - | Emoji for Slack notifications |
+| `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
+| `image-tag` | Yes | - | Docker image tag to deploy |
+| `slack-message-id` | No | - | Existing Slack message ID to update |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `MANIFEST_REPO_PAT` | Yes | GitHub PAT for kube-manifests repo |
+| `SLACK_APP_TOKEN` | Yes | Slack app token |
+
+### Outputs:
+- `slack-message-id`: Slack message ID for updates
+
+### Example Usage:
+```yaml
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/component-deploy.yaml@v3
+    with:
+      stage: "production"
+      service-name: "Payment Service"
+      service-emoji: "💳"
+      service-identifier: "payment"
+      image-tag: "abc123def456"
+    secrets:
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+---
+
+## Component Initialize
+
+**File:** `component-initialize.yaml`  
+**Purpose:** Initializes the CI/CD pipeline by creating a Slack notification message.
+
+### What it does:
+1. Creates an initial Slack message for tracking pipeline progress
+2. Returns the message ID for subsequent workflow updates
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `service-name` | Yes | - | Display name (e.g., "OCPP Service") |
+| `service-emoji` | Yes | - | Emoji for Slack notifications |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `SLACK_APP_TOKEN` | Yes | Slack app token |
+
+### Outputs:
+- `slack-message-id`: Slack message ID for updates
+- `slack-channel-id`: Slack channel ID
+
+### Example Usage:
+```yaml
+jobs:
+  init:
+    uses: monta-app/github-workflows/.github/workflows/component-initialize.yaml@v3
+    with:
+      service-name: "User Service"
+      service-emoji: "👤"
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+---
+
+## Component Test (Kotlin)
+
+**File:** `component-test-kotlin.yaml`  
+**Purpose:** Runs tests for Kotlin projects with Gradle.
+
+### What it does:
+1. Sets up Java environment
+2. Runs Gradle tests
+3. Uploads test results as artifacts
+4. Updates Slack with test status
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | - | Runner size for the job |
+| `service-name` | No | - | Display name for Slack |
+| `service-emoji` | No | - | Emoji for Slack |
+| `gradle-module` | No | - | Gradle module name |
+| `java-version` | No | "21" | Java version |
+| `slack-message-id` | No | - | Slack message ID to update |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GHL_USERNAME` | Yes | GitHub username |
+| `GHL_PASSWORD` | Yes | GitHub token |
+| `SLACK_APP_TOKEN` | Yes | Slack app token |
+
+### Example Usage:
+```yaml
+jobs:
+  test:
+    uses: monta-app/github-workflows/.github/workflows/component-test-kotlin.yaml@v3
+    with:
+      java-version: "21"
+      service-name: "API Service"
+      service-emoji: "🔌"
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+---
+
+## Deploy Kotlin
+
+**File:** `deploy-kotlin.yaml`  
+**Purpose:** Complete CI/CD pipeline for Kotlin services (test → build → deploy).
+
+### What it does:
+1. Initializes Slack notification
+2. Runs tests in parallel with build preparation
+3. Builds multi-arch Docker images
+4. Deploys to Kubernetes via manifest updates
+
+### Inputs:
+All inputs from Component Initialize, Test, Build, and Deploy workflows combined.
+
+### Secrets:
+All secrets from the component workflows combined.
+
+### Example Usage:
+```yaml
+name: Deploy to Production
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
+    with:
+      stage: "production"
+      service-name: "Charging Service"
+      service-emoji: "⚡"
+      service-identifier: "charging"
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+```
+
+---
+
+## Publish Tech Docs
+
+**File:** `publish-tech-docs.yaml`  
+**Purpose:** Publishes technical documentation to Backstage via AWS S3.
+
+### What it does:
+1. Sets up Node.js and Python environments
+2. Installs techdocs-cli and mkdocs
+3. Generates documentation site
+4. Publishes to S3 bucket for Backstage
+
+### Inputs:
+None - uses repository name as entity name
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `TECHDOCS_AWS_ACCESS_KEY_ID` | Yes | AWS access key for S3 |
+| `TECHDOCS_AWS_SECRET_ACCESS_KEY` | Yes | AWS secret key for S3 |
+
+### Example Usage:
+```yaml
+jobs:
+  publish-docs:
+    uses: monta-app/github-workflows/.github/workflows/publish-tech-docs.yaml@v3
+    secrets:
+      TECHDOCS_AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
+      TECHDOCS_AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
+```
+
+---
+
+## Pull Request Kotlin
+
+**File:** `pull-request-kotlin.yaml`  
+**Purpose:** Validates Kotlin pull requests with linting, testing, and code coverage.
+
+### What it does:
+1. Validates PR title format
+2. Runs Kotlin linter (ktlint)
+3. Executes tests with Kover coverage
+4. Uploads results to SonarCloud
+5. Comments coverage report on PR
+6. Publishes test results
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size |
+| `java-version` | No | "21" | Java version |
+| `gradle-module` | No | - | Gradle module name |
+| `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
+| `test-timeout-minutes` | No | 30 | Test timeout |
+| `skip-sonar` | No | false | Skip SonarCloud analysis |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GHL_USERNAME` | Yes | GitHub username |
+| `GHL_PASSWORD` | Yes | GitHub token |
+| `SONAR_TOKEN` | Yes | SonarCloud token |
+
+### Example Usage:
+```yaml
+name: PR Validation
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
+    with:
+      java-version: "21"
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+---
+
+## Pull Request React (Bun)
+
+**File:** `pull-request-react-bun.yaml`  
+**Purpose:** Validates React/TypeScript pull requests using Bun runtime.
+
+### What it does:
+1. Validates PR title format
+2. Installs dependencies with Bun
+3. Runs linter
+4. Runs tests (if configured)
+5. Builds the project
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size |
+| `bun-version` | No | "latest" | Bun version |
+| `working-directory` | No | "." | Frontend code directory |
+| `build-timeout-minutes` | No | 15 | Build timeout |
+| `lint-command` | No | "bun run lint" | Lint command |
+| `build-command` | No | "bun run build" | Build command |
+| `test-command` | No | "bun run test" | Test command (optional) |
+
+### Example Usage:
+```yaml
+name: PR Validation
+on:
+  pull_request:
+
+jobs:
+  validate:
+    uses: monta-app/github-workflows/.github/workflows/pull-request-react-bun.yaml@v3
+    with:
+      working-directory: "./frontend"
+      lint-command: "bun run lint:all"
+```
+
+---
+
+## Pull Request React (pnpm)
+
+**File:** `pull-request-react-pnpm.yaml`  
+**Purpose:** Validates React/TypeScript pull requests using pnpm package manager.
+
+### What it does:
+1. Validates PR title format
+2. Sets up pnpm and Node.js
+3. Installs dependencies
+4. Runs linter
+5. Runs tests (if configured)
+6. Builds the project
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size |
+| `node-version` | No | "lts/jod" | Node.js version |
+| `pnpm-version` | No | "10" | pnpm version |
+| `working-directory` | No | "." | Frontend code directory |
+| `build-timeout-minutes` | No | 15 | Build timeout |
+| `lint-command` | No | "pnpm run lint" | Lint command |
+| `build-command` | No | "pnpm run build" | Build command |
+| `test-command` | No | "pnpm run test" | Test command (optional) |
+
+### Example Usage:
+```yaml
+name: PR Validation
+on:
+  pull_request:
+
+jobs:
+  validate:
+    uses: monta-app/github-workflows/.github/workflows/pull-request-react-pnpm.yaml@v3
+    with:
+      node-version: "20"
+      pnpm-version: "9"
+```
+
+---
+
+## SonarCloud Analysis
+
+**File:** `sonar-cloud.yaml`  
+**Purpose:** Runs dedicated SonarCloud analysis for code quality metrics.
+
+### What it does:
+1. Checks out code with full history
+2. Sets up Java environment
+3. Caches SonarCloud packages
+4. Runs Kover coverage report
+5. Uploads analysis to SonarCloud
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size |
+| `java-version` | No | "21" | Java version |
+| `gradle-module` | No | - | Gradle module name |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GHL_USERNAME` | Yes | GitHub username |
+| `GHL_PASSWORD` | Yes | GitHub token |
+| `SONAR_TOKEN` | Yes | SonarCloud token |
+
+### Example Usage:
+```yaml
+jobs:
+  sonarcloud:
+    uses: monta-app/github-workflows/.github/workflows/sonar-cloud.yaml@v3
+    with:
+      java-version: "21"
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+---
+
+## Implementation Guide
+
+### Setting Up Secrets
+
+Most workflows require organization or repository secrets. Add these in your repository settings:
+
+1. **GitHub Tokens:**
+   - `GHL_USERNAME`: Your GitHub username
+   - `GHL_PASSWORD`: A GitHub personal access token with `read:packages` scope
+   - `MANIFEST_REPO_PAT`: PAT with write access to kube-manifests repo
+
+2. **AWS Credentials:**
+   - `AWS_ACCOUNT_ID`: Your AWS account ID
+   - `TECHDOCS_AWS_ACCESS_KEY_ID`: AWS access key for TechDocs S3
+   - `TECHDOCS_AWS_SECRET_ACCESS_KEY`: AWS secret key for TechDocs S3
+
+3. **Third-party Services:**
+   - `SLACK_APP_TOKEN`: Slack app-level token
+   - `SONAR_TOKEN`: SonarCloud authentication token
+   - `TAILSCALE_AUTHKEY`: Tailscale VPN authentication key
+   - `SENTRY_AUTH_TOKEN`: Sentry authentication token (optional)
+
+### Repository Structure Requirements
+
+- **Kotlin Projects:**
+  - Must have Gradle build configuration
+  - Should include Kover plugin for coverage
+  - SonarCloud configuration in `build.gradle.kts`
+
+- **React Projects:**
+  - Package.json with lint, build, and test scripts
+  - TypeScript configuration
+  - Either Bun or pnpm as package manager
+
+- **Kubernetes Deployments:**
+  - Manifests must be in `kube-manifests` repository
+  - Structure: `apps/<service-identifier>/<stage>/app/values.yaml`
+  - Config file: `apps/<service-identifier>/<stage>/cluster/config.yaml`
+
+### Best Practices
+
+1. **Version Pinning:** Always use a specific version tag (e.g., `@v3`) when calling workflows
+2. **Runner Sizing:** Use "large" runners for resource-intensive builds
+3. **Timeouts:** Adjust timeouts based on your project's build/test duration
+4. **Slack Integration:** Use consistent service names and emojis across workflows
+5. **Multi-Module Projects:** Specify `gradle-module` for targeted builds
+6. **Environment Stages:** Use consistent stage names: "dev", "staging", "production"
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **Gradle Build Failures:**
+   - Ensure `GHL_USERNAME` and `GHL_PASSWORD` secrets are set
+   - Check that GitHub packages are properly configured
+
+2. **Docker Build Failures:**
+   - Verify Dockerfile exists at specified path
+   - Check build arguments syntax
+   - Ensure secrets are passed correctly
+
+3. **Deployment Failures:**
+   - Verify manifest repository structure
+   - Check PAT permissions for kube-manifests
+   - Ensure service identifier matches manifest paths
+
+4. **Coverage Report Issues:**
+   - Verify Kover plugin is configured
+   - Check report path matches actual output
+   - Ensure tests generate coverage data
+
+For additional support, check the workflow logs in GitHub Actions or contact the platform team.
