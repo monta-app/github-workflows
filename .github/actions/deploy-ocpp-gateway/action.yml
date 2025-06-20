@@ -1,0 +1,49 @@
+name: 'Deploy OCPP Gateway'
+description: 'Deploy OCPP Gateway to Infra Portal'
+inputs:
+  service-identifier:
+    description: 'Identifier of the service being released i.e ocpp-gateway'
+    required: true
+  stage:
+    description: 'Stage being released (dev,staging,production)'
+    required: true
+  ocpp-gateway-replicas:
+    description: 'Number of replicas for OCPP Gateway'
+    required: true
+  aws-account-id:
+    description: 'AWS account ID'
+    required: true
+  infra-portal-token:
+    description: 'Infra Portal token'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set Infra Portal Server
+      id: set-infra-portal-server
+      shell: bash
+      env:
+        STAGE: ${{ inputs.stage }}
+      run: |
+        if [[ $STAGE =~ dev|staging ]]; then
+          INFRA_PORTAL_HOSTNAME="infra-portal.staging.monta.app"
+        else
+          INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
+        fi
+        echo "infra-portal-hostname=$INFRA_PORTAL_HOSTNAME" >> "$GITHUB_OUTPUT"
+    - name: Deploy OCPP Gateway to Infra Portal
+      shell: bash
+      run: |
+        if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
+          cluster=staging
+        else
+          cluster=production
+        fi
+        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
+        if [[ $response_code != "200" ]]; then
+          echo "::error::$(cat resp_body.txt)"
+          exit 1
+        else
+          cat resp_body.txt
+        fi
