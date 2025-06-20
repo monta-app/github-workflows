@@ -24,10 +24,10 @@ on:
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
       region:
-        required: true
+        required: false
         type: string
-        default: 'eu-west-1'
-        description: 'AWS region'
+        default: "eu-west-1"
+        description: 'AWS region to deploy to (defaults to "eu-west-1")'
       docker-file-name:
         required: false
         type: string
