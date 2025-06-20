@@ -1,88 +1,45 @@
 # GitHub Workflows v3 Migration Guide
 
-## Overview
+## Required Changes
 
-This guide documents the migration from v2 to v3 of the GitHub deployment workflows, which introduces multi-architecture
-support and improved workflow composition.
-
-## Key Changes
-
-### 1. Workflow File Updates
+### 1. GitHub Workflow Files
 
 #### Deploy Workflows (dev, staging, production)
-
-**Before (v2):**
-
+Replace:
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy.yaml@v2
-with:
-  service-name: "Integrations Service"
-  service-emoji: "🫶"
-  service-identifier: integrations
-  region: eu-west-1
-  stage: dev
-  upload-open-api: true
-  more-power: true
-  java-version: 21
 ```
-
-**After (v3):**
-
+With:
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
-with:
-  runner-size: "normal"
-  stage: dev
-  service-name: "Integrations Service"
-  service-emoji: "🫶"
-  service-identifier: integrations
 ```
 
-**What changed:**
+**Remove these parameters (now defaults):**
+- `region: eu-west-1`
+- `upload-open-api: true`
+- `more-power: true`
+- `java-version: 21`
 
-- Workflow path changed from `deploy.yaml` to `deploy-kotlin.yaml`
-- Version updated from `@v2` to `@v3`
-- Removed explicit parameters that are now defaults:
-  - `region: eu-west-1`
-  - `upload-open-api: true`
-  - `more-power: true`
-  - `java-version: 21`
-- `stage` parameter moved to the top for clarity
-- `runner-size` now determines your runner size (can be normal or large please decide whats best for your project but
-  don't just default to large if you don't need it :D)
+**Add/Update:**
+- `runner-size: "normal"` (or "large" if needed)
 
 #### Pull Request Workflow
-
-**Before (v2):**
-
+Replace:
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yaml@v2
-with:
-  action-runner: linux-x64-xl
-  java-version: 21
 ```
-
-**After (v3):**
-
+With:
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
-with:
-  runner-size: "normal"
-  java-version: 21 // Default is java 21 (leave out if you don't need it)
 ```
 
-**What changed:**
+**Replace parameter:**
+- `action-runner: linux-x64-xl` → `runner-size: "normal"`
 
-- Workflow renamed from `pull-request-kover.yaml` to `pull-request-kotlin.yaml`
-- `action-runner` parameter replaced with `runner-size`
-- Java version no longer needs to be specified (handled by the workflow)
+### 2. Dockerfile Updates
 
-### 2. Dockerfile Improvements
-
-#### Build Stage Optimization
-
-**Before:**
-
+#### Build Stage
+Replace:
 ```dockerfile
 ARG GHL_USERNAME=NA
 ARG GHL_PASSWORD=NA
@@ -90,9 +47,7 @@ ENV GHL_USERNAME ${GHL_USERNAME}
 ENV GHL_PASSWORD ${GHL_PASSWORD}
 RUN ./gradlew --no-daemon clean buildLayers
 ```
-
-**After:**
-
+With:
 ```dockerfile
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=GHL_USERNAME \
@@ -102,49 +57,39 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew --no-daemon clean buildLayers
 ```
 
-**What changed:**
-
-- Implements Docker BuildKit cache mounting for Gradle dependencies
-- Uses secret mounting instead of build args for better security
-- Credentials are read from mounted secrets at build time
-
 #### ENTRYPOINT Format
-
-**Before:**
-
+Replace shell form (Important that this stays multi-line for easier git diffs):
 ```dockerfile
 ENTRYPOINT java \
- -server \
- -XX:+UseG1GC \
- -XX:+UnlockExperimentalVMOptions \
- -XX:+UseContainerSupport \
- -XX:InitialRAMPercentage=50 \
- -XX:MaxRAMPercentage=75 \
- -XX:+UseStringDeduplication \
- -jar /home/app/application.jar
+-server \
+-XX:+UseG1GC \
+-XX:+UnlockExperimentalVMOptions \
+-XX:+UseContainerSupport \
+-XX:InitialRAMPercentage=50 \
+-XX:MaxRAMPercentage=75 \
+-XX:+UseStringDeduplication \
+-jar /home/app/application.jar
 ```
-
-**After:**
-
+With exec form (Important that this stays multi-line for easier git diffs):
 ```dockerfile
-ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseContainerSupport", "-XX:InitialRAMPercentage=50", "-XX:MaxRAMPercentage=75", "-XX:+UseStringDeduplication", "-jar", "/home/app/application.jar"]
+ENTRYPOINT [
+    "java",
+    "-server",
+    "-XX:+UseG1GC",
+    "-XX:+UnlockExperimentalVMOptions",
+    "-XX:+UseContainerSupport",
+    "-XX:InitialRAMPercentage=50",
+    "-XX:MaxRAMPercentage=75",
+    "-XX:+UseStringDeduplication",
+    "-jar",
+    "/home/app/application.jar"
+]
 ```
 
-**What changed:**
+### 3. Local Development Script (run_docker.sh)
 
-- Changed to exec form (JSON array) for better signal handling
-- Improves container shutdown behavior
-
-### 3. Local Development Script Updates
-
-#### run_docker.sh Migration
-
-**Before:**
-
+Replace:
 ```bash
-GHL_USERNAME=${GHL_USERNAME:-$(getProperty "gpr.user")}
-GHL_PASSWORD=${GHL_PASSWORD:-$(getProperty "gpr.key")}
-
 build() {
   docker build \
   --build-arg=GHL_USERNAME="$GHL_USERNAME" \
@@ -153,37 +98,12 @@ build() {
   -t "$APP_NAME" ..
 }
 ```
-
-**After:**
-
+With:
 ```bash
 build() {
-  DOCKER_BUILDKIT=1 docker build \
-  --secret id=GHL_USERNAME,src=<(echo "${GHL_USERNAME:-$(getProperty "gpr.user")}") \
-  --secret id=GHL_PASSWORD,src=<(echo "${GHL_PASSWORD:-$(getProperty "gpr.key")}") \
-  -f Dockerfile \
-  -t "$APP_NAME" ..
-}
-```
-
-**What changed:**
-
-- **Enabled Docker BuildKit** - Added `DOCKER_BUILDKIT=1` for secret support
-- **Replaced `--build-arg` with `--secret`** - Using secret mounting for better security
-- **Inlined credential resolution** - Removed separate variable assignments
-- **Process substitution** - Using `src=<(echo "...")` to pass values as secrets
-- **Cleaner code** - Fewer variables and more concise logic
-
-**Security Benefits:**
-- Credentials are not stored in image layers or docker history
-- Secrets are not visible in process lists during build
-- Better alignment with production CI/CD security practices
-
-**Alternative Approaches:**
-
-You could also use environment variable secrets if variables are pre-set:
-```bash
-build() {
+  export GHL_USERNAME="${GHL_USERNAME:-$(getProperty "gpr.user")}"
+  export GHL_PASSWORD="${GHL_PASSWORD:-$(getProperty "gpr.key")}"
+  
   DOCKER_BUILDKIT=1 docker build \
   --secret id=GHL_USERNAME,env=GHL_USERNAME \
   --secret id=GHL_PASSWORD,env=GHL_PASSWORD \
@@ -192,44 +112,17 @@ build() {
 }
 ```
 
-## Benefits of v3 Migration
+## Why Migrate?
 
-1. **Multi-Architecture Support**: v3 workflows support building for multiple architectures (e.g., AMD64, ARM64)
-2. **Improved Build Performance**: Docker BuildKit cache mounting significantly speeds up builds
-3. **Better Security**: Secrets are handled more securely using Docker secret mounts
-4. **Simplified Configuration**: Many defaults are now built into the workflows, reducing configuration overhead
-5. **Better Resource Management**: New runner size configuration provides more flexibility
+- **Faster builds** - BuildKit caching reduces build times
+- **Better security** - Secrets not stored in image layers
+- **Multi-architecture support** - ARM64 and AMD64 builds
+- **Less configuration** - Sensible defaults built-in
 
-## Migration Steps
+## Validation Checklist
 
-1. Update all deployment workflow files to use `deploy-kotlin.yaml@v3`
-2. Update pull request workflow to use `pull-request-kotlin.yaml@v3`
-3. Remove unnecessary parameters that are now defaults
-4. Update Dockerfile to use BuildKit features for better caching and security
-5. Update local development scripts (`run_docker.sh`) to use secrets instead of build args
-6. Test the workflows in your dev environment first
-
-## Testing Migration
-
-After completing the migration, verify that:
-
-### GitHub Workflows
-- All deployment workflows complete successfully
-- Build times are improved due to caching
-- No credentials appear in build logs
-
-### Local Development
-- Docker builds complete successfully with `run_docker.sh`
-- Credentials are properly resolved from environment variables or gradle.properties
-- `docker history <image>` shows no credential information
-- Build performance is improved on subsequent builds
-
-## Additional Considerations
-
-- The v3 workflows assume sensible defaults for Kotlin/Java services
-- Region defaults to `eu-west-1`
-- Java version defaults to 21
-- OpenAPI upload is enabled by default
-- Normal runners are used by default (can be configured with `runner-size` parameter)
-- Local development scripts now require Docker BuildKit for secret support
-- Consider updating your team's development documentation to reflect the new local build process
+After migration:
+- [ ] All GitHub workflows run successfully
+- [ ] `docker history <image>` shows no credentials
+- [ ] Local builds work with updated `run_docker.sh`
+- [ ] Build times improved on subsequent builds
