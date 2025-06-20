@@ -43,10 +43,10 @@ with:
 - Workflow path changed from `deploy.yaml` to `deploy-kotlin.yaml`
 - Version updated from `@v2` to `@v3`
 - Removed explicit parameters that are now defaults:
-    - `region: eu-west-1`
-    - `upload-open-api: true`
-    - `more-power: true`
-    - `java-version: 21`
+  - `region: eu-west-1`
+  - `upload-open-api: true`
+  - `more-power: true`
+  - `java-version: 21`
 - `stage` parameter moved to the top for clarity
 - `runner-size` now determines your runner size (can be normal or large please decide whats best for your project but
   don't just default to large if you don't need it :D)
@@ -135,6 +135,63 @@ ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions
 - Changed to exec form (JSON array) for better signal handling
 - Improves container shutdown behavior
 
+### 3. Local Development Script Updates
+
+#### run_docker.sh Migration
+
+**Before:**
+
+```bash
+GHL_USERNAME=${GHL_USERNAME:-$(getProperty "gpr.user")}
+GHL_PASSWORD=${GHL_PASSWORD:-$(getProperty "gpr.key")}
+
+build() {
+  docker build \
+  --build-arg=GHL_USERNAME="$GHL_USERNAME" \
+  --build-arg=GHL_PASSWORD="$GHL_PASSWORD" \
+  -f Dockerfile \
+  -t "$APP_NAME" ..
+}
+```
+
+**After:**
+
+```bash
+build() {
+  DOCKER_BUILDKIT=1 docker build \
+  --secret id=GHL_USERNAME,src=<(echo "${GHL_USERNAME:-$(getProperty "gpr.user")}") \
+  --secret id=GHL_PASSWORD,src=<(echo "${GHL_PASSWORD:-$(getProperty "gpr.key")}") \
+  -f Dockerfile \
+  -t "$APP_NAME" ..
+}
+```
+
+**What changed:**
+
+- **Enabled Docker BuildKit** - Added `DOCKER_BUILDKIT=1` for secret support
+- **Replaced `--build-arg` with `--secret`** - Using secret mounting for better security
+- **Inlined credential resolution** - Removed separate variable assignments
+- **Process substitution** - Using `src=<(echo "...")` to pass values as secrets
+- **Cleaner code** - Fewer variables and more concise logic
+
+**Security Benefits:**
+- Credentials are not stored in image layers or docker history
+- Secrets are not visible in process lists during build
+- Better alignment with production CI/CD security practices
+
+**Alternative Approaches:**
+
+You could also use environment variable secrets if variables are pre-set:
+```bash
+build() {
+  DOCKER_BUILDKIT=1 docker build \
+  --secret id=GHL_USERNAME,env=GHL_USERNAME \
+  --secret id=GHL_PASSWORD,env=GHL_PASSWORD \
+  -f Dockerfile \
+  -t "$APP_NAME" ..
+}
+```
+
 ## Benefits of v3 Migration
 
 1. **Multi-Architecture Support**: v3 workflows support building for multiple architectures (e.g., AMD64, ARM64)
@@ -149,7 +206,23 @@ ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions
 2. Update pull request workflow to use `pull-request-kotlin.yaml@v3`
 3. Remove unnecessary parameters that are now defaults
 4. Update Dockerfile to use BuildKit features for better caching and security
-5. Test the workflows in your dev environment first
+5. Update local development scripts (`run_docker.sh`) to use secrets instead of build args
+6. Test the workflows in your dev environment first
+
+## Testing Migration
+
+After completing the migration, verify that:
+
+### GitHub Workflows
+- All deployment workflows complete successfully
+- Build times are improved due to caching
+- No credentials appear in build logs
+
+### Local Development
+- Docker builds complete successfully with `run_docker.sh`
+- Credentials are properly resolved from environment variables or gradle.properties
+- `docker history <image>` shows no credential information
+- Build performance is improved on subsequent builds
 
 ## Additional Considerations
 
@@ -158,3 +231,5 @@ ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions
 - Java version defaults to 21
 - OpenAPI upload is enabled by default
 - Normal runners are used by default (can be configured with `runner-size` parameter)
+- Local development scripts now require Docker BuildKit for secret support
+- Consider updating your team's development documentation to reflect the new local build process
