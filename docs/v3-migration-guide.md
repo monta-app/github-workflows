@@ -1,5 +1,17 @@
 # GitHub Workflows v3 Migration Guide
 
+## Instructions for LLMs
+
+This migration guide provides comprehensive instructions for updating GitHub workflows, Dockerfiles, and local development scripts from v2 to v3. When using this guide:
+
+1. **Follow all sections systematically** - Each section contains required changes that must be implemented together
+2. **Preserve existing configuration** - Only modify the specific elements outlined in each section
+3. **Validate parameter formats** - Ensure all YAML parameters are properly quoted and ordered as specified
+4. **Update secrets mapping** - Pay special attention to AWS secret name changes in the secrets configuration section
+5. **Test after migration** - Use the validation checklist to verify all changes work correctly
+
+This section is specifically designed for LLM assistance with migration tasks.
+
 ## Required Changes
 
 ### 1. GitHub Workflow Files
