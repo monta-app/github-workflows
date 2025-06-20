@@ -5,41 +5,54 @@
 ### 1. GitHub Workflow Files
 
 #### Deploy Workflows (dev, staging, production)
+
 Replace:
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy.yaml@v2
 ```
+
 With:
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
 ```
 
 **Remove these parameters (now defaults):**
+
 - `region: eu-west-1`
 - `upload-open-api: true`
 - `more-power: true`
 - `java-version: 21`
 
 **Add/Update:**
+
 - `runner-size: "normal"` (or "large" if needed)
 
 #### Pull Request Workflow
+
 Replace:
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yaml@v2
 ```
+
 With:
+
 ```yaml
 uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
 ```
 
 **Replace parameter:**
+
 - `action-runner: linux-x64-xl` → `runner-size: "normal"`
 
 ### 2. Dockerfile Updates
 
 #### Build Stage
+
 Replace:
+
 ```dockerfile
 ARG GHL_USERNAME=NA
 ARG GHL_PASSWORD=NA
@@ -47,7 +60,9 @@ ENV GHL_USERNAME ${GHL_USERNAME}
 ENV GHL_PASSWORD ${GHL_PASSWORD}
 RUN ./gradlew --no-daemon clean buildLayers
 ```
+
 With:
+
 ```dockerfile
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=GHL_USERNAME \
@@ -58,7 +73,9 @@ RUN --mount=type=cache,target=/root/.gradle \
 ```
 
 #### ENTRYPOINT Format
-Replace shell form (Important that this stays multi-line for easier git diffs):
+
+Replace shell form:
+
 ```dockerfile
 ENTRYPOINT java \
 -server \
@@ -70,25 +87,17 @@ ENTRYPOINT java \
 -XX:+UseStringDeduplication \
 -jar /home/app/application.jar
 ```
-With exec form (Important that this stays multi-line for easier git diffs):
+
+With exec form:
+
 ```dockerfile
-ENTRYPOINT [
-    "java",
-    "-server",
-    "-XX:+UseG1GC",
-    "-XX:+UnlockExperimentalVMOptions",
-    "-XX:+UseContainerSupport",
-    "-XX:InitialRAMPercentage=50",
-    "-XX:MaxRAMPercentage=75",
-    "-XX:+UseStringDeduplication",
-    "-jar",
-    "/home/app/application.jar"
-]
+ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseContainerSupport", "-XX:InitialRAMPercentage=50", "-XX:MaxRAMPercentage=75", "-XX:+UseStringDeduplication", "-jar", "/home/app/application.jar"]
 ```
 
 ### 3. Local Development Script (run_docker.sh)
 
 Replace:
+
 ```bash
 build() {
   docker build \
@@ -98,7 +107,9 @@ build() {
   -t "$APP_NAME" ..
 }
 ```
+
 With:
+
 ```bash
 build() {
   export GHL_USERNAME="${GHL_USERNAME:-$(getProperty "gpr.user")}"
@@ -122,6 +133,7 @@ build() {
 ## Validation Checklist
 
 After migration:
+
 - [ ] All GitHub workflows run successfully
 - [ ] `docker history <image>` shows no credentials
 - [ ] Local builds work with updated `run_docker.sh`
