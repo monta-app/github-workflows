@@ -89,13 +89,13 @@ jobs:
         uses: actions/checkout@v4
       - name: Get x64 runner name
         id: runner-x64
-        uses: ./.github/actions/runner-size-converter
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
         with:
           runner-size: ${{ inputs.runner-size }}
           architecture: x64
       - name: Get arm64 runner name
         id: runner-arm64
-        uses: ./.github/actions/runner-size-converter
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
         with:
           runner-size: ${{ inputs.runner-size }}
           architecture: arm64
