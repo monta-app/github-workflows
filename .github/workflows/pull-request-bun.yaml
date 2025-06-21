@@ -88,14 +88,17 @@ jobs:
       - name: Build check
         working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.build-command }}
+      - name: Disable man-db trigger refreshes (https://github.com/actions/runner-images/issues/10977)
+        run: |
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
+          sudo dpkg-reconfigure man-db
       - name: Install lcov
         run: |
-          sudo apt-get update 
           sudo apt-get install lcov
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v4
         with:
-          coverage-files: coverage/lcov.*.info
+          coverage-files: coverage/lcov.info
           minimum-coverage: 0
           github-token: ${{ secrets.GITHUB_TOKEN }}
           update-comment: true
