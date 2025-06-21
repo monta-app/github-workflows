@@ -412,7 +412,7 @@ on:
 
 jobs:
   validate:
-    uses: monta-app/github-workflows/.github/workflows/pull-request-react-bun.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/pull-request-bun.yaml@v3
     with:
       working-directory: "./frontend"
       lint-command: "bun run lint:all"

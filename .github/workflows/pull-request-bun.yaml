@@ -68,8 +68,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Start Docker Compose
+        if: ${{ inputs.docker-compose-path }}
         run: |
-          docker compose -f ${{ input.docker-compose-path }} up -d
+          docker compose -f ${{ inputs.docker-compose-path }} up -d
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
