@@ -384,14 +384,16 @@ jobs:
 ## Pull Request React (Bun)
 
 **File:** `pull-request-react-bun.yaml`  
-**Purpose:** Validates React/TypeScript pull requests using Bun runtime.
+**Purpose:** Validates React/TypeScript pull requests using Bun runtime with code coverage reporting.
 
 ### What it does:
 1. Validates PR title format
-2. Installs dependencies with Bun
-3. Runs linter
-4. Runs tests (if configured)
-5. Builds the project
+2. Starts optional Docker Compose services
+3. Installs dependencies with Bun
+4. Runs linter
+5. Runs tests (if configured)
+6. Builds the project
+7. Reports code coverage using LCOV format
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -403,6 +405,7 @@ jobs:
 | `lint-command` | No | "bun run lint" | Lint command |
 | `build-command` | No | "bun run build" | Build command |
 | `test-command` | No | "bun run test" | Test command (optional) |
+| `docker-compose-path` | No | - | Path to Docker Compose file for services |
 
 ### Example Usage:
 ```yaml
@@ -416,7 +419,11 @@ jobs:
     with:
       working-directory: "./frontend"
       lint-command: "bun run lint:all"
+      docker-compose-path: "docker-compose.test.yml"
 ```
+
+### Code Coverage:
+The workflow automatically reports code coverage if your project generates LCOV coverage files in the `coverage/` directory. The coverage report is posted as a comment on the pull request.
 
 ---
 
