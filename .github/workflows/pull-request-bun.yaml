@@ -94,7 +94,7 @@ jobs:
           sudo dpkg-reconfigure man-db
       - name: Install lcov
         run: |
-          sudo apt-get install lcov
+          sudo apt-get install -y lcov
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v4
         with:

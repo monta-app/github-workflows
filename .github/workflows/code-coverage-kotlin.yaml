@@ -104,9 +104,12 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: "koverXmlReport"
+      - name: Disable man-db trigger refreshes (https://github.com/actions/runner-images/issues/10977)
+        run: |
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
+          sudo dpkg-reconfigure man-db
       - name: Install cloc
         run: |
-          sudo apt-get update
           sudo apt-get install -y cloc
       - name: Push coverage to Dev Lens
         uses: monta-app/push-kover-prometheus-action@main
