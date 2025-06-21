@@ -37,6 +37,10 @@ on:
         type: string
         default: 'bun run test'
         description: "Command to run for testing (optional)"
+      docker-compose-path:
+        required: false
+        type: string
+        description: "File path of the docker compose file"
 jobs:
   setup:
     name: Setup
@@ -63,6 +67,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - name: Start Docker Compose
+        run: |
+          docker compose -f ${{ input.docker-compose-path }} up -d
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
