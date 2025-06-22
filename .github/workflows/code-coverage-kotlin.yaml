@@ -114,7 +114,7 @@ jobs:
       - name: Push coverage to Dev Lens
         uses: monta-app/push-kover-prometheus-action@main
         with:
-          endpoint-url: "https://dev-lens.vpn.staging.monta.app/metrics"
+          endpoint-url: "https://dev-lens.vpn.staging.monta.app/api/v1/code-coverage/metrics"
           service-name: ${{ inputs.service-name }}
           kover-report-path: ${{ inputs.kover-report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
