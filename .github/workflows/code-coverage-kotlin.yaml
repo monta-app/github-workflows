@@ -40,6 +40,14 @@ on:
         type: string
         description: 'Comma-separated list of directories to exclude from LOC count when analyzing subdirectories'
         default: 'build,target,dist,node_modules,.gradle,.idea,out'
+      team-override:
+        required: false
+        type: string
+        description: 'Optional override for the team name. If provided, this value will be used instead of reading from catalog-info.yaml'
+      division-override:
+        required: false
+        type: string
+        description: 'Optional override for the division name. If provided, this value will be used instead of reading from catalog-info.yaml'
       test-timeout-minutes:
         required: false
         type: number
@@ -115,8 +123,10 @@ jobs:
         uses: monta-app/push-kover-prometheus-action@main
         with:
           endpoint-url: "https://dev-lens.vpn.staging.monta.app/api/v1/code-coverage/metrics"
-          service-name: ${{ inputs.service-name }}
           kover-report-path: ${{ inputs.kover-report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
+          service-name: ${{ inputs.service-name }}
           cloc-source-path: ${{ inputs.cloc-source-path }}
           cloc-exclude-dirs: ${{ inputs.cloc-exclude-dirs }}
+          team-override: ${{ inputs.team-override }}
+          division-override: ${{ inputs.division-override }}
