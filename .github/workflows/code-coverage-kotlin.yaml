@@ -76,8 +76,9 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
         with:
           runner-size: ${{ inputs.runner-size }}
-  code-coverage-report:
-    needs: setup
+  generate-coverage-report:
+    needs:
+      - setup
     runs-on: ${{ needs.setup.outputs.runner-name }}
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     steps:
@@ -91,12 +92,6 @@ jobs:
             exit 1
           fi
           echo "✓ service-name '${{ inputs.service-name }}' is valid"
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          hostname: "GithubActions"
-          args: "--login-server https://headscale.monta.com --accept-routes"
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
@@ -112,6 +107,36 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: "koverXmlReport"
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ inputs.kover-report-path }}
+          retention-days: 1
+  push-coverage-to-server:
+    needs:
+      - setup
+      - generate-coverage-report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          hostname: "GithubActions"
+          args: "--login-server https://headscale.monta.com --accept-routes"
+      - name: Download coverage report
+        id: download-coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+      - name: Set coverage report path
+        id: coverage-path
+        run: |
+          filename=$(basename "${{ inputs.kover-report-path }}")
+          echo "report-path=${{ steps.download-coverage.outputs.download-path }}/$filename" >> $GITHUB_OUTPUT
       - name: Disable man-db trigger refreshes (https://github.com/actions/runner-images/issues/10977)
         run: |
           echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
@@ -123,7 +148,7 @@ jobs:
         uses: monta-app/push-kover-prometheus-action@main
         with:
           endpoint-url: "https://dev-lens.vpn.staging.monta.app/api/v1/code-coverage/metrics"
-          kover-report-path: ${{ inputs.kover-report-path }}
+          kover-report-path: ${{ steps.coverage-path.outputs.report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
           service-name: ${{ inputs.service-name }}
           cloc-source-path: ${{ inputs.cloc-source-path }}
