@@ -121,15 +121,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          hostname: "GithubActions"
-          args: "--login-server https://headscale.monta.com --accept-routes"
       - name: Check if can access Dev Lens
         run: |
-          curl --retry 3 --retry-delay 5 --retry-all-errors -f -s -o /dev/null --max-time 30 https://dev-lens.vpn.staging.monta.app/health
+          curl --retry 3 --retry-delay 5 --retry-all-errors -f -s -o /dev/null --max-time 30 https://dev-lens.staging.monta.app/health
       - name: Download coverage report
         id: download-coverage
         uses: actions/download-artifact@v4
@@ -150,7 +144,7 @@ jobs:
       - name: Push coverage to Dev Lens
         uses: monta-app/push-kover-prometheus-action@main
         with:
-          endpoint-url: "https://dev-lens.vpn.staging.monta.app/api/v1/code-coverage/metrics"
+          endpoint-url: "https://dev-lens.staging.monta.app/api/v1/code-coverage/metrics"
           kover-report-path: ${{ steps.coverage-path.outputs.report-path }}
           catalog-info-path: ${{ inputs.catalog-info-path }}
           service-name: ${{ inputs.service-name }}
