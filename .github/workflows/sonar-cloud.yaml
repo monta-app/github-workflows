@@ -67,4 +67,4 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
         with:
           gradle-module: ${{ inputs.gradle-module }}
-          gradle-tasks: 'koverXmlReport sonar'
+          gradle-tasks: 'test koverXmlReport sonar'
