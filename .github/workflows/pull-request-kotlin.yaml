@@ -98,7 +98,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
         with:
           gradle-module: ${{ inputs.gradle-module }}
-          gradle-tasks: 'ktlintCheck koverXmlReport koverHtmlReport'
+          gradle-tasks: 'test koverXmlReport koverHtmlReport'
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
