@@ -460,7 +460,7 @@ on:
 
 jobs:
   validate:
-    uses: monta-app/github-workflows/.github/workflows/pull-request-react-pnpm.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/pull-request-react.yaml@v3
     with:
       node-version: "20"
       pnpm-version: "9"
