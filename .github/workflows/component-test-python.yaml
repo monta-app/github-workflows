@@ -75,7 +75,7 @@ jobs:
         with:
           docker-compose-path: ${{ inputs.docker-compose-path }}
       - name: Create .env file from secret
-        if: ${{ secrets.TEST_ENV_FILE }}
+        if: ${{ secrets.TEST_ENV_FILE != '' }}
         run: |
           echo "${{ secrets.TEST_ENV_FILE }}" > .env
           echo "Created .env file with $(wc -l < .env) lines"
