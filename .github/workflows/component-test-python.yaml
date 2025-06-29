@@ -79,7 +79,7 @@ jobs:
       - name: Run tests with pytest
         id: pytest
         run: |
-          pytest ${{ inputs.test-directory }} \
+          uv run pytest ${{ inputs.test-directory }} \
             --junit-xml=pytest-report.xml \
             --html=pytest-report.html \
             --self-contained-html \
