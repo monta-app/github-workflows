@@ -266,11 +266,12 @@ jobs:
 1. Sets up Python environment
 2. Optionally starts Docker Compose services if `docker-compose-path` is provided
 3. Waits for Docker containers to be healthy
-4. Installs uv for fast dependency management
-5. Runs `uv sync` to install dependencies from `pyproject.toml`
-6. Executes pytest with HTML and JUnit reports
-7. Uploads test results as artifacts
-8. Updates Slack with test status
+4. Creates .env file from `TEST_ENV_FILE` secret if provided
+5. Installs uv for fast dependency management
+6. Runs `uv sync` to install dependencies from `pyproject.toml`
+7. Executes pytest with HTML and JUnit reports
+8. Uploads test results as artifacts
+9. Updates Slack with test status
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -288,6 +289,7 @@ jobs:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `SLACK_APP_TOKEN` | Yes | Slack app token |
+| `TEST_ENV_FILE` | No | Environment variables for tests in .env format |
 
 ### Requirements:
 - Project must use `pyproject.toml` for dependency management
@@ -305,6 +307,7 @@ jobs:
       service-emoji: "🤖"
     secrets:
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
 ```
 
 ---
@@ -385,6 +388,7 @@ jobs:
 | `SENTRY_AUTH_TOKEN` | No | Sentry auth token |
 | `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key |
 | `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key |
+| `TEST_ENV_FILE` | No | Environment variables for tests in .env format |
 
 ### Requirements:
 - Python project with `pyproject.toml`
@@ -411,6 +415,7 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
 ```
 
 ---
