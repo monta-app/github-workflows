@@ -257,6 +257,55 @@ jobs:
 
 ---
 
+## Component Test (Python)
+
+**File:** `component-test-python.yaml`  
+**Purpose:** Runs tests for Python projects using pytest with uv.
+
+### What it does:
+1. Sets up Python environment
+2. Installs uv for fast dependency management
+3. Runs `uv sync` to install dependencies from `pyproject.toml`
+4. Executes pytest with HTML and JUnit reports
+5. Uploads test results as artifacts
+6. Updates Slack with test status
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | - | Runner size for the job |
+| `service-name` | No | - | Display name for Slack |
+| `service-emoji` | No | - | Emoji for Slack |
+| `python-version` | No | "3.13" | Python version |
+| `test-directory` | No | "tests" | Directory containing test files |
+| `pytest-args` | No | "" | Additional pytest arguments |
+| `slack-message-id` | No | - | Slack message ID to update |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `SLACK_APP_TOKEN` | Yes | Slack app token |
+
+### Requirements:
+- Project must use `pyproject.toml` for dependency management
+- Test dependencies should be included in dev dependencies
+
+### Example Usage:
+```yaml
+jobs:
+  test:
+    uses: monta-app/github-workflows/.github/workflows/component-test-python.yaml@v3
+    with:
+      python-version: "3.13"
+      test-directory: "tests"
+      service-name: "ML Service"
+      service-emoji: "🤖"
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+---
+
 ## Deploy Kotlin
 
 **File:** `deploy-kotlin.yaml`  
@@ -292,6 +341,69 @@ jobs:
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+```
+
+---
+
+## Deploy Python
+
+**File:** `deploy-python.yaml`  
+**Purpose:** Complete CI/CD pipeline for Python services (test → build → deploy).
+
+### What it does:
+1. Initializes Slack notification
+2. Runs Python tests using pytest and uv
+3. Builds multi-arch Docker images
+4. Deploys to Kubernetes via manifest updates
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size ("normal" or "large") |
+| `stage` | **Yes** | - | Deployment stage (dev/staging/production) |
+| `service-name` | **Yes** | - | Service display name |
+| `service-emoji` | **Yes** | - | Service emoji |
+| `service-identifier` | **Yes** | - | Service identifier for K8s |
+| `region` | No | "eu-west-1" | AWS region |
+| `docker-file-name` | No | "Dockerfile" | Dockerfile name |
+| `additional-build-args` | No | - | Extra Docker build args |
+| `ecr-repository-name` | No | - | ECR repository override |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `AWS_ACCOUNT_ID` | **Yes** | AWS account for ECR |
+| `SLACK_APP_TOKEN` | **Yes** | Slack app token |
+| `MANIFEST_REPO_PAT` | **Yes** | GitHub PAT for manifest repo |
+| `SENTRY_AUTH_TOKEN` | No | Sentry auth token |
+| `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key |
+| `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key |
+
+### Requirements:
+- Python project with `pyproject.toml`
+- Tests in `tests/` directory (configurable)
+- Dockerfile for containerization
+
+### Example Usage:
+```yaml
+name: Deploy to Production
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-python.yaml@v3
+    with:
+      stage: "production"
+      service-name: "ML Service"
+      service-emoji: "🤖"
+      service-identifier: "ml-service"
+      region: "eu-west-1"
+    secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
