@@ -71,6 +71,26 @@ jobs:
         if: ${{ inputs.docker-compose-path }}
         run: |
           docker compose -f ${{ inputs.docker-compose-path }} up -d
+      - name: Wait for containers to be healthy
+        if: ${{ inputs.docker-compose-path }}
+        run: |
+          echo "Waiting for containers to become healthy..."
+          timeout=60
+          interval=2
+          end=$((SECONDS + timeout))
+          
+          while [ $SECONDS -lt $end ]; do
+            unhealthy=$(docker compose -f ${{ inputs.docker-compose-path }} ps --format json | jq '[.[] | select(.Health != null and .Health != "healthy")] | length')
+            if [ "$unhealthy" -eq "0" ]; then
+              echo "All containers are healthy."
+              exit 0
+            fi
+            sleep $interval
+          done
+          
+          echo "Timeout reached. Some containers are still unhealthy:"
+          docker compose -f ${{ inputs.docker-compose-path }} ps
+          exit 1
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
