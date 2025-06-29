@@ -264,11 +264,13 @@ jobs:
 
 ### What it does:
 1. Sets up Python environment
-2. Installs uv for fast dependency management
-3. Runs `uv sync` to install dependencies from `pyproject.toml`
-4. Executes pytest with HTML and JUnit reports
-5. Uploads test results as artifacts
-6. Updates Slack with test status
+2. Optionally starts Docker Compose services if `docker-compose-path` is provided
+3. Waits for Docker containers to be healthy
+4. Installs uv for fast dependency management
+5. Runs `uv sync` to install dependencies from `pyproject.toml`
+6. Executes pytest with HTML and JUnit reports
+7. Uploads test results as artifacts
+8. Updates Slack with test status
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -279,6 +281,7 @@ jobs:
 | `python-version` | No | "3.13" | Python version |
 | `test-directory` | No | "tests" | Directory containing test files |
 | `pytest-args` | No | "" | Additional pytest arguments |
+| `docker-compose-path` | No | - | File path of the docker compose file |
 | `slack-message-id` | No | - | Slack message ID to update |
 
 ### Secrets:
@@ -371,6 +374,7 @@ jobs:
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Extra Docker build args |
 | `ecr-repository-name` | No | - | ECR repository override |
+| `docker-compose-path` | No | - | File path of the docker compose file |
 
 ### Secrets:
 | Secret | Required | Description |
@@ -500,12 +504,13 @@ jobs:
 
 ### What it does:
 1. Validates PR title format
-2. Starts optional Docker Compose services
-3. Installs dependencies with Bun
-4. Runs linter
-5. Runs tests (if configured)
-6. Builds the project
-7. Reports code coverage using LCOV format
+2. Starts optional Docker Compose services if `docker-compose-path` is provided
+3. Waits for Docker containers to be healthy
+4. Installs dependencies with Bun
+5. Runs linter
+6. Runs tests (if configured)
+7. Builds the project
+8. Reports code coverage using LCOV format
 
 ### Inputs:
 | Input | Required | Default | Description |
