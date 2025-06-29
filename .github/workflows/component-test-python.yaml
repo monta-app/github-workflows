@@ -41,6 +41,9 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+      TEST_ENV_FILE:
+        required: false
+        description: 'Environment variables for tests in .env format'
 
 permissions:
   contents: read
@@ -71,6 +74,11 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/docker-compose-setup@v3
         with:
           docker-compose-path: ${{ inputs.docker-compose-path }}
+      - name: Create .env file from secret
+        if: ${{ secrets.TEST_ENV_FILE }}
+        run: |
+          echo "${{ secrets.TEST_ENV_FILE }}" > .env
+          echo "Created .env file with $(wc -l < .env) lines"
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:

@@ -65,6 +65,9 @@ on:
       AWS_CDN_SECRET_ACCESS_KEY:
         required: false
         description: 'CDN secret access key for S3 access, injected into Docker image'
+      TEST_ENV_FILE:
+        required: false
+        description: 'Environment variables for tests in .env format'
 
 permissions:
   id-token: write
@@ -93,6 +96,7 @@ jobs:
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
   build:
     name: Build
     needs: initialize
