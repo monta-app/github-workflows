@@ -24,15 +24,6 @@ on:
         required: true
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
-      gradle-module:
-        required: false
-        type: string
-        description: 'Name of the Gradle module being tested'
-      java-version:
-        required: false
-        type: string
-        default: "21"
-        description: 'Java version to use'
       region:
         required: false
         type: string
@@ -52,12 +43,6 @@ on:
         type: string
         description: 'ECR repository name override'
     secrets:
-      GHL_USERNAME:
-        required: true
-        description: 'GitHub username for Gradle plugin'
-      GHL_PASSWORD:
-        required: true
-        description: 'GitHub password/token for Gradle plugin'
       AWS_ACCOUNT_ID:
         required: true
         description: 'AWS Account ID for ECR and deployment access'
@@ -91,20 +76,17 @@ jobs:
       service-emoji: ${{ inputs.service-emoji }}
     secrets:
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+
   test:
     name: Test
     needs: initialize
-    uses: ./.github/workflows/component-test-kotlin.yaml
+    uses: ./.github/workflows/component-test-python.yaml
     with:
       runner-size: ${{ inputs.runner-size }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
-      gradle-module: ${{ inputs.gradle-module }}
-      java-version: ${{ inputs.java-version }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
-      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
   build:
     name: Build
@@ -124,11 +106,10 @@ jobs:
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
-      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       AWS_CDN_ACCESS_KEY_ID: ${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
       AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+
   deploy:
     name: Deploy
     needs:

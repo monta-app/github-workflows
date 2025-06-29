@@ -1,0 +1,110 @@
+name: Test
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: false
+        type: string
+        description: 'Runner size for the component-runner-size-converter'
+      service-name:
+        required: false
+        type: string
+        description: 'Proper name for your service i.e API Service, Backend Service'
+      service-emoji:
+        required: false
+        type: string
+        description: 'An emoji to identify your service by :)'
+      python-version:
+        required: false
+        type: string
+        default: "3.13"
+        description: 'Python version to use'
+      test-directory:
+        required: false
+        type: string
+        default: "tests"
+        description: 'Directory containing test files'
+      pytest-args:
+        required: false
+        type: string
+        default: ""
+        description: 'Additional pytest arguments'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'Slack message ID from initialization for updates'
+    secrets:
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app token'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      runner-name: ${{ steps.runner.outputs.runner-name }}
+    steps:
+      - name: Get runner name
+        id: runner
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        with:
+          runner-size: ${{ inputs.runner-size }}
+  test:
+    name: Test
+    needs: setup
+    runs-on: ${{ needs.setup.outputs.runner-name }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+      - name: Run tests with pytest
+        id: pytest
+        run: |
+          pytest ${{ inputs.test-directory }} \
+            --junit-xml=pytest-report.xml \
+            --html=pytest-report.html \
+            --self-contained-html \
+            --tb=short \
+            -v \
+            ${{ inputs.pytest-args }}
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-python-${{ inputs.python-version }}
+          path: |
+            pytest-report.xml
+            pytest-report.html
+          retention-days: 7
+          overwrite: true
+
+      - name: Publish result message to slack
+        uses: monta-app/slack-notifier-cli-action@main
+        if: always()
+        with:
+          job-type: "test"
+          job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ inputs.slack-message-id }}
