@@ -67,41 +67,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - name: Start Docker Compose
+      - name: Setup Docker Compose
         if: ${{ inputs.docker-compose-path }}
-        run: |
-          docker compose -f ${{ inputs.docker-compose-path }} up -d
-      - name: Wait for containers to be healthy
-        if: ${{ inputs.docker-compose-path }}
-        run: |
-          echo "Waiting for containers to become healthy..."
-          timeout=60
-          interval=2
-          end=$((SECONDS + timeout))
-          
-          containers=$(docker compose -f ${{ inputs.docker-compose-path }} ps -q)
-          
-          while [ $SECONDS -lt $end ]; do
-            unhealthy=0
-          
-            for container in $containers; do
-              health=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "none")
-              if [ "$health" != "healthy" ]; then
-                unhealthy=$((unhealthy + 1))
-              fi
-            done
-          
-            if [ "$unhealthy" -eq 0 ]; then
-              echo "All containers are healthy."
-              exit 0
-            fi
-          
-            sleep $interval
-          done
-          
-          echo "Timeout reached. Some containers are still unhealthy:"
-          docker compose -f ${{ inputs.docker-compose-path }} ps
-          exit 1
+        uses: monta-app/github-workflows/.github/actions/docker-compose-setup@v3
+        with:
+          docker-compose-path: ${{ inputs.docker-compose-path }}
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:

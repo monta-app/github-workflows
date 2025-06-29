@@ -29,6 +29,10 @@ on:
         type: string
         default: ""
         description: 'Additional pytest arguments'
+      docker-compose-path:
+        required: false
+        type: string
+        description: 'File path of the docker compose file'
       slack-message-id:
         required: false
         type: string
@@ -62,6 +66,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Docker Compose
+        if: ${{ inputs.docker-compose-path }}
+        uses: monta-app/github-workflows/.github/actions/docker-compose-setup@v3
+        with:
+          docker-compose-path: ${{ inputs.docker-compose-path }}
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:

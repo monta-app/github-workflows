@@ -42,6 +42,10 @@ on:
         required: false
         type: string
         description: 'ECR repository name override'
+      docker-compose-path:
+        required: false
+        type: string
+        description: 'File path of the docker compose file'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -85,6 +89,7 @@ jobs:
       runner-size: ${{ inputs.runner-size }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
+      docker-compose-path: ${{ inputs.docker-compose-path }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
