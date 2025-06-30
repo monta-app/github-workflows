@@ -28,8 +28,8 @@ on:
       catalog-info-path:
         required: false
         type: string
-        description: "Path to the catalog-info.yml file"
-        default: "catalog-info.yml"
+        description: "Path to the catalog-info.yaml file"
+        default: "catalog-info.yaml"
       cloc-source-path:
         required: false
         type: string
@@ -43,11 +43,11 @@ on:
       team-override:
         required: false
         type: string
-        description: 'Optional override for the team name. If provided, this value will be used instead of reading from catalog-info.yml'
+        description: 'Optional override for the team name. If provided, this value will be used instead of reading from catalog-info.yaml'
       division-override:
         required: false
         type: string
-        description: 'Optional override for the division name. If provided, this value will be used instead of reading from catalog-info.yml'
+        description: 'Optional override for the division name. If provided, this value will be used instead of reading from catalog-info.yaml'
       test-timeout-minutes:
         required: false
         type: number

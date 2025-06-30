@@ -39,7 +39,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 | `java-version` | No | "21" | Java version to use |
 | `gradle-module` | No | - | Gradle module name for multi-module projects |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
-| `catalog-info-path` | No | "catalog-info.yml" | Path to Backstage catalog file |
+| `catalog-info-path` | No | "catalog-info.yaml" | Path to Backstage catalog file |
 | `cloc-source-path` | No | "." | Path to analyze for lines of code |
 | `cloc-exclude-dirs` | No | "build,target,dist,node_modules,.gradle,.idea,out" | Directories to exclude from LOC count |
 | `test-timeout-minutes` | No | 30 | Test timeout in minutes |
