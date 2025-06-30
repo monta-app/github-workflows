@@ -77,7 +77,7 @@ permissions:
 jobs:
   initialize:
     name: Initialize
-    uses: ./.github/workflows/component-initialize.yaml
+    uses: ./.github/workflows/component-initialize.yml
     with:
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
@@ -87,7 +87,7 @@ jobs:
   test:
     name: Test
     needs: initialize
-    uses: ./.github/workflows/component-test-python.yaml
+    uses: ./.github/workflows/component-test-python.yml
     with:
       runner-size: ${{ inputs.runner-size }}
       service-name: ${{ inputs.service-name }}
@@ -100,7 +100,7 @@ jobs:
   build:
     name: Build
     needs: initialize
-    uses: ./.github/workflows/component-build.yaml
+    uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
       stage: ${{ inputs.stage }}
@@ -125,7 +125,7 @@ jobs:
       - initialize
       - test
       - build
-    uses: ./.github/workflows/component-deploy.yaml
+    uses: ./.github/workflows/component-deploy.yml
     with:
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}

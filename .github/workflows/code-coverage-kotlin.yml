@@ -28,8 +28,8 @@ on:
       catalog-info-path:
         required: false
         type: string
-        description: "Path to the catalog-info.yaml file"
-        default: "catalog-info.yaml"
+        description: "Path to the catalog-info.yml file"
+        default: "catalog-info.yml"
       cloc-source-path:
         required: false
         type: string
@@ -43,11 +43,11 @@ on:
       team-override:
         required: false
         type: string
-        description: 'Optional override for the team name. If provided, this value will be used instead of reading from catalog-info.yaml'
+        description: 'Optional override for the team name. If provided, this value will be used instead of reading from catalog-info.yml'
       division-override:
         required: false
         type: string
-        description: 'Optional override for the division name. If provided, this value will be used instead of reading from catalog-info.yaml'
+        description: 'Optional override for the division name. If provided, this value will be used instead of reading from catalog-info.yml'
       test-timeout-minutes:
         required: false
         type: number
@@ -73,7 +73,7 @@ jobs:
     steps:
       - name: Get runner name
         id: runner
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
   generate-coverage-report:
@@ -103,7 +103,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: "test koverXmlReport"

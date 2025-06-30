@@ -4,34 +4,34 @@ This repository contains several reusable workflows designed to streamline the C
 
 ## Available Workflows
 
-### `backstage_techdocs.yaml`
+### `backstage_techdocs.yml`
 - **Purpose**: Manages the deployment of technical documentation using Backstage TechDocs.
 
-### `it-test.yaml`
+### `it-test.yml`
 - **Purpose**: Runs integration tests for ensuring code stability.
 
-### `pull-request.yaml`
+### `pull-request.yml`
 - **Purpose**: Automates actions based on pull request events such as title validation, code coverage reports, and testing.
 
-### `sonar-cloud.yaml`
+### `sonar-cloud.yml`
 - **Purpose**: Integrates with SonarCloud for analyzing code quality and vulnerabilities.
 
-### `deploy.yaml`
+### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
 
-### `pull-request-kover.yaml`
+### `pull-request-kover.yml`
 - **Purpose**: Manages the execution of Kover, a Kotlin coverage engine, for code coverage on pull requests.
 
-### `monta-merge-command.yaml`
+### `monta-merge-command.yml`
 - **Purpose**: Automates the process of merging pull requests and triggering subsequent deployment steps for `staging` and `production`.
 
-### `release-tag.yaml`
+### `release-tag.yml`
 - **Purpose**: Automatically tags releases with a timestamped version.
 
-### `staging-pr.yaml`
+### `staging-pr.yml`
 - **Purpose**: Automatically creates a pull request to promote changes from `develop` to `staging`.
 
-### `production-pr.yaml`
+### `production-pr.yml`
 - **Purpose**: Automatically creates a pull request for promoting changes to the `production` branch.
 ---
 
@@ -39,7 +39,7 @@ This repository contains several reusable workflows designed to streamline the C
 
 ### 1. **Auto-create PR to Promote `develop` to `staging`**
 
-This workflow is triggered by pushes to the `develop` branch. It automatically creates a pull request to promote changes to the `staging` branch using the `staging-pr.yaml` workflow.
+This workflow is triggered by pushes to the `develop` branch. It automatically creates a pull request to promote changes to the `staging` branch using the `staging-pr.yml` workflow.
 
 **Example**:
 ```yaml
@@ -53,7 +53,7 @@ on:
 jobs:
   staging_pr:
     name: Pull request (Staging)
-    uses: monta-app/github-workflows/.github/workflows/staging-pr.yaml@v2
+    uses: monta-app/github-workflows/.github/workflows/staging-pr.yml@v2
 ```
 
 ### 2. **Use workflows for release PR merging, production tagging and deployment**
@@ -73,32 +73,32 @@ jobs:
   monta-merge:
     name: auto-merge release pull request
     if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/monta-merge') }}
-    uses: monta-app/github-workflows/.github/workflows/monta-merge-command.yaml@v2
+    uses: monta-app/github-workflows/.github/workflows/monta-merge-command.yml@v2
     secrets: inherit
 
   trigger-staging-deploy:
     needs: monta-merge
     if: ${{ needs.monta-merge.outputs.base_branch == 'staging' }}
     # Update this to your deployment workflow, and ensure it runs on workflow_call
-    uses: ./.github/workflows/deploy_staging.yaml 
+    uses: ./.github/workflows/deploy_staging.yml 
     secrets: inherit
 
   trigger-production-pr-creation:
     needs: monta-merge
     if: ${{ needs.monta-merge.outputs.base_branch == 'staging' }}
-    uses: monta-app/github-workflows/.github/workflows/production-pr.yaml@v2
+    uses: monta-app/github-workflows/.github/workflows/production-pr.yml@v2
     secrets: inherit
 
   trigger-production-tag-release:
     needs: monta-merge
     if: ${{ needs.monta-merge.outputs.base_branch == 'main' }}
-    uses: monta-app/github-workflows/.github/workflows/release-tag.yaml@v2
+    uses: monta-app/github-workflows/.github/workflows/release-tag.yml@v2
     secrets: inherit
 
   trigger-production-deploy:
     needs: trigger-production-tag-release
     # Update this to your deployment workflow, and ensure it runs on workflow_call
-    uses: ./.github/workflows/deploy_production.yaml
+    uses: ./.github/workflows/deploy_production.yml
     if: ${{ needs.trigger-production-tag-release.outputs.tag_exists == 'false' }}
     secrets: inherit
 ```

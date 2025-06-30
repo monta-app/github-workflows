@@ -1,4 +1,4 @@
-name: Build and test (React/TypeScript with Bun)
+name: Build and test (React/TypeScript)
 on:
   workflow_call:
     inputs:
@@ -7,11 +7,16 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
-      bun-version:
+      node-version:
         required: false
         type: string
-        default: 'latest'
-        description: "Bun version to use"
+        default: 'lts/jod'
+        description: "Node.js version to use"
+      pnpm-version:
+        required: false
+        type: string
+        default: '10'
+        description: "pnpm version to use"
       working-directory:
         required: false
         type: string
@@ -25,22 +30,18 @@ on:
       lint-command:
         required: false
         type: string
-        default: 'bun run lint'
+        default: 'pnpm run lint'
         description: "Command to run for linting"
       build-command:
         required: false
         type: string
-        default: 'bun run build'
+        default: 'pnpm run build'
         description: "Command to run for building"
       test-command:
         required: false
         type: string
-        default: 'bun run test'
+        default: 'pnpm run test'
         description: "Command to run for testing (optional)"
-      docker-compose-path:
-        required: false
-        type: string
-        description: "File path of the docker compose file"
 jobs:
   setup:
     name: Setup
@@ -50,10 +51,10 @@ jobs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
       - name: Check PR title
-        uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
+        uses: monta-app/github-workflows/.github/actions/pr-title-check@main
       - name: Get runner name
         id: runner
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
   lint-build-test:
@@ -67,18 +68,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - name: Setup Docker Compose
-        if: ${{ inputs.docker-compose-path }}
-        uses: monta-app/github-workflows/.github/actions/docker-compose-setup@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          docker-compose-path: ${{ inputs.docker-compose-path }}
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+          version: ${{ inputs.pnpm-version }}
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: "latest"
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.working-directory }}
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
-        run: bun install
+        run: pnpm install
       - name: Lint check
         working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.lint-command }}
@@ -89,17 +92,3 @@ jobs:
       - name: Build check
         working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.build-command }}
-      - name: Disable man-db trigger refreshes (https://github.com/actions/runner-images/issues/10977)
-        run: |
-          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
-          sudo dpkg-reconfigure man-db
-      - name: Install lcov
-        run: |
-          sudo apt-get install -y lcov
-      - name: Report code coverage
-        uses: zgosalvez/github-actions-report-lcov@v4
-        with:
-          coverage-files: coverage/*lcov.info*
-          minimum-coverage: 0
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          update-comment: true

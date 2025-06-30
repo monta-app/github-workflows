@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Get runner name
         id: runner
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
   test:
@@ -73,7 +73,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ github.token }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test'

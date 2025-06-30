@@ -21,13 +21,13 @@ This section is specifically designed for LLM assistance with migration tasks.
 Replace:
 
 ```yaml
-uses: monta-app/github-workflows/.github/workflows/deploy.yaml@v2
+uses: monta-app/github-workflows/.github/workflows/deploy.yml@v2
 ```
 
 With:
 
 ```yaml
-uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
+uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
 ```
 
 **Remove these parameters (now defaults):**
@@ -66,13 +66,13 @@ Only pass these secrets to the workflow (use only the ones from your original de
 Replace:
 
 ```yaml
-uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yaml@v2
+uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yml@v2
 ```
 
 With:
 
 ```yaml
-uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
+uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yml@main
 ```
 
 **Replace parameter:**

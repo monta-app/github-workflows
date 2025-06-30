@@ -7,7 +7,7 @@
 
 ## Recent Workflow Changes (2025-06-29)
 1. **Docker Compose Composite Action**: Created `.github/actions/docker-compose-setup` for reusable Docker Compose setup
-2. **Workflow Updates**: Integrated Docker Compose action in `pull-request-bun.yaml`, `component-test-python.yaml`, and `deploy-python.yaml`
+2. **Workflow Updates**: Integrated Docker Compose action in `pull-request-bun.yml`, `component-test-python.yml`, and `deploy-python.yml`
 3. **Documentation**: Updated workflow guide to document Docker Compose support
 
 ## Previous Changes (2025-06-21)

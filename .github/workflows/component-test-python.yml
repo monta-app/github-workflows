@@ -58,7 +58,7 @@ jobs:
     steps:
       - name: Get runner name
         id: runner
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
   test:
@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Docker Compose
         if: ${{ inputs.docker-compose-path }}
-        uses: monta-app/github-workflows/.github/actions/docker-compose-setup@v3
+        uses: monta-app/github-workflows/.github/actions/docker-compose-setup@main
         with:
           docker-compose-path: ${{ inputs.docker-compose-path }}
       - name: Create .env file from secret

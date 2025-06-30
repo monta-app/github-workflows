@@ -49,10 +49,10 @@ jobs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
       - name: Check PR title
-        uses: monta-app/github-workflows/.github/actions/pr-title-check@v3
+        uses: monta-app/github-workflows/.github/actions/pr-title-check@main
       - name: Get runner name
         id: runner
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@v3
+        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
   test:
@@ -86,7 +86,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'ktlintCheck'
@@ -95,7 +95,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport koverHtmlReport'
@@ -116,7 +116,7 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@v3
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'

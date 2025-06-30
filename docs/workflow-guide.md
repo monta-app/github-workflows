@@ -20,7 +20,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 
 ## Code Coverage (Kotlin)
 
-**File:** `code-coverage-kotlin.yaml`  
+**File:** `code-coverage-kotlin.yml`  
 **Purpose:** Runs tests with code coverage reporting for Kotlin projects and pushes metrics to Prometheus.
 
 ### What it does:
@@ -39,7 +39,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 | `java-version` | No | "21" | Java version to use |
 | `gradle-module` | No | - | Gradle module name for multi-module projects |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
-| `catalog-info-path` | No | "catalog-info.yaml" | Path to Backstage catalog file |
+| `catalog-info-path` | No | "catalog-info.yml" | Path to Backstage catalog file |
 | `cloc-source-path` | No | "." | Path to analyze for lines of code |
 | `cloc-exclude-dirs` | No | "build,target,dist,node_modules,.gradle,.idea,out" | Directories to exclude from LOC count |
 | `test-timeout-minutes` | No | 30 | Test timeout in minutes |
@@ -55,7 +55,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 ```yaml
 jobs:
   code-coverage:
-    uses: monta-app/github-workflows/.github/workflows/code-coverage-kotlin.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/code-coverage-kotlin.yml@main
     with:
       service-name: "my-kotlin-service"
       java-version: "21"
@@ -69,7 +69,7 @@ jobs:
 
 ## Component Build
 
-**File:** `component-build.yaml`  
+**File:** `component-build.yml`  
 **Purpose:** Builds multi-architecture Docker images and pushes them to Amazon ECR.
 
 ### What it does:
@@ -111,7 +111,7 @@ jobs:
 ```yaml
 jobs:
   build:
-    uses: monta-app/github-workflows/.github/workflows/component-build.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/component-build.yml@main
     with:
       stage: "staging"
       service-name: "Vehicle Service"
@@ -126,14 +126,14 @@ jobs:
 
 ## Component Deploy
 
-**File:** `component-deploy.yaml`  
+**File:** `component-deploy.yml`  
 **Purpose:** Deploys a service by updating Kubernetes manifests in the kube-manifests repository.
 
 ### What it does:
 1. Updates Slack with deployment progress
 2. Checks out the kube-manifests repository
-3. Updates image tag and metadata in values.yaml
-4. Updates deployment history in config.yaml
+3. Updates image tag and metadata in values.yml
+4. Updates deployment history in config.yml
 5. Commits and pushes changes to trigger ArgoCD deployment
 6. Notifies Slack of deployment status
 
@@ -160,7 +160,7 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: monta-app/github-workflows/.github/workflows/component-deploy.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/component-deploy.yml@main
     with:
       stage: "production"
       service-name: "Payment Service"
@@ -176,7 +176,7 @@ jobs:
 
 ## Component Initialize
 
-**File:** `component-initialize.yaml`  
+**File:** `component-initialize.yml`  
 **Purpose:** Initializes the CI/CD pipeline by creating a Slack notification message.
 
 ### What it does:
@@ -202,7 +202,7 @@ jobs:
 ```yaml
 jobs:
   init:
-    uses: monta-app/github-workflows/.github/workflows/component-initialize.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/component-initialize.yml@main
     with:
       service-name: "User Service"
       service-emoji: "👤"
@@ -214,7 +214,7 @@ jobs:
 
 ## Component Test (Kotlin)
 
-**File:** `component-test-kotlin.yaml`  
+**File:** `component-test-kotlin.yml`  
 **Purpose:** Runs tests for Kotlin projects with Gradle.
 
 ### What it does:
@@ -244,7 +244,7 @@ jobs:
 ```yaml
 jobs:
   test:
-    uses: monta-app/github-workflows/.github/workflows/component-test-kotlin.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/component-test-kotlin.yml@main
     with:
       java-version: "21"
       service-name: "API Service"
@@ -259,7 +259,7 @@ jobs:
 
 ## Component Test (Python)
 
-**File:** `component-test-python.yaml`  
+**File:** `component-test-python.yml`  
 **Purpose:** Runs tests for Python projects using pytest with uv.
 
 ### What it does:
@@ -299,7 +299,7 @@ jobs:
 ```yaml
 jobs:
   test:
-    uses: monta-app/github-workflows/.github/workflows/component-test-python.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/component-test-python.yml@main
     with:
       python-version: "3.13"
       test-directory: "tests"
@@ -314,7 +314,7 @@ jobs:
 
 ## Deploy Kotlin
 
-**File:** `deploy-kotlin.yaml`  
+**File:** `deploy-kotlin.yml`  
 **Purpose:** Complete CI/CD pipeline for Kotlin services (test → build → deploy).
 
 ### What it does:
@@ -338,7 +338,7 @@ on:
 
 jobs:
   deploy:
-    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
     with:
       stage: "production"
       service-name: "Charging Service"
@@ -356,7 +356,7 @@ jobs:
 
 ## Deploy Python
 
-**File:** `deploy-python.yaml`  
+**File:** `deploy-python.yml`  
 **Purpose:** Complete CI/CD pipeline for Python services (test → build → deploy).
 
 ### What it does:
@@ -404,7 +404,7 @@ on:
 
 jobs:
   deploy:
-    uses: monta-app/github-workflows/.github/workflows/deploy-python.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/deploy-python.yml@main
     with:
       stage: "production"
       service-name: "ML Service"
@@ -422,7 +422,7 @@ jobs:
 
 ## Publish Tech Docs
 
-**File:** `publish-tech-docs.yaml`  
+**File:** `publish-tech-docs.yml`  
 **Purpose:** Publishes technical documentation to Backstage via AWS S3.
 
 ### What it does:
@@ -444,7 +444,7 @@ None - uses repository name as entity name
 ```yaml
 jobs:
   publish-docs:
-    uses: monta-app/github-workflows/.github/workflows/publish-tech-docs.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/publish-tech-docs.yml@main
     secrets:
       TECHDOCS_AWS_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_AWS_ACCESS_KEY_ID }}
       TECHDOCS_AWS_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_AWS_SECRET_ACCESS_KEY }}
@@ -454,7 +454,7 @@ jobs:
 
 ## Pull Request Kotlin
 
-**File:** `pull-request-kotlin.yaml`  
+**File:** `pull-request-kotlin.yml`  
 **Purpose:** Validates Kotlin pull requests with linting, testing, and code coverage.
 
 ### What it does:
@@ -491,7 +491,7 @@ on:
 
 jobs:
   validate:
-    uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yml@main
     with:
       java-version: "21"
     secrets:
@@ -504,7 +504,7 @@ jobs:
 
 ## Pull Request React (Bun)
 
-**File:** `pull-request-react-bun.yaml`  
+**File:** `pull-request-react-bun.yml`  
 **Purpose:** Validates React/TypeScript pull requests using Bun runtime with code coverage reporting.
 
 ### What it does:
@@ -537,7 +537,7 @@ on:
 
 jobs:
   validate:
-    uses: monta-app/github-workflows/.github/workflows/pull-request-bun.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/pull-request-bun.yml@main
     with:
       working-directory: "./frontend"
       lint-command: "bun run lint:all"
@@ -551,7 +551,7 @@ The workflow automatically reports code coverage if your project generates LCOV 
 
 ## Pull Request React (pnpm)
 
-**File:** `pull-request-react-pnpm.yaml`  
+**File:** `pull-request-react-pnpm.yml`  
 **Purpose:** Validates React/TypeScript pull requests using pnpm package manager.
 
 ### What it does:
@@ -582,7 +582,7 @@ on:
 
 jobs:
   validate:
-    uses: monta-app/github-workflows/.github/workflows/pull-request-react.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/pull-request-react.yml@main
     with:
       node-version: "20"
       pnpm-version: "9"
@@ -592,7 +592,7 @@ jobs:
 
 ## SonarCloud Analysis
 
-**File:** `sonar-cloud.yaml`  
+**File:** `sonar-cloud.yml`  
 **Purpose:** Runs dedicated SonarCloud analysis for code quality metrics.
 
 ### What it does:
@@ -620,7 +620,7 @@ jobs:
 ```yaml
 jobs:
   sonarcloud:
-    uses: monta-app/github-workflows/.github/workflows/sonar-cloud.yaml@v3
+    uses: monta-app/github-workflows/.github/workflows/sonar-cloud.yml@main
     with:
       java-version: "21"
     secrets:
@@ -667,12 +667,12 @@ Most workflows require organization or repository secrets. Add these in your rep
 
 - **Kubernetes Deployments:**
   - Manifests must be in `kube-manifests` repository
-  - Structure: `apps/<service-identifier>/<stage>/app/values.yaml`
-  - Config file: `apps/<service-identifier>/<stage>/cluster/config.yaml`
+  - Structure: `apps/<service-identifier>/<stage>/app/values.yml`
+  - Config file: `apps/<service-identifier>/<stage>/cluster/config.yml`
 
 ### Best Practices
 
-1. **Version Pinning:** Always use a specific version tag (e.g., `@v3`) when calling workflows
+1. **Version Pinning:** Always use a specific version tag (e.g., `@main`) when calling workflows
 2. **Runner Sizing:** Use "large" runners for resource-intensive builds
 3. **Timeouts:** Adjust timeouts based on your project's build/test duration
 4. **Slack Integration:** Use consistent service names and emojis across workflows
