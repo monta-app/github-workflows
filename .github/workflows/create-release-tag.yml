@@ -1,0 +1,60 @@
+name: Create Release
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: "Optional prefix for the tag name. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM'. Leave empty for date-only tags."
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate tag name
+        id: generate_tag
+        run: |
+          prefix="${{ inputs.prefix }}"
+          date_tag=$(date -u +"%Y-%m-%d-%H-%M")
+
+          if [[ -n "$prefix" ]]; then
+            tag="${prefix}-${date_tag}"
+          else
+            tag="${date_tag}"
+          fi
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "Generated tag: $tag"
+      - name: Create and push tag
+        run: |
+          tag="${{ steps.generate_tag.outputs.tag }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create the tag
+          git tag "$tag"
+
+          # Push the tag
+          git push origin "$tag"
+
+          echo "Tag '$tag' created and pushed successfully."
+      - name: Create summary
+        run: |
+          tag="${{ steps.generate_tag.outputs.tag }}"
+          echo "## Release Tag Created 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`$tag\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Created by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
