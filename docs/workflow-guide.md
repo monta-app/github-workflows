@@ -133,7 +133,7 @@ jobs:
 1. Updates Slack with deployment progress
 2. Checks out the kube-manifests repository
 3. Updates image tag and metadata in values.yaml
-4. Updates deployment history in config.yml
+4. Updates deployment history in config.yaml
 5. Commits and pushes changes to trigger ArgoCD deployment
 6. Notifies Slack of deployment status
 
@@ -668,7 +668,7 @@ Most workflows require organization or repository secrets. Add these in your rep
 - **Kubernetes Deployments:**
   - Manifests must be in `kube-manifests` repository
   - Structure: `apps/<service-identifier>/<stage>/app/values.yaml`
-  - Config file: `apps/<service-identifier>/<stage>/cluster/config.yml`
+  - Config file: `apps/<service-identifier>/<stage>/cluster/config.yaml`
 
 ### Best Practices
 
