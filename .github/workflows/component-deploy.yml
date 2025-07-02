@@ -67,9 +67,9 @@ jobs:
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
-          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yml
-          sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yml
-          sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yml
+          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
+          sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
+          sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Update config
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
