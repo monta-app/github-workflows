@@ -30,6 +30,11 @@ on:
         type: boolean
         description: "Allow you to skip using Sonar Cloud, only to be used for common modules"
         default: false
+      gradle-args:
+        required: false
+        type: string
+        default: "--no-daemon --parallel"
+        description: 'Additional Gradle arguments'
     secrets:
       GHL_USERNAME:
         required: true
@@ -90,6 +95,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'ktlintCheck'
+          gradle-args: ${{ inputs.gradle-args }}
       - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -99,6 +105,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport koverHtmlReport'
+          gradle-args: ${{ inputs.gradle-args }}
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -120,7 +127,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
-          gradle-args: '--no-daemon'
+          gradle-args: ${{ inputs.gradle-args }}
       - name: Add code coverage to PR
         uses: mi-kas/kover-report@v1
         with:
