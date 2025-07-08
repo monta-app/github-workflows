@@ -23,6 +23,11 @@ on:
         type: string
         default: "21"
         description: 'Java version to use'
+      gradle-args:
+        required: false
+        type: string
+        default: "--no-daemon --parallel"
+        description: 'Additional Gradle arguments'
       slack-message-id:
         required: false
         type: string
@@ -77,6 +82,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test'
+          gradle-args: ${{ inputs.gradle-args }}
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
