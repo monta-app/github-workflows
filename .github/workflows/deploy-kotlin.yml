@@ -66,6 +66,15 @@ on:
         type: boolean
         default: false
         description: 'Enable changelog generation after deployment'
+      changelog-tag-pattern:
+        required: false
+        type: string
+        description: 'Regex pattern for matching tag patterns (group 1 should match version) - example: processor-(.*)'
+      changelog-path-exclude-pattern:
+        required: false
+        type: string
+        description: 'Regex pattern for excluding file paths from changelog - example: ^gateway/'
+
     secrets:
       GHL_USERNAME:
         required: true
@@ -184,6 +193,8 @@ jobs:
           service-name: ${{ inputs.service-name }}
           github-release: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag-pattern: ${{ inputs.changelog-tag-pattern }}
+          github-path-exclude-pattern: ${{ inputs.changelog-path-exclude-pattern }}
           jira-app-name: "montaapp"
           output: "slack"
           slack-token: ${{ secrets.SLACK_APP_TOKEN }}
