@@ -115,6 +115,7 @@ jobs:
   test:
     name: Test
     needs: initialize
+    if: always() && needs.initialize.result == 'success'
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -131,6 +132,7 @@ jobs:
   build:
     name: Build
     needs: initialize
+    if: always() && needs.initialize.result == 'success'
     uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -157,6 +159,7 @@ jobs:
       - initialize
       - test
       - build
+    if: always() && needs.initialize.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success'
     uses: ./.github/workflows/component-deploy.yml
     with:
       service-name: ${{ inputs.service-name }}
