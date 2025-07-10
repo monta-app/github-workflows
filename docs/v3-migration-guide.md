@@ -1,156 +1,104 @@
-# GitHub Workflows v3 Migration Guide
+# GitHub Workflows v3 Migration Guide (LLM-Optimized)
 
-## Instructions for LLMs
+## LLM Instructions
 
-This migration guide provides comprehensive instructions for updating GitHub workflows, Dockerfiles, and local development scripts from v2 to v3. When using this guide:
+When performing this migration:
+1. Apply ALL changes systematically - they are interdependent
+2. Preserve existing configuration except where explicitly stated
+3. Follow the exact parameter formats and ordering specified
+4. Test after migration using the validation checklist
 
-1. **Follow all sections systematically** - Each section contains required changes that must be implemented together
-2. **Preserve existing configuration** - Only modify the specific elements outlined in each section
-3. **Validate parameter formats** - Ensure all YAML parameters are properly quoted and ordered as specified
-4. **Update secrets mapping** - Pay special attention to AWS secret name changes in the secrets configuration section
-5. **Test after migration** - Use the validation checklist to verify all changes work correctly
-
-This section is specifically designed for LLM assistance with migration tasks.
-
-## Required Changes
+## Migration Changes
 
 ### 1. GitHub Workflow Files
 
-#### Deploy Workflows (dev, staging, production)
+#### Deploy Workflows (dev/staging/production)
 
-Replace:
-
+**Update workflow reference:**
 ```yaml
+# FROM:
 uses: monta-app/github-workflows/.github/workflows/deploy.yml@v2
-```
 
-With:
-
-```yaml
+# TO:
 uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
 ```
 
-**Remove these parameters (now defaults):**
-
+**Remove these parameters** (now defaults):
 - `region: eu-west-1`
 - `upload-open-api: true`
 - `more-power: true`
 - `java-version: 21`
 
-**Parameter Updates:**
+**Parameter requirements:**
+- Quote all values: `stage: "production"`
+- Include `runner-size: "normal"` (or `"large"`)
+- Order: `stage` → `runner-size` → other parameters
 
-- Always wrap values in quotes: `stage: "production"`
-- Always include `runner-size: "normal"` (or `"large"` if needed)
-- Order parameters: `stage` first, then `runner-size`, then remaining parameters
+**Secrets mapping:**
+```yaml
+# Production:
+AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
 
-**Secrets Configuration:**
+# Staging:
+AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}
 
-Only pass these secrets to the workflow (use only the ones from your original deployment):
+# Internal repos:
+AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}
+```
 
-- `GHL_USERNAME`
-- `GHL_PASSWORD` 
-- `AWS_ACCOUNT_ID`
-- `SLACK_APP_TOKEN`
-- `MANIFEST_REPO_PAT`
-- `SENTRY_AUTH_TOKEN`
-- `AWS_CDN_ACCESS_KEY_ID`
-- `AWS_CDN_SECRET_ACCESS_KEY`
-
-**AWS Secret Migration:**
-- `PRODUCTION_AWS_ACCESS_KEY_ID` → `AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}`
-- `STAGING_AWS_ACCESS_KEY_ID` → `AWS_ACCOUNT_ID: ${{ secrets.STAGING_AWS_ACCOUNT_ID }}`
-- Internal repos → `AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}`
+Only pass secrets that exist in original deployment from:
+`GHL_USERNAME`, `GHL_PASSWORD`, `AWS_ACCOUNT_ID`, `SLACK_APP_TOKEN`, `MANIFEST_REPO_PAT`, `SENTRY_AUTH_TOKEN`, `AWS_CDN_ACCESS_KEY_ID`, `AWS_CDN_SECRET_ACCESS_KEY`
 
 #### Pull Request Workflow
 
-Replace:
-
 ```yaml
+# FROM:
 uses: monta-app/github-workflows/.github/workflows/pull-request-kover.yml@v2
-```
+with:
+  action-runner: linux-x64-xl
 
-With:
-
-```yaml
+# TO:
 uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yml@main
+with:
+  runner-size: "normal"
 ```
-
-**Replace parameter:**
-
-- `action-runner: linux-x64-xl` → `runner-size: "normal"`
 
 ### 2. Dockerfile Updates
 
-#### Add BuildKit Syntax Directive
-
-Add this as the first line of your Dockerfile:
-
+#### Add as first line:
 ```dockerfile
 # syntax=docker/dockerfile:1
 ```
 
-#### Build Stage
-
-Replace:
-
+#### Update build stage:
 ```dockerfile
+# FROM:
 ARG GHL_USERNAME=NA
 ARG GHL_PASSWORD=NA
 ENV GHL_USERNAME ${GHL_USERNAME}
 ENV GHL_PASSWORD ${GHL_PASSWORD}
 RUN ./gradlew --no-daemon clean buildLayers
-```
 
-With:
-
-```dockerfile
+# TO:
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=secret,id=GHL_USERNAME,env=GHL_USERNAME \
     --mount=type=secret,id=GHL_PASSWORD,env=GHL_PASSWORD \
     ./gradlew --no-daemon clean buildLayers
 ```
 
-**Note**: The `env=` syntax automatically makes the secret available as an environment variable during the RUN command, eliminating the need for manual secret reading.
-
-#### ENTRYPOINT Format
-
-Replace shell form:
-
+#### Convert ENTRYPOINT to exec form:
 ```dockerfile
-ENTRYPOINT java \
--server \
--XX:+UseG1GC \
--XX:+UnlockExperimentalVMOptions \
--XX:+UseContainerSupport \
--XX:InitialRAMPercentage=50 \
--XX:MaxRAMPercentage=75 \
--XX:+UseStringDeduplication \
--jar /home/app/application.jar
-```
+# FROM (shell form):
+ENTRYPOINT java -server -XX:+UseG1GC ...
 
-With exec form:
-
-```dockerfile
+# TO (exec form):
 ENTRYPOINT ["java", "-server", "-XX:+UseG1GC", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseContainerSupport", "-XX:InitialRAMPercentage=50", "-XX:MaxRAMPercentage=75", "-XX:+UseStringDeduplication", "-jar", "/home/app/application.jar"]
 ```
 
 ### 3. Local Development Script (run_docker.sh)
 
-Replace:
-
 ```bash
-build() {
-  docker build \
-  --build-arg=GHL_USERNAME="$GHL_USERNAME" \
-  --build-arg=GHL_PASSWORD="$GHL_PASSWORD" \
-  -f Dockerfile \
-  -t "$APP_NAME" ..
-}
-```
-
-With:
-
-```bash
+# Replace entire build() function:
 build() {
   export GHL_USERNAME="${GHL_USERNAME:-$(getProperty "gpr.user")}"
   export GHL_PASSWORD="${GHL_PASSWORD:-$(getProperty "gpr.key")}"
@@ -163,9 +111,9 @@ build() {
 }
 ```
 
-### 4. Production Release Workflow
+### 4. Production Deployment (Optional Features)
 
-The `deploy-kotlin.yml` workflow now includes optional release tag creation and changelog generation features that are disabled by default. To enable these for production deployments:
+For production deployments with release management:
 
 ```yaml
 name: Deploy Production
@@ -182,46 +130,47 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy
     uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
     with:
       stage: "production"
       runner-size: "large"
-      service-name: "Your Service Name"
-      service-emoji: "🚀"
-      service-identifier: "your-service"
-      gradle-module: "app"
-      enable-release-tag: true      # Enables automatic tag creation on workflow_dispatch
-      enable-changelog: true        # Enables changelog generation after deployment
+      service-name: "Your Service Name"      # Required
+      service-emoji: "🚀"                   # Required
+      service-identifier: "your-service"     # Required (lowercase)
+      gradle-module: "app"                   # If multi-module
+      enable-release-tag: true               # Optional: auto-tag on workflow_dispatch
+      enable-changelog: true                 # Optional: generate changelog
     secrets:
-      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
-      MANIFEST_REPO_PAT: ${{ secrets.PAT }}
-      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      # Include only secrets that exist in your repo
 ```
 
-**Key features:**
-- **Release Tag Creation**: When `enable-release-tag: true` and triggered via `workflow_dispatch`, automatically creates a release tag
-- **Changelog Generation**: When `enable-changelog: true`, generates a changelog after successful deployment
-  - Posts to `#releases` Slack channel
-  - Creates GitHub release
-  - Integrates with Jira (montaapp)
-- Both features are **disabled by default** to maintain backward compatibility
-- The workflow handles all conditional logic internally
+## Parameter Reference
 
-## Why Migrate?
+### Required Parameters
+- `stage`: "dev" | "staging" | "production"
+- `service-name`: Human-readable name
+- `service-emoji`: Emoji for Slack
+- `service-identifier`: Lowercase ECR/k8s identifier
 
-- **Faster builds** - BuildKit caching reduces build times
-- **Better security** - Secrets not stored in image layers
-- **Multi-architecture support** - ARM64 and AMD64 builds
-- **Less configuration** - Sensible defaults built-in
+### Optional Parameters
+- `runner-size`: "normal" (default) | "large"
+- `gradle-module`: For multi-module projects
+- `enable-release-tag`: false (default) | true
+- `enable-changelog`: false (default) | true
+- `java-version`: "21" (default)
+- `gradle-args`: "--no-daemon --parallel" (default)
+- `region`: "eu-west-1" (default)
 
 ## Validation Checklist
 
-After migration:
-
-- [ ] All GitHub workflows run successfully
+- [ ] Workflows pass in GitHub Actions
 - [ ] `docker history <image>` shows no credentials
-- [ ] Local builds work with updated `run_docker.sh`
-- [ ] Build times improved on subsequent builds
+- [ ] Local builds work with updated script
+- [ ] Build times improved on subsequent runs
+
+## Migration Benefits
+
+- **Security**: Secrets not in image layers
+- **Performance**: BuildKit caching
+- **Simplicity**: Fewer parameters needed
+- **Multi-arch**: ARM64 and AMD64 support
