@@ -53,6 +53,11 @@ on:
         type: number
         description: "Timeout for the test job in minutes"
         default: 30
+      gradle-args:
+        required: false
+        type: string
+        default: "--no-daemon --parallel"
+        description: 'Additional Gradle arguments'
     secrets:
       TAILSCALE_AUTHKEY:
         required: true
@@ -107,6 +112,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: "test koverXmlReport"
+          gradle-args: ${{ inputs.gradle-args }}
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:

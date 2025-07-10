@@ -33,6 +33,11 @@ on:
         type: string
         default: "21"
         description: 'Java version to use'
+      gradle-args:
+        required: false
+        type: string
+        default: "--no-daemon --parallel"
+        description: 'Additional Gradle arguments'
       region:
         required: false
         type: string
@@ -117,6 +122,7 @@ jobs:
       service-emoji: ${{ inputs.service-emoji }}
       gradle-module: ${{ inputs.gradle-module }}
       java-version: ${{ inputs.java-version }}
+      gradle-args: ${{ inputs.gradle-args }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
