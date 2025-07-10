@@ -56,6 +56,16 @@ on:
         required: false
         type: string
         description: 'ECR repository name override'
+      enable-release-tag:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enable automatic release tag creation on workflow_dispatch'
+      enable-changelog:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enable changelog generation after deployment'
     secrets:
       GHL_USERNAME:
         required: true
@@ -88,8 +98,14 @@ permissions:
   actions: read
 
 jobs:
+  create-release-tag:
+    name: Create Release Tag
+    if: inputs.enable-release-tag && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/create-release-tag.yml
   initialize:
     name: Initialize
+    needs: [ create-release-tag ]
+    if: always() && (needs.create-release-tag.result == 'success' || needs.create-release-tag.result == 'skipped')
     uses: ./.github/workflows/component-initialize.yml
     with:
       service-name: ${{ inputs.service-name }}
@@ -152,3 +168,20 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+  create-changelog:
+    name: Create and Publish Changelog
+    needs: deploy
+    if: inputs.enable-changelog && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run changelog cli action
+        uses: monta-app/changelog-cli-action@main
+        with:
+          service-name: ${{ inputs.service-name }}
+          github-release: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          jira-app-name: "montaapp"
+          output: "slack"
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel: "#releases"
