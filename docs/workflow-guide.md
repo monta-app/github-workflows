@@ -315,21 +315,59 @@ jobs:
 ## Deploy Kotlin
 
 **File:** `deploy-kotlin.yml`  
-**Purpose:** Complete CI/CD pipeline for Kotlin services (test → build → deploy).
+**Purpose:** Complete CI/CD pipeline for Kotlin services including testing, building Docker images, and deploying to Kubernetes.
 
 ### What it does:
-1. Initializes Slack notification
-2. Runs tests in parallel with build preparation
-3. Builds multi-arch Docker images
-4. Deploys to Kubernetes via manifest updates
+1. **Create Release Tag** (optional): Creates a release tag when triggered via workflow_dispatch and `enable-release-tag` is true
+2. **Initialize**: Sets up Slack notifications for the deployment process
+3. **Test**: Runs unit tests and validates code quality
+4. **Build**: Creates multi-architecture Docker images and pushes to ECR
+5. **Deploy**: Updates Kubernetes manifests for deployment
+6. **Create Changelog** (optional): Generates and publishes changelog to Slack and GitHub releases
+
+### Job Execution Flow:
+The workflow uses conditional execution to ensure proper handling of optional features:
+- **Create Release Tag**: Only runs when `enable-release-tag: true` AND triggered via `workflow_dispatch`
+- **Initialize**: Always runs if release tag job succeeded or was skipped
+- **Test & Build**: Run in parallel after Initialize succeeds, using `if: always()` to handle skipped dependencies
+- **Deploy**: Only runs when ALL required jobs (Initialize, Test, Build) succeed
+- **Create Changelog**: Only runs when `enable-changelog: true` AND Deploy succeeds
+
+This conditional logic ensures the workflow continues properly even when optional features are disabled.
 
 ### Inputs:
-All inputs from Component Initialize, Test, Build, and Deploy workflows combined.
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
+| `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
+| `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
+| `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
+| `service-identifier` | Yes | - | Service identifier for ECR and Kubernetes (e.g., "charging") |
+| `gradle-module` | No | - | Gradle module name for multi-module projects |
+| `java-version` | No | "21" | Java version to use |
+| `gradle-args` | No | "--no-daemon --parallel" | Additional Gradle arguments |
+| `region` | No | "eu-west-1" | AWS region for deployment |
+| `docker-file-name` | No | "Dockerfile" | Name of the Dockerfile to build |
+| `additional-build-args` | No | - | Additional Docker build arguments |
+| `ecr-repository-name` | No | - | Override ECR repository name |
+| `enable-release-tag` | No | false | Enable automatic release tag creation on workflow_dispatch |
+| `enable-changelog` | No | false | Enable changelog generation after deployment |
 
 ### Secrets:
-All secrets from the component workflows combined.
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GHL_USERNAME` | Yes | GitHub username for Gradle dependencies |
+| `GHL_PASSWORD` | Yes | GitHub token for Gradle dependencies |
+| `AWS_ACCOUNT_ID` | Yes | AWS Account ID for ECR and deployment |
+| `SLACK_APP_TOKEN` | Yes | Slack token for notifications |
+| `MANIFEST_REPO_PAT` | Yes | GitHub PAT for updating kube-manifests |
+| `SENTRY_AUTH_TOKEN` | No | Sentry authentication token |
+| `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key for S3 access |
+| `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key for S3 access |
 
 ### Example Usage:
+
+#### Basic Deployment:
 ```yaml
 name: Deploy to Production
 on:
@@ -347,9 +385,38 @@ jobs:
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+```
+
+#### With Release Management:
+```yaml
+name: Deploy Production with Release
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
+    with:
+      stage: "production"
+      runner-size: "large"
+      service-name: "Charging Service"
+      service-emoji: "⚡"
+      service-identifier: "charging"
+      gradle-module: "charging-service"
+      enable-release-tag: true    # Creates tag on manual trigger
+      enable-changelog: true      # Generates changelog after deploy
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 ```
 
 ---
