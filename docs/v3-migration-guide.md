@@ -81,6 +81,14 @@ uses: monta-app/github-workflows/.github/workflows/pull-request-kotlin.yml@main
 
 ### 2. Dockerfile Updates
 
+#### Add BuildKit Syntax Directive
+
+Add this as the first line of your Dockerfile:
+
+```dockerfile
+# syntax=docker/dockerfile:1
+```
+
 #### Build Stage
 
 Replace:
@@ -97,12 +105,12 @@ With:
 
 ```dockerfile
 RUN --mount=type=cache,target=/root/.gradle \
-    --mount=type=secret,id=GHL_USERNAME \
-    --mount=type=secret,id=GHL_PASSWORD \
-    GHL_USERNAME=$(cat /run/secrets/GHL_USERNAME 2>/dev/null || echo "NA") \
-    GHL_PASSWORD=$(cat /run/secrets/GHL_PASSWORD 2>/dev/null || echo "NA") \
+    --mount=type=secret,id=GHL_USERNAME,env=GHL_USERNAME \
+    --mount=type=secret,id=GHL_PASSWORD,env=GHL_PASSWORD \
     ./gradlew --no-daemon clean buildLayers
 ```
+
+**Note**: The `env=` syntax automatically makes the secret available as an environment variable during the RUN command, eliminating the need for manual secret reading.
 
 #### ENTRYPOINT Format
 
@@ -154,6 +162,53 @@ build() {
   -t "$APP_NAME" ..
 }
 ```
+
+### 4. Production Release Workflow
+
+The `deploy-kotlin.yml` workflow now includes optional release tag creation and changelog generation features that are disabled by default. To enable these for production deployments:
+
+```yaml
+name: Deploy Production
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+concurrency:
+  group: 'deploy-production'
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin.yml@main
+    with:
+      stage: "production"
+      runner-size: "large"
+      service-name: "Your Service Name"
+      service-emoji: "🚀"
+      service-identifier: "your-service"
+      gradle-module: "app"
+      enable-release-tag: true      # Enables automatic tag creation on workflow_dispatch
+      enable-changelog: true        # Enables changelog generation after deployment
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
+      MANIFEST_REPO_PAT: ${{ secrets.PAT }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+**Key features:**
+- **Release Tag Creation**: When `enable-release-tag: true` and triggered via `workflow_dispatch`, automatically creates a release tag
+- **Changelog Generation**: When `enable-changelog: true`, generates a changelog after successful deployment
+  - Posts to `#releases` Slack channel
+  - Creates GitHub release
+  - Integrates with Jira (montaapp)
+- Both features are **disabled by default** to maintain backward compatibility
+- The workflow handles all conditional logic internally
 
 ## Why Migrate?
 
