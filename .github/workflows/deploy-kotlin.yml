@@ -64,7 +64,6 @@ on:
       release-tag-prefix:
         required: false
         type: string
-        default: ''
         description: "Optional prefix for release tag names. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM'. Leave empty for date-only tags."
       enable-changelog:
         required: false
