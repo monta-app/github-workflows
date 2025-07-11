@@ -8,11 +8,6 @@ on:
         required: false
         type: string
         default: ''
-      prefix_regex:
-        description: "Optional regex pattern to validate the prefix. Example: '^my-service-$'"
-        required: false
-        type: string
-        default: ''
 
 jobs:
   create-tag:
@@ -25,18 +20,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Validate prefix
-        if: inputs.prefix != '' && inputs.prefix_regex != ''
-        run: |
-          prefix="${{ inputs.prefix }}"
-          regex="${{ inputs.prefix_regex }}"
-          
-          if ! [[ "$prefix" =~ $regex ]]; then
-            echo "❌ Error: Prefix '$prefix' does not match the required pattern: $regex"
-            exit 1
-          fi
-          
-          echo "✅ Prefix '$prefix' is valid"
       - name: Generate tag name
         id: generate_tag
         run: |
