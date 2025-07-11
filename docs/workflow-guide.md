@@ -351,6 +351,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 | `additional-build-args` | No | - | Additional Docker build arguments |
 | `ecr-repository-name` | No | - | Override ECR repository name |
 | `enable-release-tag` | No | false | Enable automatic release tag creation on workflow_dispatch |
+| `release-tag-prefix` | No | '' | Optional prefix for release tag names. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM' |
 | `enable-changelog` | No | false | Enable changelog generation after deployment |
 | `changelog-tag-pattern` | No | - | Regex pattern for matching tag patterns (group 1 should match version) - example: processor-(.*) |
 | `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding file paths from changelog - example: ^gateway/ |
@@ -412,6 +413,8 @@ jobs:
       gradle-module: "charging-service"
       enable-release-tag: true    # Creates tag on manual trigger
       enable-changelog: true      # Generates changelog after deploy
+      # Optional: Prefix for release tags
+      release-tag-prefix: "charging"  # Creates tags like 'charging-2024-01-15-14-30'
       # Optional: Filter changelog by tag pattern (e.g., for monorepo)
       changelog-tag-pattern: "charging-(.*)"
       # Optional: Exclude paths from changelog (e.g., other services)

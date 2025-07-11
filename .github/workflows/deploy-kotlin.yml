@@ -61,6 +61,11 @@ on:
         type: boolean
         default: false
         description: 'Enable automatic release tag creation on workflow_dispatch'
+      release-tag-prefix:
+        required: false
+        type: string
+        default: ''
+        description: "Optional prefix for release tag names. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM'. Leave empty for date-only tags."
       enable-changelog:
         required: false
         type: boolean
@@ -111,6 +116,8 @@ jobs:
     name: Create Release Tag
     if: inputs.enable-release-tag && github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/create-release-tag.yml
+    with:
+      prefix: ${{ inputs.release-tag-prefix }}
   initialize:
     name: Initialize
     needs: [ create-release-tag ]
