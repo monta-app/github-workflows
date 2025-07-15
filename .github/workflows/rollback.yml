@@ -23,6 +23,13 @@ on:
         required: true
         type: string
         description: 'The deploy environment, one of "dev", "staging", "production".'
+    secrets:
+      SLACK_WEBHOOK:
+        required: true
+        description: 'Slack webhook'
+      MANIFEST_REPO_PAT:
+        required: true
+        description: 'GitHub PAT to commit/push to kube-manifests repo'
 
 permissions:
   actions: read
@@ -56,7 +63,7 @@ jobs:
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
 
       - name: Find short commit to roll back to
         id: find-short-commit
@@ -108,6 +115,6 @@ jobs:
       - name: Push
         uses: ad-m/github-push-action@master
         with:
-          github_token: ${{ secrets.PAT }}
+          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './kube-manifests'
           repository: 'monta-app/kube-manifests'
