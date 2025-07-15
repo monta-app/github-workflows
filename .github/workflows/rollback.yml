@@ -65,6 +65,13 @@ jobs:
           path: 'kube-manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
 
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          path: 'rollback-repo'
+          fetch-depth: 0
+          filter: 'blob:none'
+
       - name: Find short commit to roll back to
         id: find-short-commit
         working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/cluster
@@ -73,12 +80,6 @@ jobs:
           INPUT_COMMIT_SHA_SHORT=${{ github.event.inputs.commit-sha }}
           ROLLBACK_COMMIT_SHA_SHORT=${INPUT_COMMIT_SHA_SHORT:-$PREVIOUS_COMMIT_SHA_SHORT}
           echo "rollback_commit_sha_short=$ROLLBACK_COMMIT_SHA_SHORT" >> $GITHUB_OUTPUT
-
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.find-short-commit.outputs.rollback_commit_sha_short }}
-          path: 'rollback-repo'
 
       - name: Find full commit to roll back to
         id: find-commit
