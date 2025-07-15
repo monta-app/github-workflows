@@ -1,0 +1,113 @@
+name: Rollback
+
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        description: 'Commit to roll back to. Defaults to the previously deployed commit.'
+        required: false
+        type: string
+      service-name:
+        required: true
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      slack-channel:
+        required: true
+        type: string
+        description: 'Slack channel in which to announce triggered rollbacks.'
+      environment:
+        required: true
+        type: string
+        description: 'The deploy environment, one of "dev", "staging", "production".'
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  slackNotification:
+    name: Send Slack notification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          MSG_MINIMAL: true #'ref,commit'
+          SLACK_CHANNEL: ${{ inputs.slack-channel }}
+          SLACK_ICON: 'https://avatars.slack-edge.com/2020-10-24/1463567065009_39967124f549f50e3faf_512.png'
+          SLACK_MESSAGE: "Rollback of ${{ inputs.service-name }} on ${{ inputs.environment }} in progress"
+          SLACK_TITLE: "Triggered by ${{ github.triggering_actor }}. :back: :double_vertical_bar:"
+          SLACK_USERNAME: 'Monta Bot'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_FOOTER: 'Powered by Monta! #EVBetter'
+
+  push-manifest:
+    name: Deploy rollback
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out kube-manifests
+        uses: actions/checkout@v4
+        with:
+          repository: monta-app/kube-manifests
+          path: 'kube-manifests'
+          token: ${{ secrets.PAT }}
+
+      - name: Find short commit to roll back to
+        id: find-short-commit
+        working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/cluster
+        run: |
+          PREVIOUS_COMMIT_SHA_SHORT=$(yq e .previousHash config.yaml)
+          INPUT_COMMIT_SHA_SHORT=${{ github.event.inputs.commit-sha }}
+          ROLLBACK_COMMIT_SHA_SHORT=${INPUT_COMMIT_SHA_SHORT:-$PREVIOUS_COMMIT_SHA_SHORT}
+          echo "rollback_commit_sha_short=$ROLLBACK_COMMIT_SHA_SHORT" >> $GITHUB_OUTPUT
+
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.find-short-commit.outputs.rollback_commit_sha_short }}
+          path: 'rollback-repo'
+
+      - name: Find full commit to roll back to
+        id: find-commit
+        working-directory: ./rollback-repo
+        run: |
+          PREVIOUS_COMMIT_SHA=$(git rev-parse ${{ steps.find-short-commit.outputs.rollback_commit_sha_short }})
+          echo "Rolling back to commit: $ROLLBACK_COMMIT_SHA"
+          echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Update app config for ${{ inputs.environment }}
+        working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/app
+        run: |
+          ROLLBACK_COMMIT_SHA=${{ steps.find-commit.outputs.rollback_commit_sha }}
+          sed -i "s/tag: .*/tag: $ROLLBACK_COMMIT_SHA/" values.yaml
+          sed -i "s/revision: .*/revision: ${ROLLBACK_COMMIT_SHA::8}/" values.yaml
+
+      - name: Update cluster config for ${{ inputs.environment }}
+        shell: bash
+        working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/cluster
+        run: |
+          ROLLBACK_COMMIT_SHA=${{ steps.find-commit.outputs.rollback_commit_sha }}
+          # Update previousHash
+          previousHash=$(yq e .currentHash config.yaml) yq e '.previousHash = strenv(previousHash)' -i config.yaml
+          # Update currentHash
+          currentHash=${ROLLBACK_COMMIT_SHA::8} yq e '.currentHash = strenv(currentHash)' -i config.yaml
+
+      - name: Commit
+        working-directory: ./kube-manifests
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -am "Bump docker tags for ${{ inputs.service-identifier }} on ${{ inputs.environment }} (rollback)"
+
+      - name: Push
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.PAT }}
+          directory: './kube-manifests'
+          repository: 'monta-app/kube-manifests'
