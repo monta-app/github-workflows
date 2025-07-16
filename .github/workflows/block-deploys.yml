@@ -1,0 +1,47 @@
+name: Block deploys
+
+on:
+  workflow_call:
+    inputs:
+      workflow-to-block:
+        required: true
+        type: string
+        description: 'Workflow (filename or name) to block, e.g. "deploy-production.yml".'
+    secrets:
+      ADMIN_PAT:
+        required: true
+        description: 'GitHub PAT to update workflows'
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  disable-deploy-flows:
+    name: Disable and cancel deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Disable CD on merge to main
+      - name: Disable ${{ inputs.workflow-to-block }} workflow
+        run: gh workflow disable ${{ inputs.workflow-to-block }} || true
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+
+      # Wait for jobs of started workflow to start before we nuke them
+      - name: Wait for it
+        shell: bash
+        run: sleep 30
+
+      # Cancel in-progress deploy jobs
+      - name: Cancel in-progress ${{ inputs.workflow-to-block }} jobs
+        run: |
+          for runId in $(gh run list -s in_progress -w ${{ inputs.workflow-to-block }} --json databaseId  | jq --raw-output '.[].databaseId'); do
+            echo "Cancelling in-progress ${{ inputs.workflow-to-block }} job: $runId";
+            gh run cancel $runId;
+          done
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}

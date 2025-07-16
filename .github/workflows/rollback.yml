@@ -28,13 +28,17 @@ on:
         type: boolean
         default: false
         description: 'Set to true to show rollback without pushing. Will also disable slack.'
+      block-deploy-workflow:
+        required: false
+        type: string
+        description: 'Name/filename of deploy workflow to block, e.g. "deploy-production.yml".'
     secrets:
       SLACK_WEBHOOK:
         required: true
         description: 'Slack webhook'
-      MANIFEST_REPO_PAT:
+      ADMIN_PAT:
         required: true
-        description: 'GitHub PAT to commit/push to kube-manifests repo'
+        description: 'GitHub PAT to update workflows and push to kube-manifests repo'
 
 permissions:
   actions: read
@@ -83,7 +87,7 @@ jobs:
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
+          token: ${{ secrets.ADMIN_PAT }}
 
       - name: Update app config for ${{ inputs.environment }}
         working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/app
@@ -115,6 +119,16 @@ jobs:
         if: ${{ !inputs.dry-run }}
         uses: ad-m/github-push-action@master
         with:
-          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
+          github_token: ${{ secrets.ADMIN_PAT }}
           directory: './kube-manifests'
           repository: 'monta-app/kube-manifests'
+
+  block-deploys:
+    name: Block Deploys
+    if: ${{ inputs.block-deploy-workflow }}
+    uses: ./.github/workflows/block-deploys.yml
+    with:
+      workflow-to-block: ${{ inputs.block-deploy-workflow }}
+    secrets:
+      ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
+
