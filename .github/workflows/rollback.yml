@@ -6,7 +6,7 @@ on:
       commit-sha:
         required: false
         type: string
-        description: 'Commit to roll back to. Defaults to the previously deployed commit.'
+        description: 'Commit to roll back to. Defaults to HEAD^.'
       service-name:
         required: true
         type: string
