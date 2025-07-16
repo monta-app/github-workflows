@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       commit-sha:
-        description: 'Commit to roll back to. Defaults to the previously deployed commit.'
         required: false
         type: string
+        description: 'Commit to roll back to. Defaults to the previously deployed commit.'
       service-name:
         required: true
         type: string
