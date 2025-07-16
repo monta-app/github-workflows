@@ -28,10 +28,10 @@ on:
         type: boolean
         default: false
         description: 'Set to true to show rollback without pushing. Will also disable slack.'
-      block-deploy-workflow:
+      block-workflow:
         required: false
         type: string
-        description: 'Name/filename of deploy workflow to block, e.g. "deploy-production.yml".'
+        description: 'Name/filename of workflow to block, e.g. "deploy-production.yml".'
     secrets:
       SLACK_WEBHOOK:
         required: true
@@ -125,10 +125,10 @@ jobs:
 
   block-deploys:
     name: Block Deploys
-    if: ${{ inputs.block-deploy-workflow }}
+    if: ${{ inputs.block-workflow }}
     uses: ./.github/workflows/block-deploys.yml
     with:
-      workflow-to-block: ${{ inputs.block-deploy-workflow }}
+      workflow: ${{ inputs.block-workflow }}
     secrets:
       ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
 

@@ -3,7 +3,7 @@ name: Block deploys
 on:
   workflow_call:
     inputs:
-      workflow-to-block:
+      workflow:
         required: true
         type: string
         description: 'Workflow (filename or name) to block, e.g. "deploy-production.yml".'
@@ -26,8 +26,8 @@ jobs:
         uses: actions/checkout@v4
 
       # Disable CD on merge to main
-      - name: Disable ${{ inputs.workflow-to-block }} workflow
-        run: gh workflow disable ${{ inputs.workflow-to-block }} || true
+      - name: Disable ${{ inputs.workflow }} workflow
+        run: gh workflow disable ${{ inputs.workflow }} || true
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
 
@@ -37,10 +37,10 @@ jobs:
         run: sleep 30
 
       # Cancel in-progress deploy jobs
-      - name: Cancel in-progress ${{ inputs.workflow-to-block }} jobs
+      - name: Cancel in-progress ${{ inputs.workflow }} jobs
         run: |
-          for runId in $(gh run list -s in_progress -w ${{ inputs.workflow-to-block }} --json databaseId  | jq --raw-output '.[].databaseId'); do
-            echo "Cancelling in-progress ${{ inputs.workflow-to-block }} job: $runId";
+          for runId in $(gh run list -s in_progress -w ${{ inputs.workflow }} --json databaseId  | jq --raw-output '.[].databaseId'); do
+            echo "Cancelling in-progress ${{ inputs.workflow }} job: $runId";
             gh run cancel $runId;
           done
         env:
