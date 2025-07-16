@@ -23,6 +23,11 @@ on:
         required: true
         type: string
         description: 'The deploy environment, one of "dev", "staging", "production".'
+      dry-run:
+        required: false
+        type: boolean
+        default: false
+        description: 'Set to true to show rollback without pushing. Will also disable slack.'
     secrets:
       SLACK_WEBHOOK:
         required: true
@@ -39,6 +44,7 @@ permissions:
 jobs:
   slackNotification:
     name: Send Slack notification
+    if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,36 +64,26 @@ jobs:
     name: Deploy rollback
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find commit to roll back to
+        id: find-commit
+        run: |
+          PREVIOUS_COMMIT_SHA=$(git rev-parse HEAD^)
+          INPUT_COMMIT_SHA=${{ github.event.inputs.commit-sha }}
+          ROLLBACK_COMMIT_SHA=${INPUT_COMMIT_SHA:-$PREVIOUS_COMMIT_SHA}
+          echo "Rolling back to commit: $ROLLBACK_COMMIT_SHA"
+          echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> $GITHUB_OUTPUT
+
       - name: Check out kube-manifests
         uses: actions/checkout@v4
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
-
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          path: 'rollback-repo'
-          fetch-depth: 0
-          filter: 'blob:none'
-
-      - name: Find short commit to roll back to
-        id: find-short-commit
-        working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/cluster
-        run: |
-          PREVIOUS_COMMIT_SHA_SHORT=$(yq e .previousHash config.yaml)
-          INPUT_COMMIT_SHA_SHORT=${{ github.event.inputs.commit-sha }}
-          ROLLBACK_COMMIT_SHA_SHORT=${INPUT_COMMIT_SHA_SHORT:-$PREVIOUS_COMMIT_SHA_SHORT}
-          echo "rollback_commit_sha_short=$ROLLBACK_COMMIT_SHA_SHORT" >> $GITHUB_OUTPUT
-
-      - name: Find full commit to roll back to
-        id: find-commit
-        working-directory: ./rollback-repo
-        run: |
-          PREVIOUS_COMMIT_SHA=$(git rev-parse ${{ steps.find-short-commit.outputs.rollback_commit_sha_short }})
-          echo "Rolling back to commit: $ROLLBACK_COMMIT_SHA"
-          echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> $GITHUB_OUTPUT
 
       - name: Update app config for ${{ inputs.environment }}
         working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/app
@@ -109,11 +105,14 @@ jobs:
       - name: Commit
         working-directory: ./kube-manifests
         run: |
+          echo "Committing changes:"
+          git diff
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git commit -am "Bump docker tags for ${{ inputs.service-identifier }} on ${{ inputs.environment }} (rollback)"
 
       - name: Push
+        if: ${{ !inputs.dry-run }}
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
