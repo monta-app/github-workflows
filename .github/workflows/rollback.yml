@@ -40,6 +40,8 @@ on:
         required: true
         description: 'GitHub PAT to update workflows and push to kube-manifests repo'
 
+
+
 permissions:
   actions: read
   contents: read
@@ -64,7 +66,17 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           SLACK_FOOTER: 'Powered by Monta! #EVBetter'
 
+  block-deploys:
+    name: Block Deploys
+    if: ${{ inputs.block-workflow }}
+    uses: ./.github/workflows/block-deploys.yml
+    with:
+      workflow: ${{ inputs.block-workflow }}
+    secrets:
+      ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
+
   push-manifest:
+    needs: block-deploys
     name: Deploy rollback
     runs-on: ubuntu-latest
     steps:
@@ -122,13 +134,3 @@ jobs:
           github_token: ${{ secrets.ADMIN_PAT }}
           directory: './kube-manifests'
           repository: 'monta-app/kube-manifests'
-
-  block-deploys:
-    name: Block Deploys
-    if: ${{ inputs.block-workflow }}
-    uses: ./.github/workflows/block-deploys.yml
-    with:
-      workflow: ${{ inputs.block-workflow }}
-    secrets:
-      ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
-
