@@ -60,7 +60,7 @@ jobs:
           MSG_MINIMAL: true #'ref,commit'
           SLACK_CHANNEL: ${{ inputs.slack-channel }}
           SLACK_ICON: 'https://avatars.slack-edge.com/2020-10-24/1463567065009_39967124f549f50e3faf_512.png'
-          SLACK_MESSAGE: "Rollback of ${{ inputs.service-name }} on ${{ inputs.environment }} in progress"
+          SLACK_MESSAGE: "Rollback of ${{ inputs.service-name }} on ${{ inputs.environment }} in progress.${{ inputs.block-workflow && format(' {0} workflow disabled -- remember to re-enable when ready to deploy again!)', inputs.block-workflow) || '' }}"
           SLACK_TITLE: "Triggered by ${{ github.triggering_actor }}. :back: :double_vertical_bar:"
           SLACK_USERNAME: 'Monta Bot'
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
