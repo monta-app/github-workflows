@@ -4,17 +4,86 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 
 ## Table of Contents
 
-1. [Code Coverage (Kotlin)](#code-coverage-kotlin)
-2. [Component Build](#component-build)
-3. [Component Deploy](#component-deploy)
-4. [Component Initialize](#component-initialize)
-5. [Component Test (Kotlin)](#component-test-kotlin)
-6. [Deploy Kotlin](#deploy-kotlin)
-7. [Publish Tech Docs](#publish-tech-docs)
-8. [Pull Request Kotlin](#pull-request-kotlin)
-9. [Pull Request React (Bun)](#pull-request-react-bun)
-10. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-11. [SonarCloud Analysis](#sonarcloud-analysis)
+1. [Allow Deploys](#allow-deploys)
+2. [Block Deploys](#block-deploys)
+3. [Code Coverage (Kotlin)](#code-coverage-kotlin)
+4. [Component Build](#component-build)
+5. [Component Deploy](#component-deploy)
+6. [Component Initialize](#component-initialize)
+7. [Component Test (Kotlin)](#component-test-kotlin)
+8. [Deploy Kotlin](#deploy-kotlin)
+9. [Publish Tech Docs](#publish-tech-docs)
+10. [Pull Request Kotlin](#pull-request-kotlin)
+11. [Pull Request React (Bun)](#pull-request-react-bun)
+12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+13. [Rollback](#rollback)
+14. [SonarCloud Analysis](#sonarcloud-analysis)
+
+---
+
+## Allow Deploys
+
+**File:** `allow-deploys.yml`  
+**Purpose:** Enables a specified workflow to allow deployments to proceed.
+
+### What it does:
+1. Enables the specified workflow using GitHub CLI
+2. Useful for re-enabling deployment workflows after they've been blocked
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `workflow` | Yes | - | Workflow (filename or name) to allow, e.g. "deploy-production.yml" |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `ADMIN_PAT` | Yes | GitHub PAT with workflow permissions |
+
+### Example Usage:
+```yaml
+jobs:
+  allow-deploys:
+    uses: monta-app/github-workflows/.github/workflows/allow-deploys.yml@main
+    with:
+      workflow: "deploy-production.yml"
+    secrets:
+      ADMIN_PAT: ${{ secrets.PAT }}
+```
+
+---
+
+## Block Deploys
+
+**File:** `block-deploys.yml`  
+**Purpose:** Disables a specified workflow and cancels any in-progress jobs to prevent deployments.
+
+### What it does:
+1. Disables the specified workflow using GitHub CLI
+2. Waits for any in-progress jobs to start
+3. Cancels all in-progress jobs for the specified workflow
+4. Useful for preventing deployments during incidents or maintenance
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `workflow` | Yes | - | Workflow (filename or name) to block, e.g. "deploy-production.yml" |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `ADMIN_PAT` | Yes | GitHub PAT with workflow permissions |
+
+### Example Usage:
+```yaml
+jobs:
+  block-deploys:
+    uses: monta-app/github-workflows/.github/workflows/block-deploys.yml@main
+    with:
+      workflow: "deploy-production.yml"
+    secrets:
+      ADMIN_PAT: ${{ secrets.PAT }}
+```
 
 ---
 
@@ -662,6 +731,54 @@ jobs:
     with:
       node-version: "20"
       pnpm-version: "9"
+```
+
+---
+
+## Rollback
+
+**File:** `rollback.yml`  
+**Purpose:** Rolls back a service deployment to a previous commit by updating Kubernetes manifests.
+
+### What it does:
+1. Sends a Slack notification about the rollback (if not in dry-run mode)
+2. Identifies the commit to roll back to (defaults to the previous commit)
+3. Updates the Kubernetes manifests in the kube-manifests repository
+4. Updates the image tag and revision in values.yaml
+5. Updates deployment history in config.yaml
+6. Optionally blocks further deployments by calling the block-deploys workflow
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `commit-sha` | No | HEAD^ | Commit to roll back to (defaults to previous commit) |
+| `service-name` | Yes | - | Proper name for your service (e.g., "OCPP Service") |
+| `service-identifier` | Yes | - | Identifier of the service (e.g., "ocpp", "vehicle") |
+| `slack-channel` | Yes | - | Slack channel for rollback notifications |
+| `environment` | Yes | - | Deployment environment: "dev", "staging", or "production" |
+| `dry-run` | No | false | Set to true to show rollback without pushing (disables Slack) |
+| `block-workflow` | No | - | Name of workflow to block after rollback (e.g., "deploy-production.yml") |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `SLACK_WEBHOOK` | Yes | Slack webhook URL for notifications |
+| `ADMIN_PAT` | Yes | GitHub PAT for updating workflows and pushing to kube-manifests repo |
+
+### Example Usage:
+```yaml
+jobs:
+  rollback:
+    uses: monta-app/github-workflows/.github/workflows/rollback.yml@main
+    with:
+      service-name: "Charging Service"
+      service-identifier: "charging"
+      slack-channel: "#deploys"
+      environment: "production"
+      block-workflow: "deploy-production.yml"
+    secrets:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      ADMIN_PAT: ${{ secrets.PAT }}
 ```
 
 ---

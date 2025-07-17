@@ -1,0 +1,32 @@
+name: Allow deploys
+
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+        description: 'Workflow (filename or name) to allow, e.g. "deploy-production.yml".'
+    secrets:
+      ADMIN_PAT:
+        required: true
+        description: 'GitHub PAT to update workflows'
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  allow-release:
+    name: Allow release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Enable CD on merge to main
+      - name: Enable ${{ inputs.workflow }} workflow
+        run: gh workflow enable ${{ inputs.workflow }}
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
