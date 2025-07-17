@@ -31,8 +31,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
 
-      # Cancel in-progress deploy jobs
-      - name: Cancel in-progress ${{ inputs.workflow }} jobs
+      # Cancel queued, in-progress, requested, pending or waiting deploy jobs
+      - name: Cancel ${{ inputs.workflow }} jobs
         run: |
           for runId in $(gh run list -w ${{ inputs.workflow }} -a --json databaseId,status -q '.[] | select(.status == "queued" or .status == "in_progress" or .status == "requested" or .status == "waiting" or .status == "pending") | .databaseId'); do
             echo "Cancelling ${{ inputs.workflow }} job: $runId";
