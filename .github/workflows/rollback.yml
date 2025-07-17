@@ -68,7 +68,7 @@ jobs:
 
   block-deploys:
     name: Block Deploys
-    if: ${{ inputs.block-workflow }}
+    if: ${{ inputs.block-workflow && !inputs.dry-run }}
     uses: ./.github/workflows/block-deploys.yml
     with:
       workflow: ${{ inputs.block-workflow }}
@@ -77,6 +77,7 @@ jobs:
 
   push-manifest:
     needs: block-deploys
+    if: ${{ !cancelled() && (needs.block-deploys.result == 'success' || needs.block-deploys.result == 'skipped') }}
     name: Deploy rollback
     runs-on: ubuntu-latest
     steps:
