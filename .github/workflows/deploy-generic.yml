@@ -1,0 +1,123 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      runner-size:
+        required: false
+        type: string
+        description: "Runner to use for the job (normal, or large)"
+        default: "normal"
+      stage:
+        required: true
+        type: string
+        description: 'stage being released (dev,staging,production)'
+      service-name:
+        required: true
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: true
+        type: string
+        description: 'An emoji to identify your service by :)'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      region:
+        required: false
+        type: string
+        default: "eu-west-1"
+        description: 'AWS region to deploy to'
+      docker-file-name:
+        required: false
+        type: string
+        description: Name of the docker file to be built
+        default: "Dockerfile"
+      additional-build-args:
+        required: false
+        type: string
+        description: 'Additional build arguments for Docker'
+      ecr-repository-name:
+        required: false
+        type: string
+        description: 'ECR repository name override'
+      docker-compose-path:
+        required: false
+        type: string
+        description: 'File path of the docker compose file'
+    secrets:
+      AWS_ACCOUNT_ID:
+        required: true
+        description: 'AWS Account ID for ECR and deployment access'
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app-level token for workflow notifications'
+      MANIFEST_REPO_PAT:
+        required: true
+        description: 'GitHub PAT to commit/push to kube-manifests repo'
+      SENTRY_AUTH_TOKEN:
+        required: false
+        description: 'Sentry auth token, passed as Docker build secret'
+      AWS_CDN_ACCESS_KEY_ID:
+        required: false
+        description: 'CDN access key ID for S3 access, injected into Docker image'
+      AWS_CDN_SECRET_ACCESS_KEY:
+        required: false
+        description: 'CDN secret access key for S3 access, injected into Docker image'
+      TEST_ENV_FILE:
+        required: false
+        description: 'Environment variables for tests in .env format'
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  initialize:
+    name: Initialize
+    uses: ./.github/workflows/component-initialize.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      service-emoji: ${{ inputs.service-emoji }}
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+  build:
+    name: Build
+    needs: initialize
+    uses: ./.github/workflows/component-build.yml
+    with:
+      runner-size: ${{ inputs.runner-size }}
+      stage: ${{ inputs.stage }}
+      service-name: ${{ inputs.service-name }}
+      service-emoji: ${{ inputs.service-emoji }}
+      service-identifier: ${{ inputs.service-identifier }}
+      region: ${{ inputs.region }}
+      docker-file-name: ${{ inputs.docker-file-name }}
+      additional-build-args: ${{ inputs.additional-build-args }}
+      ecr-repository-name: ${{ inputs.ecr-repository-name }}
+      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      AWS_CDN_ACCESS_KEY_ID: ${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
+      AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+
+  deploy:
+    name: Deploy
+    needs:
+      - initialize
+      - build
+    uses: ./.github/workflows/component-deploy.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      service-emoji: ${{ inputs.service-emoji }}
+      service-identifier: ${{ inputs.service-identifier }}
+      stage: ${{ inputs.stage }}
+      image-tag: ${{ needs.build.outputs.image-tag }}
+      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+    secrets:
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
