@@ -142,6 +142,7 @@ jobs:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
             type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
+            type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -195,6 +196,12 @@ jobs:
           
           # Push the manifest
           docker manifest push ${BASE_IMAGE}:${SHA_TAG}
+          
+          # Create and push latest manifest
+          docker manifest create ${BASE_IMAGE}:latest \
+            ${BASE_IMAGE}:latest-amd64 \
+            ${BASE_IMAGE}:latest-arm64
+          docker manifest push ${BASE_IMAGE}:latest
   notify-build-finished:
     name: Notify Build Finished
     needs:
