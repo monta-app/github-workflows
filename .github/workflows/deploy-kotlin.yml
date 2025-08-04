@@ -104,6 +104,12 @@ on:
       AWS_CDN_SECRET_ACCESS_KEY:
         required: false
         description: 'CDN secret access key for S3 access, injected into Docker image'
+      LOKALISE_TOKEN:
+        required: false
+        description: 'Lokalise token for Lokalise API'
+      LOKALISE_PROJECT_ID:
+        required: false
+        description: 'Lokalise project ID for Lokalise API'
 
 permissions:
   id-token: write
@@ -168,6 +174,8 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       AWS_CDN_ACCESS_KEY_ID: ${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
       AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+      LOKALISE_TOKEN: ${{ secrets.LOKALISE_TOKEN }}
+      LOKALISE_PROJECT_ID: ${{ secrets.LOKALISE_PROJECT_ID }}
   deploy:
     name: Deploy
     needs:
