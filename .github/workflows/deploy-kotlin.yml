@@ -187,7 +187,7 @@ jobs:
       - initialize
       - test
       - build
-    if: always() && needs.initialize.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success'
+    if: always() && needs.initialize.result == 'success' && (!inputs.run-tests || needs.test.result == 'success') && needs.build.result == 'success'
     uses: ./.github/workflows/component-deploy.yml
     with:
       service-name: ${{ inputs.service-name }}
