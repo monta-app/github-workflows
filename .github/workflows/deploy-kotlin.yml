@@ -78,6 +78,11 @@ on:
         required: false
         type: string
         description: 'Regex pattern for excluding file paths from changelog - example: ^gateway/'
+      run-tests:
+        required: false
+        type: boolean
+        default: true
+        description: 'Run tests before deployment'
 
     secrets:
       GHL_USERNAME:
@@ -104,6 +109,12 @@ on:
       AWS_CDN_SECRET_ACCESS_KEY:
         required: false
         description: 'CDN secret access key for S3 access, injected into Docker image'
+      LOKALISE_TOKEN:
+        required: false
+        description: 'Lokalise token for Lokalise API'
+      LOKALISE_PROJECT_ID:
+        required: false
+        description: 'Lokalise project ID for Lokalise API'
 
 permissions:
   id-token: write
@@ -130,7 +141,7 @@ jobs:
   test:
     name: Test
     needs: initialize
-    if: always() && needs.initialize.result == 'success'
+    if: inputs.run-tests && needs.initialize.result == 'success'
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -168,6 +179,8 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       AWS_CDN_ACCESS_KEY_ID: ${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
       AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+      LOKALISE_TOKEN: ${{ secrets.LOKALISE_TOKEN }}
+      LOKALISE_PROJECT_ID: ${{ secrets.LOKALISE_PROJECT_ID }}
   deploy:
     name: Deploy
     needs:

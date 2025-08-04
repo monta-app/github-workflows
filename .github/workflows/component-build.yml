@@ -67,6 +67,12 @@ on:
       AWS_CDN_SECRET_ACCESS_KEY:
         required: false
         description: "AWS CDN Secret Access Key, this value is injected into the secrets of a docker image"
+      LOKALISE_TOKEN:
+        required: false
+        description: 'Lokalise token for Lokalise API'
+      LOKALISE_PROJECT_ID:
+        required: false
+        description: 'Lokalise project ID for Lokalise API'
     outputs:
       image-tag:
         description: 'The image tag that was built'
@@ -184,19 +190,19 @@ jobs:
         run: |
           # Enable experimental features
           export DOCKER_CLI_EXPERIMENTAL=enabled
-          
+
           # Define the base image name and tag
           BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}"
           SHA_TAG="${{ github.sha }}"
-          
+
           # Create manifest list
           docker manifest create ${BASE_IMAGE}:${SHA_TAG} \
             ${BASE_IMAGE}:${SHA_TAG}-amd64 \
             ${BASE_IMAGE}:${SHA_TAG}-arm64
-          
+
           # Push the manifest
           docker manifest push ${BASE_IMAGE}:${SHA_TAG}
-          
+
           # Create and push latest manifest
           docker manifest create ${BASE_IMAGE}:latest \
             ${BASE_IMAGE}:latest-amd64 \
