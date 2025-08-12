@@ -27,7 +27,7 @@ on:
       gradle-module:
         required: false
         type: string
-        description: 'Name of the Gradle module being tested'
+        description: 'Name of the Gradle module'
       java-version:
         required: false
         type: string
@@ -166,6 +166,7 @@ jobs:
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       service-identifier: ${{ inputs.service-identifier }}
+      gradle-module: ${{ inputs.gradle-module }}
       region: ${{ inputs.region }}
       docker-file-name: ${{ inputs.docker-file-name }}
       additional-build-args: ${{ inputs.additional-build-args }}
