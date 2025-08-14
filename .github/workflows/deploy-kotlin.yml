@@ -141,7 +141,7 @@ jobs:
   test:
     name: Test
     needs: initialize
-    if: inputs.run-tests && needs.initialize.result == 'success'
+    if: always() && inputs.run-tests && needs.initialize.result == 'success'
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
