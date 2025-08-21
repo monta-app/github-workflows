@@ -122,12 +122,6 @@ permissions:
   actions: write
 
 jobs:
-  create-release-tag:
-    name: Create Release Tag
-    if: inputs.enable-release-tag && github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/create-release-tag.yml
-    with:
-      prefix: ${{ inputs.release-tag-prefix }}
   initialize:
     name: Initialize
     needs: [ create-release-tag ]
@@ -199,10 +193,17 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+  create-release-tag:
+    name: Create Release Tag
+    if: always() && inputs.enable-release-tag && needs.deploy.result == 'success'
+    needs: deploy
+    uses: ./.github/workflows/create-release-tag.yml
+    with:
+      prefix: ${{ inputs.release-tag-prefix }}
   create-changelog:
     name: Create and Publish Changelog
     needs: deploy
-    if: inputs.enable-changelog && needs.deploy.result == 'success'
+    if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
