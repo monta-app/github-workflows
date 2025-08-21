@@ -11,7 +11,6 @@ on:
 
 jobs:
   create-tag:
-    name: Create Release Tag
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -198,8 +198,6 @@ jobs:
     uses: ./.github/workflows/create-release-tag.yml
     with:
       prefix: ${{ inputs.release-tag-prefix }}
-    secrets:
-      MONTA_BOT_TOKEN: ${{ secrets.MONTA_BOT_TOKEN }}
   create-changelog:
     name: Create and Publish Changelog
     needs: deploy
