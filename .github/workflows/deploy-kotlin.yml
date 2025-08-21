@@ -124,8 +124,6 @@ permissions:
 jobs:
   initialize:
     name: Initialize
-    needs: [ create-release-tag ]
-    if: always() && (needs.create-release-tag.result == 'success' || needs.create-release-tag.result == 'skipped')
     uses: ./.github/workflows/component-initialize.yml
     with:
       service-name: ${{ inputs.service-name }}
