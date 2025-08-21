@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.MONTA_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate tag name
         id: generate_tag
         run: |
@@ -39,8 +39,8 @@ jobs:
           tag="${{ steps.generate_tag.outputs.tag }}"
 
           # Configure git
-          git config user.name "Monta Bot"
-          git config user.email "bot@monta.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Create the tag
           git tag "$tag"
