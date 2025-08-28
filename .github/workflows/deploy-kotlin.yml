@@ -200,7 +200,7 @@ jobs:
       prefix: ${{ inputs.release-tag-prefix }}
   create-changelog:
     name: Create and Publish Changelog
-    needs: deploy
+    needs: create-release-tag
     if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
