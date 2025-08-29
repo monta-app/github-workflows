@@ -1,0 +1,157 @@
+name: Update service profile
+on:
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
+        description: 'stage being released (dev,staging,production)'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      gradle-module:
+        required: false
+        type: string
+        description: 'Name of the gradle module being tested'
+      java-version:
+        required: false
+        type: string
+        default: "21"
+        description: 'Java version to use'
+      file-name:
+        required: false
+        default: 'service-profile.yml'
+        type: string
+        description: 'File name for the service profile in the `templates` directory'
+    secrets:
+      GHL_USERNAME:
+        required: false
+        description: 'Github Username (Required for Kotlin builds)'
+      GHL_PASSWORD:
+        required: false
+        description: 'Github Password (Required for Kotlin builds)'
+      MANIFEST_REPO_PAT:
+        required: true
+        description: 'GitHub personal access token'
+
+jobs:
+  update-service-profile:
+    name: Update service profile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "corretto"
+          java-version: ${{ inputs.java-version }}
+          cache: 'gradle'
+      - name: Install LinkerD CLI
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+          echo "/home/runner/.linkerd2/bin" >> $GITHUB_PATH
+      - name: Discover annotation processor
+        shell: bash
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GRADLE_MODULE: ${{ inputs.gradle-module }}
+        run: |
+          GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)' | head -n1)
+          if [ "$GRADLE_TASK" = "kaptKotlin" ]; then
+          OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
+          elif [ "$GRADLE_TASK" = "kspKotlin" ]; then
+          OUTPUT_DIR="build/generated/ksp/main/resources/META-INF/swagger"
+          fi
+          
+          echo "GRADLE_TASK=${GRADLE_TASK}" >> "$GITHUB_ENV"
+          echo "OPENAPI_OUTPUT_DIR=${OUTPUT_DIR}" >> "$GITHUB_ENV"
+      - name: Build OpenAPI spec
+        shell: bash
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+        run: | 
+          ./gradlew $GRADLE_TASK
+      - name: Generate service profile
+        shell: bash
+        run: |
+          # Find the generated spec
+          YML_FILE=$(find . -type f -name '*.yml' \
+            | grep "$OPENAPI_OUTPUT_DIR" \
+            | head -n1)
+
+          # Check if a .yml file was found and display the result or an error message
+          if [ -z "${YML_FILE}" ]; then
+              echo "No .yml file found in ${$OPENAPI_OUTPUT_DIR}."
+              exit 1
+          fi
+          
+          SERVICE_NAME="${{ inputs.service-identifier }}-${{ inputs.stage }}"
+          
+          linkerd profile --ignore-cluster -n $SERVICE_NAME --open-api $YML_FILE $SERVICE_NAME \
+            | yq 'del(.spec.routes[].responseClasses)' \
+            | yq 'del(.metadata.namespace)' \
+            | yq 'del(.metadata.creationTimestamp)' \
+            | yq '.spec.routes += [
+              {"condition": {"method": "POST"}, "name": "POST Default]"},
+              {"condition": {"method": "GET"}, "name": "GET Default]"},
+              {"condition": {"method": "PATCH"}, "name": "PATCH Default]"},
+              {"condition": {"method": "PUT"}, "name": "PUT Default]"},
+              {"condition": {"method": "HEAD"}, "name": "HEAD Default]"},
+              {"condition": {"method": "OPTIONS"}, "name": "OPTIONS Default]"}
+            ]' > service-profile.yml
+      - name: Check out manifest repository
+        uses: actions/checkout@v4
+        with:
+          path: 'manifests'
+          repository: monta-app/kube-manifests
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Update or create manifest file
+        shell: bash
+        run: |
+          TEMPLATES_PATH="./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/templates"
+          
+          mkdir -p $TEMPLATES_PATH
+          SERVICE_PROFILE_FILE="$TEMPLATES_PATH/${{ inputs.file-name }}"
+          
+          # Only update the routes part of the service profile if it already exists
+          if [[ -f "$SERVICE_PROFILE_FILE" ]]; then
+            yq -i '.spec.routes = load("service-profile.yml").spec.routes' $SERVICE_PROFILE_FILE
+          else
+            cp service-profile.yml $SERVICE_PROFILE_FILE
+          fi
+          
+          # Add a note that the metadata can be updated
+          echo "NOTE! .spec.routes is updated automatically. You can update metadata if the generated name 
+          does not match your service name or you would like to add labels, annotations etc. You need to 
+          ensure the file is still valid yaml (no Helm templating!)" > headComment.txt
+          yq -i '. headComment=load("headComment.txt")' $SERVICE_PROFILE_FILE
+          
+          cat $SERVICE_PROFILE_FILE
+      - name: Commit
+        id: commit-changes
+        shell: bash
+        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/templates
+        run: |
+          git add ${{ inputs.file-name }}
+          if [[ -n "$(git diff --exit-code HEAD)" ]]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git commit -m "Updated ${{inputs.file-name}} for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
+            echo "Changes committed"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Push changes
+        if: always() && steps.commit-changes.outputs.has_changes == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          directory: './manifests'
+          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
+          repository: monta-app/kube-manifests
