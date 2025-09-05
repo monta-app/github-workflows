@@ -83,6 +83,11 @@ on:
         type: boolean
         default: true
         description: 'Run tests before deployment'
+      update-service-profile:
+        required: false
+        type: boolean
+        default: false
+        description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
 
     secrets:
       GHL_USERNAME:
@@ -191,6 +196,20 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+  update-service-profile:
+    name: Update Service Profile
+    needs: deploy
+    if: always() && inputs.update-service-profile && needs.deploy.result == 'success'
+    uses: ./.github/workflows/component-service-profile-kotlin.yml
+    with:
+      service-identifier: ${{ inputs.service-identifier }}
+      stage: ${{ inputs.stage }}
+      gradle-module: ${{ inputs.gradle-module }}
+      java-version: ${{ inputs.java-version }}
+    secrets:
+        GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+        GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+        MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
   create-release-tag:
     name: Create Release Tag
     if: always() && inputs.enable-release-tag && needs.deploy.result == 'success'
