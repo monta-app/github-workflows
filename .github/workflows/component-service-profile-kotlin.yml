@@ -62,9 +62,9 @@ jobs:
         run: |
           GRADLE_TASK=$(./gradlew ${GRADLE_MODULE}:tasks --all | grep -E '(kaptKotlin|kspKotlin)' | head -n1)
           if [ "$GRADLE_TASK" = "kaptKotlin" ]; then
-          OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
+            OUTPUT_DIR="build/tmp/kapt3/classes/main/META-INF/swagger"
           elif [ "$GRADLE_TASK" = "kspKotlin" ]; then
-          OUTPUT_DIR="build/generated/ksp/main/resources/META-INF/swagger"
+            OUTPUT_DIR="build/generated/ksp/main/resources/META-INF/swagger"
           fi
           
           echo "GRADLE_TASK=${GRADLE_TASK}" >> "$GITHUB_ENV"
@@ -97,12 +97,12 @@ jobs:
             | yq 'del(.metadata.namespace)' \
             | yq 'del(.metadata.creationTimestamp)' \
             | yq '.spec.routes += [
-              {"condition": {"method": "POST"}, "name": "POST Default]"},
-              {"condition": {"method": "GET"}, "name": "GET Default]"},
-              {"condition": {"method": "PATCH"}, "name": "PATCH Default]"},
-              {"condition": {"method": "PUT"}, "name": "PUT Default]"},
-              {"condition": {"method": "HEAD"}, "name": "HEAD Default]"},
-              {"condition": {"method": "OPTIONS"}, "name": "OPTIONS Default]"}
+              {"condition": {"method": "POST"}, "name": "POST [Default]"},
+              {"condition": {"method": "GET"}, "name": "GET [Default]"},
+              {"condition": {"method": "PATCH"}, "name": "PATCH [Default]"},
+              {"condition": {"method": "PUT"}, "name": "PUT [Default]"},
+              {"condition": {"method": "HEAD"}, "name": "HEAD [Default]"},
+              {"condition": {"method": "OPTIONS"}, "name": "OPTIONS [Default]"}
             ]' > service-profile.yml
       - name: Check out manifest repository
         uses: actions/checkout@v4
