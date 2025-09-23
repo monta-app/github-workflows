@@ -49,6 +49,10 @@ AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}
 Only pass secrets that exist in original deployment from:
 `GHL_USERNAME`, `GHL_PASSWORD`, `AWS_ACCOUNT_ID`, `SLACK_APP_TOKEN`, `MANIFEST_REPO_PAT`, `SENTRY_AUTH_TOKEN`, `AWS_CDN_ACCESS_KEY_ID`, `AWS_CDN_SECRET_ACCESS_KEY`
 
+If you used ArgoCD API to deploy before (by overwriting parameters) you need to remove the parameter overrides for image, tag and build number in ArgoCD.
+
+![](./img/argocd_parameters.png)
+
 #### Pull Request Workflow
 
 ```yaml
