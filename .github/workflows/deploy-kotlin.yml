@@ -59,7 +59,7 @@ on:
       enable-release-tag:
         required: false
         type: boolean
-        default: false
+        default: ${{ inputs.stage == 'production' }}
         description: 'Enable automatic release tag creation on workflow_dispatch'
       release-tag-prefix:
         required: false
@@ -68,7 +68,7 @@ on:
       enable-changelog:
         required: false
         type: boolean
-        default: false
+        default: ${{ inputs.stage == 'production' }}
         description: 'Enable changelog generation after deployment'
       changelog-tag-pattern:
         required: false
@@ -86,7 +86,7 @@ on:
       update-service-profile:
         required: false
         type: boolean
-        default: false
+        default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
 
     secrets:
