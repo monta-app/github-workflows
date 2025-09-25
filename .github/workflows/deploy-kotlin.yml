@@ -59,7 +59,7 @@ on:
       enable-release-tag:
         required: false
         type: boolean
-        default: ${{ inputs.stage == 'production' }}
+        default: false
         description: 'Enable automatic release tag creation on workflow_dispatch'
       release-tag-prefix:
         required: false
@@ -68,7 +68,7 @@ on:
       enable-changelog:
         required: false
         type: boolean
-        default: ${{ inputs.stage == 'production' }}
+        default: false
         description: 'Enable changelog generation after deployment'
       changelog-tag-pattern:
         required: false
