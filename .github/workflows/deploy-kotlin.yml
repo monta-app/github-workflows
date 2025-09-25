@@ -86,7 +86,7 @@ on:
       update-service-profile:
         required: false
         type: boolean
-        default: false
+        default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
 
     secrets:
