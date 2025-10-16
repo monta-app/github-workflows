@@ -1,34 +1,31 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  # Name of the project 
+  # Name of the project
   name: github-workflows
   description: N/A
   # Specifies the directory of the docs
   annotations:
     backstage.io/techdocs-ref: dir:.
-    
   labels:
     tier: '3'
-
   # These links are just examples, set them to what you think is the most relevant.
   links:
     # Slack channel to write in for communicating with the resposible team.
-  - title: Team Slack Channel
-    url: https://monta-app01.slack.com/archives/C02NQ35QS8Z
-    type: Slack
-    icon: chat
-    # Page in notion documenting the purpose and function of the service 
-  - title: Notion
-    url: https://www.notion.so/montaapp/github-workflows-fe196f32204a46faaac39c1dd579036d?pvs=4
-    type: Notion
-    icon: docs
-
+    - title: Team Slack Channel
+      url: https://monta-app01.slack.com/archives/C02NQ35QS8Z
+      type: Slack
+      icon: chat
+      # Page in notion documenting the purpose and function of the service
+    - title: Notion
+      url: https://www.notion.so/montaapp/github-workflows-fe196f32204a46faaac39c1dd579036d?pvs=4
+      type: Notion
+      icon: docs
 # The spec defines who becomes the owner of the system in backstage
 spec:
   type: tool
   lifecycle: production
   # Name of the squad responsible for the project, e.g. sre or cpi
-  owner: SRE
+  owner: sre
   # Name of the greater system, e.g. "solar" is a part of the home system
-  system: Platform
+  system: platform-division
