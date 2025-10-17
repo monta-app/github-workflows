@@ -68,7 +68,11 @@ jobs:
           fi
           
           echo "GRADLE_TASK=${GRADLE_TASK}" >> "$GITHUB_ENV"
-          echo "OPENAPI_OUTPUT_DIR=${OUTPUT_DIR}" >> "$GITHUB_ENV"
+          if [ "$GRADLE_MODULE" = "" ]; then
+            echo "OPENAPI_OUTPUT_DIR=${OUTPUT_DIR}" >> "$GITHUB_ENV"
+          else
+            echo "OPENAPI_OUTPUT_DIR=${GRADLE_MODULE}/${OUTPUT_DIR}" >> "$GITHUB_ENV"
+          fi
       - name: Build OpenAPI spec
         shell: bash
         env:
