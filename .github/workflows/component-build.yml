@@ -23,6 +23,10 @@ on:
         required: true
         type: string
         description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      gradle-module:
+        required: false
+        type: string
+        description: 'Name of the Gradle module'
       region:
         required: false
         type: string
@@ -154,7 +158,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./${{ inputs.docker-file-name }}
+          file: ./${{ inputs.gradle-module && format('{0}/{1}', inputs.gradle-module, inputs.docker-file-name) || inputs.docker-file-name }}
           push: true
           no-cache: true
           build-args: |
