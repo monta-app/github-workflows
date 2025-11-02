@@ -46,6 +46,10 @@ on:
         required: false
         type: string
         description: 'File path of the docker compose file'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'External Slack message ID to use for notifications (if not provided, initialize step will create one)'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -77,6 +81,7 @@ permissions:
 jobs:
   initialize:
     name: Initialize
+    if: ${{ inputs.slack-message-id == '' }}
     uses: ./.github/workflows/component-initialize.yml
     with:
       service-name: ${{ inputs.service-name }}
@@ -86,6 +91,7 @@ jobs:
   build:
     name: Build
     needs: initialize
+    if: ${{ always() && (needs.initialize.result == 'success' || needs.initialize.result == 'skipped') }}
     uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
@@ -97,7 +103,7 @@ jobs:
       docker-file-name: ${{ inputs.docker-file-name }}
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
-      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+      slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
@@ -110,6 +116,7 @@ jobs:
     needs:
       - initialize
       - build
+    if: ${{ always() && needs.build.result == 'success' && (needs.initialize.result == 'success' || needs.initialize.result == 'skipped') }}
     uses: ./.github/workflows/component-deploy.yml
     with:
       service-name: ${{ inputs.service-name }}
@@ -117,7 +124,7 @@ jobs:
       service-identifier: ${{ inputs.service-identifier }}
       stage: ${{ inputs.stage }}
       image-tag: ${{ needs.build.outputs.image-tag }}
-      slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+      slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
