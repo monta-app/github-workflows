@@ -72,16 +72,17 @@ jobs:
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
         run: |
           sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
-          # Add revision and build fields if they don't exist
+          # Add or update revision field (at root level under kotlin with 2-space indent)
           if ! grep -q "^  revision:" values.yaml; then
-            sed -i "/^  image:/a\\  revision: \"${GITHUB_SHA::8}\"" values.yaml
+            sed -i "/^  availabilitySLO:/a\\  revision: \"${GITHUB_SHA::8}\"" values.yaml
           else
-            sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
+            sed -i "s/^  revision: .*/  revision: \"${GITHUB_SHA::8}\"/" values.yaml
           fi
+          # Add or update build field (at root level under kotlin with 2-space indent)
           if ! grep -q "^  build:" values.yaml; then
             sed -i "/^  revision:/a\\  build: ${{ github.run_number }}" values.yaml
           else
-            sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+            sed -i "s/^  build: .*/  build: ${{ github.run_number }}/" values.yaml
           fi
       - name: Commit to service repository
         working-directory: './service-repo'
