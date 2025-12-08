@@ -1,0 +1,110 @@
+name: Deploy V2 (Service Repo)
+on:
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
+        description: 'stage being released (dev,staging,production)'
+      service-name:
+        required: true
+        type: string
+        description: 'Proper name for your service i.e OCPP Service, Vehicle Service'
+      service-emoji:
+        required: true
+        type: string
+        description: 'An emoji to identify your service by :)'
+      service-identifier:
+        required: true
+        type: string
+        description: 'Identifier of the service being released i.e ocpp, vehicle, server, wallet.'
+      image-tag:
+        required: true
+        type: string
+        description: 'Docker image tag to deploy'
+      slack-message-id:
+        required: false
+        type: string
+        description: 'Existing Slack message ID to update'
+      helm-values-path:
+        required: false
+        type: string
+        description: 'Path to helm values directory (default: helm/{service-identifier}/{stage}/app)'
+    secrets:
+      MANIFEST_REPO_PAT:
+        required: true
+        description: 'GitHub personal access token'
+      SLACK_APP_TOKEN:
+        required: true
+        description: 'Slack app token'
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for subsequent updates'
+        value: ${{ jobs.deploy.outputs.slack-message-id }}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update existing slack message
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "deploy"
+          job-status: "progress"
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ inputs.slack-message-id }}
+      - name: Check out service repository
+        uses: actions/checkout@v4
+        with:
+          repository: monta-app/service-${{ inputs.service-identifier }}
+          path: 'service-repo'
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Update image tag
+        shell: bash
+        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+        run: |
+          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
+          # Add revision and build fields if they don't exist
+          if ! grep -q "^  revision:" values.yaml; then
+            sed -i "/^  image:/a\\  revision: \"${GITHUB_SHA::8}\"" values.yaml
+          else
+            sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
+          fi
+          if ! grep -q "^  build:" values.yaml; then
+            sed -i "/^  revision:/a\\  build: ${{ github.run_number }}" values.yaml
+          else
+            sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+          fi
+      - name: Commit to service repository
+        working-directory: './service-repo'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
+          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+        shell: bash
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
+          directory: './service-repo'
+          repository: monta-app/service-${{ inputs.service-identifier }}
+      - name: Publish result message to slack
+        if: always()
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: "deploy"
+          job-status: ${{ job.status }}
+          service-name: ${{ inputs.service-name }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
+          slack-message-id: ${{ inputs.slack-message-id }}

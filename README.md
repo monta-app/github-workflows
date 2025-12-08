@@ -33,6 +33,39 @@ This repository contains several reusable workflows designed to streamline the C
 
 ### `production-pr.yml`
 - **Purpose**: Automatically creates a pull request for promoting changes to the `production` branch.
+
+---
+
+## Deployment Workflows
+
+This repository provides two deployment patterns to support different Helm chart management strategies:
+
+### Pattern 1: Kube-Manifests Pattern (Original)
+Helm charts and deployment configurations are managed in the `kube-manifests` repository.
+
+**Workflows:**
+- `deploy-generic.yml` - Generic deployment workflow for any service
+- `deploy-python.yml` - Python-specific deployment with testing
+- `deploy-kotlin.yml` - Kotlin-specific deployment with Gradle testing
+
+**Use when:** Your service's Helm charts live in the `kube-manifests` repository under `apps/{service-identifier}/{stage}/app/`.
+
+### Pattern 2: Service-Repo Pattern (V2)
+Helm charts are managed within each service's repository, enabling better service ownership.
+
+**Workflows:**
+- `deploy-generic-v2.yml` - Generic deployment workflow for service-repo pattern
+- `component-deploy-v2.yml` - Low-level component that updates service repo charts
+
+**Use when:** Your service manages its own Helm charts in `helm/{service-identifier}/{stage}/app/` within the service repository.
+
+**Key differences:**
+- Charts live in service repository instead of kube-manifests
+- Deployment workflow updates service repo's `values.yaml` with image tags
+- ArgoCD config in kube-manifests points to service repo for chart source
+- ArgoCD tracks deployments directly from service repo commits (no cluster config updates needed)
+- Better service ownership and versioning of deployment configurations
+
 ---
 
 ## How to Use
@@ -101,6 +134,83 @@ jobs:
     uses: ./.github/workflows/deploy_production.yml
     if: ${{ needs.trigger-production-tag-release.outputs.tag_exists == 'false' }}
     secrets: inherit
+```
+
+### 3. **Deploy with Kube-Manifests Pattern**
+
+Use this for services with Helm charts in the `kube-manifests` repository.
+
+**Example**:
+```yaml
+name: Deploy Staging
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy
+    uses: monta-app/github-workflows/.github/workflows/deploy-generic.yml@main
+    with:
+      stage: "staging"
+      service-name: "My Service"
+      service-emoji: "🚀"
+      service-identifier: my-service
+      ecr-repository-name: my-service-staging
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}
+      MANIFEST_REPO_PAT: ${{ secrets.PAT }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+### 4. **Deploy with Service-Repo Pattern (V2)**
+
+Use this for services that manage their own Helm charts in the service repository.
+
+**Prerequisites:**
+- Helm charts exist in your service repo (default location: `helm/{service-identifier}/{stage}/app/`)
+- ArgoCD config in kube-manifests points to your service repo
+- `values.yaml` includes `revision` and `build` fields under the image section
+
+**Example:**
+```yaml
+name: Deploy Staging
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy
+    uses: monta-app/github-workflows/.github/workflows/deploy-generic-v2.yml@main
+    with:
+      stage: "staging"
+      service-name: "My Service"
+      service-emoji: "🚀"
+      service-identifier: my-service
+      ecr-repository-name: monta/my-service
+      # helm-values-path: "helm/staging/app"  # Optional: override default (helm/{service-identifier}/{stage}/app)
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}
+      MANIFEST_REPO_PAT: ${{ secrets.PAT }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+**values.yaml structure:**
+```yaml
+kotlin:  # or your chart type
+  image:
+    repository: 123456789.dkr.ecr.eu-west-1.amazonaws.com/monta/my-service
+    tag: latest
+    revision: "initial"  # Updated by workflow
+    build: 0             # Updated by workflow
+    pullPolicy: IfNotPresent
 ```
 
 ## Contributing ##
