@@ -83,45 +83,12 @@ jobs:
           git add ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
           git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
         shell: bash
-      - name: Push changes to service repository
+      - name: Push changes
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './service-repo'
           repository: monta-app/service-${{ inputs.service-identifier }}
-      - name: Check out manifest repository
-        uses: actions/checkout@v4
-        with:
-          repository: monta-app/kube-manifests
-          path: 'manifests'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update cluster config with service repo tracking
-        shell: bash
-        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
-        run: |
-          # Update previousHash with current value (if it exists)
-          if grep -q "currentHash:" config.yaml 2>/dev/null; then
-            previousHash=$(yq e '.currentHash' config.yaml)
-            if [ "$previousHash" != "null" ] && [ -n "$previousHash" ]; then
-              yq e ".previousHash = \"$previousHash\"" -i config.yaml
-            fi
-          fi
-          # Update currentHash with service repo commit
-          yq e ".currentHash = \"${GITHUB_SHA::8}\"" -i config.yaml
-      - name: Commit to manifest repository
-        working-directory: './manifests'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml
-          git commit -m "Track service-${{ inputs.service-identifier }} ${{ inputs.stage }} deployment: ${GITHUB_SHA::8}"
-        shell: bash
-      - name: Push changes to manifest repository
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
-          directory: './manifests'
-          repository: monta-app/kube-manifests
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
