@@ -54,6 +54,10 @@ on:
         required: false
         type: string
         description: 'Path to helm values directory (default: helm/{service-identifier}/{stage}/app)'
+      repository-name:
+        required: false
+        type: string
+        description: 'Repository name override (default: service-{service-identifier})'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -130,6 +134,7 @@ jobs:
       image-tag: ${{ needs.build.outputs.image-tag }}
       slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
       helm-values-path: ${{ inputs.helm-values-path }}
+      repository-name: ${{ inputs.repository-name }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}

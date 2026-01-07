@@ -30,6 +30,10 @@ on:
         required: false
         type: string
         description: 'Path to helm values directory (default: helm/{service-identifier}/{stage}/app)'
+      repository-name:
+        required: false
+        type: string
+        description: 'Repository name override (default: service-{service-identifier})'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -64,7 +68,7 @@ jobs:
       - name: Check out service repository
         uses: actions/checkout@v4
         with:
-          repository: monta-app/service-${{ inputs.service-identifier }}
+          repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image tag
@@ -88,7 +92,7 @@ jobs:
         with:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './service-repo'
-          repository: monta-app/service-${{ inputs.service-identifier }}
+          repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
