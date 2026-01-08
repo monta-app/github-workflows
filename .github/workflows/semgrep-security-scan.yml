@@ -16,11 +16,6 @@ on:
         type: number
         description: "Timeout for the scan job in minutes"
         default: 15
-      fail-on-high:
-        required: false
-        type: boolean
-        description: "Whether to fail the workflow on high-severity findings"
-        default: true
 
 jobs:
   semgrep:
@@ -43,7 +38,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Semgrep
-        run: pip install semgrep
+        run: pip install semgrep==1.86.0
 
       - name: Get changed files
         id: changed-files
@@ -97,12 +92,21 @@ jobs:
             if [ -s files_to_scan.txt ]; then
               echo "Scanning changed files..."
               # Use xargs with null delimiter for safe filename handling
+              set +e
               xargs -0 semgrep scan \
                 ${{ steps.configs.outputs.configs }} \
                 --json \
                 --output=semgrep.json \
                 < files_to_scan.txt \
-                2>&1 || true
+                2>&1
+              SEMGREP_EXIT_CODE=$?
+              set -e
+              if [ "$SEMGREP_EXIT_CODE" -ne 0 ]; then
+                echo "::warning::Semgrep scan exited with non-zero status: $SEMGREP_EXIT_CODE"
+                if [ ! -f semgrep.json ]; then
+                  echo '{"results":[],"errors":[{"message":"Semgrep scan failed","exit_code":'"$SEMGREP_EXIT_CODE"'}]}' > semgrep.json
+                fi
+              fi
             else
               echo '{"results":[],"errors":[]}' > semgrep.json
               echo "No files to scan after filtering"
@@ -142,6 +146,9 @@ jobs:
             echo "No findings or scan failed to produce output." >> $GITHUB_STEP_SUMMARY
           fi
 
+      # This step is intended for workflows triggered by pull_request events.
+      # When invoked from other events (e.g., via workflow_call on push),
+      # github.event_name will not be 'pull_request' and this step will be skipped.
       - name: Post PR Comment
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
@@ -182,8 +189,9 @@ jobs:
                 high.slice(0, 15).forEach(f => {
                   const path = f.path || 'unknown';
                   const line = f.start?.line || '?';
+                  const ruleId = f.check_id || 'unknown-rule';
                   const message = f.extra?.message || 'No description';
-                  body += `- **${f.check_id}** in \`${path}:${line}\`\n`;
+                  body += `- **${ruleId}** in \`${path}:${line}\`\n`;
                   body += `  > ${message.substring(0, 200)}${message.length > 200 ? '...' : ''}\n\n`;
                 });
                 if (high.length > 15) {
@@ -196,7 +204,8 @@ jobs:
                 medium.slice(0, 10).forEach(f => {
                   const path = f.path || 'unknown';
                   const line = f.start?.line || '?';
-                  body += `- **${f.check_id}** in \`${path}:${line}\`\n`;
+                  const ruleId = f.check_id || 'unknown-rule';
+                  body += `- **${ruleId}** in \`${path}:${line}\`\n`;
                 });
                 if (medium.length > 10) {
                   body += `\n... and ${medium.length - 10} more\n`;
@@ -209,7 +218,8 @@ jobs:
                 low.slice(0, 10).forEach(f => {
                   const path = f.path || 'unknown';
                   const line = f.start?.line || '?';
-                  body += `- **${f.check_id}** in \`${path}:${line}\`\n`;
+                  const ruleId = f.check_id || 'unknown-rule';
+                  body += `- **${ruleId}** in \`${path}:${line}\`\n`;
                 });
                 if (low.length > 10) {
                   body += `\n... and ${low.length - 10} more\n`;
@@ -247,7 +257,7 @@ jobs:
             }
 
       - name: Fail on High Severity
-        if: always() && inputs.fail-on-high
+        if: always()
         run: |
           HIGH="${{ steps.evaluate.outputs.high }}"
           echo "High severity count: $HIGH"

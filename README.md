@@ -17,7 +17,7 @@ This repository contains several reusable workflows designed to streamline the C
 - **Purpose**: Integrates with SonarCloud for analyzing code quality and vulnerabilities.
 
 ### `semgrep-security-scan.yml`
-- **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns on pull requests.
+- **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns. Designed primarily for pull requests (PR commenting, diff-aware scanning), but can be called from other event types via `workflow_call` with limited functionality.
 
 ### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
@@ -264,7 +264,8 @@ jobs:
 | `language` | Yes | - | Primary language: `kotlin`, `php`, or `generic` |
 | `extra-configs` | No | `""` | Additional Semgrep config flags |
 | `timeout-minutes` | No | `15` | Timeout for the scan job |
-| `fail-on-high` | No | `true` | Whether to fail on high-severity findings |
+
+> **Note:** High-severity findings always block merge. Similar to SonarCloud, teams decide how to act on findings.
 
 **Language-specific rulesets:**
 - **Kotlin**: `p/kotlin`, `p/java`, `r/kotlin.lang.security`, `r/java.lang.security`
