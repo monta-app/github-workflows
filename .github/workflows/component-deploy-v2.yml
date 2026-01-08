@@ -71,7 +71,15 @@ jobs:
           repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update and push with automatic retry
+      - name: Update image tag
+        shell: bash
+        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+        run: |
+          # Update image tag, revision, and build using yq for proper YAML manipulation
+          yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i values.yaml
+          yq e '.kotlin.revision = "${{ github.sha }}"' -i values.yaml
+          yq e '.kotlin.build = ${{ github.run_number }}' -i values.yaml
+      - name: Commit and push with automatic retry
         uses: Artur-Davtyan/git-rebase-push-action@v1
         with:
           repository_path: service-repo
