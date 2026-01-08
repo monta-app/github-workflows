@@ -71,55 +71,19 @@ jobs:
           repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Update image tag
-        shell: bash
-        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
-        run: |
-          # Update image tag, revision, and build using yq for proper YAML manipulation
-          yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i values.yaml
-          yq e '.kotlin.revision = "${{ github.sha }}"' -i values.yaml
-          yq e '.kotlin.build = ${{ github.run_number }}' -i values.yaml
-      - name: Commit to service repository
-        working-directory: './service-repo'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
-          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
-        shell: bash
-      - name: Push changes with retry
-        working-directory: './service-repo'
-        run: |
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
-
-            # Rebase on latest remote
-            git fetch origin main
-            if ! git rebase origin/main; then
-              echo "Rebase conflict - this shouldn't happen with separate service paths"
-              git rebase --abort
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              sleep $((2 ** RETRY_COUNT))
-              continue
-            fi
-
-            # Try to push
-            if git push origin main; then
-              echo "Push successful!"
-              exit 0
-            fi
-
-            echo "Push failed, retrying..."
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            sleep $((2 ** RETRY_COUNT))
-          done
-
-          echo "Failed to push after $MAX_RETRIES attempts"
-          exit 1
-        shell: bash
+      - name: Update and push with automatic retry
+        uses: Artur-Davtyan/git-rebase-push-action@v1
+        with:
+          repository_path: service-repo
+          commit_message: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+          user_name: "GitHub Action"
+          user_email: "action@github.com"
+          yq_command: |
+            yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
+            yq e '.kotlin.revision = "${{ github.sha }}"' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
+            yq e '.kotlin.build = ${{ github.run_number }}' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
+          max_retries: 10
+          retry_delay: 2
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
