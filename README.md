@@ -16,6 +16,9 @@ This repository contains several reusable workflows designed to streamline the C
 ### `sonar-cloud.yml`
 - **Purpose**: Integrates with SonarCloud for analyzing code quality and vulnerabilities.
 
+### `semgrep-security-scan.yml`
+- **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns on pull requests.
+
 ### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
 
@@ -212,6 +215,61 @@ kotlin:  # or your chart type
     build: 0             # Updated by workflow
     pullPolicy: IfNotPresent
 ```
+
+### 5. **Semgrep Security Scanning**
+
+Run Semgrep static analysis on pull requests to detect security vulnerabilities before they reach production.
+
+**Example (Kotlin/Java):**
+```yaml
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  semgrep:
+    name: Semgrep Security Scan
+    uses: monta-app/github-workflows/.github/workflows/semgrep-security-scan.yml@main
+    with:
+      language: kotlin
+    permissions:
+      contents: read
+      pull-requests: write
+```
+
+**Example (PHP):**
+```yaml
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  semgrep:
+    name: Semgrep Security Scan
+    uses: monta-app/github-workflows/.github/workflows/semgrep-security-scan.yml@main
+    with:
+      language: php
+    permissions:
+      contents: read
+      pull-requests: write
+```
+
+**Inputs:**
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `language` | Yes | - | Primary language: `kotlin`, `php`, or `generic` |
+| `extra-configs` | No | `""` | Additional Semgrep config flags |
+| `timeout-minutes` | No | `15` | Timeout for the scan job |
+| `fail-on-high` | No | `true` | Whether to fail on high-severity findings |
+
+**Language-specific rulesets:**
+- **Kotlin**: `p/kotlin`, `p/java`, `r/kotlin.lang.security`, `r/java.lang.security`
+- **PHP**: `p/php`, `r/php.lang.security`
+- **All**: `p/security-audit`, `p/secrets`, `p/github-actions`, `p/docker`
 
 ## Contributing ##
 
