@@ -92,6 +92,12 @@ jobs:
             yq e '.kotlin.build = ${{ github.run_number }}' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
           max_retries: 10
           retry_delay: 2
+      - name: Fix permissions for cleanup
+        if: always()
+        shell: bash
+        run: |
+          # Docker action creates root-owned files; fix permissions for cleanup
+          sudo chown -R $USER:$USER service-repo || true
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
