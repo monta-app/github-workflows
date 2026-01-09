@@ -235,4 +235,5 @@ jobs:
           jira-app-name: "montaapp"
           output: "slack"
           slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          # Slack channel: C02PDBL6GAU = #info-releases
           slack-channel: "C02PDBL6GAU"
