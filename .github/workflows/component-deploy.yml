@@ -37,6 +37,18 @@ on:
       slack-message-id:
         description: 'Slack message ID for subsequent updates'
         value: ${{ jobs.deploy.outputs.slack-message-id }}
+      stage:
+        description: 'Stage this was deployed to (dev,staging,production)'
+        value: ${{ jobs.deploy.outputs.stage }}
+      docker-image:
+        description: 'Docker image with repository'
+        value: ${{ jobs.deploy.outputs.docker-image }}
+      previous-image-tag:
+        description: 'Docker image tag before the release'
+        value: ${{ jobs.deploy.outputs.previous-image-tag }}
+      image-tag:
+        description: 'Docker image tag that was deployed'
+        value: ${{ jobs.deploy.outputs.image-tag }}
 
 permissions:
   contents: read
@@ -48,6 +60,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       slack-message-id: ${{ steps.slack-update.outputs.message-id }}
+      stage: ${{ inputs.stage }}
+      docker-image: ${{ steps.update-image-tag.outputs.docker-image }}
+      previous-image-tag: ${{ steps.update-image-tag.outputs.previous-image-tag }}
+      image-tag: ${{ inputs.image-tag }}
     steps:
       - name: Update existing slack message
         id: slack-update
@@ -67,9 +83,13 @@ jobs:
           path: 'manifests'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Update image tag
+        id: update-image-tag
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
+          echo "docker-image=$(yq .kotlin.image.repository values.yaml)" >> "$GITHUB_OUTPUT"
+          echo "previous-image-tag=$(yq .kotlin.image.tag values.yaml)" >> "$GITHUB_OUTPUT"
+
           sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
