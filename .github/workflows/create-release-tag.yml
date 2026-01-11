@@ -33,7 +33,7 @@ jobs:
             tag="${date_tag}"
           fi
 
-          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Generated tag: $tag"
       - name: Create and push tag
         run: |
@@ -53,9 +53,9 @@ jobs:
       - name: Create summary
         run: |
           tag="${{ steps.generate_tag.outputs.tag }}"
-          echo "## Release Tag Created 🎉" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`$tag\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Created by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "## Release Tag Created 🎉" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Tag:** \`$tag\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Created by:** @${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Timestamp:** $(date -u)" >> "$GITHUB_STEP_SUMMARY"
