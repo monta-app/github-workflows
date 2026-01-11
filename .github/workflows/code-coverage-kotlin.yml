@@ -68,6 +68,9 @@ on:
       GHL_PASSWORD:
         required: true
         description: "Github Password (Gradle plugin)"
+      SONAR_TOKEN:
+        required: false
+        description: "SonarCloud authentication token (optional, for code quality analysis)"
 
 jobs:
   setup:

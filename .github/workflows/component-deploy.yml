@@ -46,8 +46,11 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      slack-message-id: ${{ steps.slack-update.outputs.message-id }}
     steps:
       - name: Update existing slack message
+        id: slack-update
         uses: monta-app/slack-notifier-cli-action@main
         with:
           job-type: "deploy"
