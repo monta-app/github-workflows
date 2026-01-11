@@ -97,7 +97,7 @@ jobs:
         shell: bash
         run: |
           # Docker action creates root-owned files; fix permissions for cleanup
-          sudo chown -R $USER:$USER service-repo || true
+          sudo chown -R "$USER:$USER" service-repo || true
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
