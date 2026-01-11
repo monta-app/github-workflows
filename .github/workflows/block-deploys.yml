@@ -36,7 +36,7 @@ jobs:
         run: |
           for runId in $(gh run list -w ${{ inputs.workflow }} -a --json databaseId,status -q '.[] | select(.status == "queued" or .status == "in_progress" or .status == "requested" or .status == "waiting" or .status == "pending") | .databaseId'); do
             echo "Cancelling ${{ inputs.workflow }} job: $runId";
-            gh run cancel $runId || echo "Could not cancel job $runId. Status might have just changed." ;
+            gh run cancel "$runId" || echo "Could not cancel job $runId. Status might have just changed." ;
           done
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}

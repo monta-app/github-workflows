@@ -139,7 +139,7 @@ jobs:
         id: coverage-path
         run: |
           filename=$(basename "${{ inputs.kover-report-path }}")
-          echo "report-path=${{ steps.download-coverage.outputs.download-path }}/$filename" >> $GITHUB_OUTPUT
+          echo "report-path=${{ steps.download-coverage.outputs.download-path }}/$filename" >> "$GITHUB_OUTPUT"
       - name: Disable man-db trigger refreshes (https://github.com/actions/runner-images/issues/10977)
         run: |
           echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null

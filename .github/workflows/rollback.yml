@@ -90,10 +90,10 @@ jobs:
         id: find-commit
         run: |
           PREVIOUS_COMMIT_SHA=$(git rev-parse HEAD^)
-          INPUT_COMMIT_SHA=${{ github.event.inputs.commit-sha }}
+          INPUT_COMMIT_SHA="${{ github.event.inputs.commit-sha }}"
           ROLLBACK_COMMIT_SHA=${INPUT_COMMIT_SHA:-$PREVIOUS_COMMIT_SHA}
           echo "Rolling back to commit: $ROLLBACK_COMMIT_SHA"
-          echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Check out kube-manifests
         uses: actions/checkout@v4
