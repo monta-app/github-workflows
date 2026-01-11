@@ -46,6 +46,11 @@ on:
         required: false
         type: string
         description: 'File path of the docker compose file'
+      enable-cache:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enable Docker layer caching'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -111,6 +116,7 @@ jobs:
       docker-file-name: ${{ inputs.docker-file-name }}
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
+      enable-cache: ${{ inputs.enable-cache }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
