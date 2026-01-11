@@ -53,9 +53,11 @@ jobs:
       - name: Create summary
         run: |
           tag="${{ steps.generate_tag.outputs.tag }}"
-          echo "## Release Tag Created 🎉" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Tag:** \`$tag\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Created by:** @${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Timestamp:** $(date -u)" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Release Tag Created 🎉"
+            echo ""
+            echo "**Tag:** \`$tag\`"
+            echo ""
+            echo "**Created by:** @${{ github.actor }}"
+            echo "**Timestamp:** $(date -u)"
+          } >> "$GITHUB_STEP_SUMMARY"

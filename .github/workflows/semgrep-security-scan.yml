@@ -87,7 +87,7 @@ jobs:
         run: |
           if [ -s changed_files.txt ]; then
             # Filter to only existing files (exclude deleted files), handle special chars safely
-            xargs -0 -I {} sh -c 'test -f "$1" && printf "%s\0" "$1"' _ {} < changed_files.txt > files_to_scan.txt || true
+            xargs -0 -I {} sh -c "test -f \"\$1\" && printf \"%s\\0\" \"\$1\"" _ {} < changed_files.txt > files_to_scan.txt || true
 
             if [ -s files_to_scan.txt ]; then
               echo "Scanning changed files..."
@@ -126,24 +126,33 @@ jobs:
             MEDIUM=$(jq '[.results[] | select(.extra.severity == "WARNING")] | length' semgrep.json)
             LOW=$(jq '[.results[] | select(.extra.severity == "INFO")] | length' semgrep.json)
 
-            echo "high=$HIGH" >> "$GITHUB_OUTPUT"
-            echo "medium=$MEDIUM" >> "$GITHUB_OUTPUT"
-            echo "low=$LOW" >> "$GITHUB_OUTPUT"
-            echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+            {
+              echo "high=$HIGH"
+              echo "medium=$MEDIUM"
+              echo "low=$LOW"
+              echo "total=$TOTAL"
+            } >> "$GITHUB_OUTPUT"
 
-            echo "### Semgrep Results" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Severity | Count |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "| High | $HIGH |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Medium | $MEDIUM |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Low | $LOW |" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Semgrep Results"
+              echo "| Severity | Count |"
+              echo "|----------|-------|"
+              echo "| High | $HIGH |"
+              echo "| Medium | $MEDIUM |"
+              echo "| Low | $LOW |"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "high=0" >> "$GITHUB_OUTPUT"
-            echo "medium=0" >> "$GITHUB_OUTPUT"
-            echo "low=0" >> "$GITHUB_OUTPUT"
-            echo "total=0" >> "$GITHUB_OUTPUT"
-            echo "### Semgrep Results" >> "$GITHUB_STEP_SUMMARY"
-            echo "No findings or scan failed to produce output." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "high=0"
+              echo "medium=0"
+              echo "low=0"
+              echo "total=0"
+            } >> "$GITHUB_OUTPUT"
+
+            {
+              echo "### Semgrep Results"
+              echo "No findings or scan failed to produce output."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # This step is intended for workflows triggered by pull_request events.
