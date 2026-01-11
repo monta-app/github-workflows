@@ -90,7 +90,7 @@ jobs:
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
-              echo "No .yml file found in ${$OPENAPI_OUTPUT_DIR}."
+              echo "No .yml file found in $OPENAPI_OUTPUT_DIR."
               exit 1
           fi
           
