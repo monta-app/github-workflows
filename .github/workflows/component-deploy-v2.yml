@@ -45,6 +45,18 @@ on:
       slack-message-id:
         description: 'Slack message ID for subsequent updates'
         value: ${{ jobs.deploy.outputs.slack-message-id }}
+      stage:
+        description: 'Stage this was deployed to (dev,staging,production)'
+        value: ${{ jobs.deploy.outputs.stage }}
+      docker-image:
+        description: 'Docker image with repository'
+        value: ${{ jobs.deploy.outputs.docker-image }}
+      previous-image-tag:
+        description: 'Docker image tag before the release'
+        value: ${{ jobs.deploy.outputs.previous-image-tag }}
+      image-tag:
+        description: 'Docker image tag that was deployed'
+        value: ${{ jobs.deploy.outputs.image-tag }}
 
 permissions:
   contents: read
@@ -56,6 +68,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       slack-message-id: ${{ steps.slack-update.outputs.message-id }}
+      stage: ${{ inputs.stage }}
+      docker-image: ${{ steps.capture-image-info.outputs.docker-image }}
+      previous-image-tag: ${{ steps.capture-image-info.outputs.previous-image-tag }}
+      image-tag: ${{ inputs.image-tag }}
     steps:
       - name: Update existing slack message
         id: slack-update
@@ -74,6 +90,13 @@ jobs:
           repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
           token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Capture current image info
+        id: capture-image-info
+        shell: bash
+        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+        run: |
+          echo "docker-image=$(yq .kotlin.image.repository values.yaml)" >> "$GITHUB_OUTPUT"
+          echo "previous-image-tag=$(yq .kotlin.image.tag values.yaml)" >> "$GITHUB_OUTPUT"
       - name: Update image tag
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
