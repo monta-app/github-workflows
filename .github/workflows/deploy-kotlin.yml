@@ -122,10 +122,10 @@ on:
         description: 'Lokalise project ID for Lokalise API'
       JIRA_EMAIL:
         required: false
-        description: 'Email for JIRA API authentication (used for changelog ticket validation)'
+        description: 'Email for JIRA API authentication (used for ticket operations in changelog)'
       JIRA_TOKEN:
         required: false
-        description: 'JIRA API token for authentication (used for changelog ticket validation)'
+        description: 'JIRA API token for authentication (used for ticket operations in changelog)'
 
     outputs:
       slack-message-id:
