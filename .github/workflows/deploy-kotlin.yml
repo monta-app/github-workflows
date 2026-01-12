@@ -254,3 +254,7 @@ jobs:
           slack-token: ${{ secrets.SLACK_APP_TOKEN }}
           # Slack channel: C02PDBL6GAU = #info-releases
           slack-channel: "C02PDBL6GAU"
+          stage: ${{ needs.deploy.outputs.stage }}
+          docker-image: ${{ needs.deploy.outputs.docker-image }}
+          image-tag: ${{ needs.deploy.outputs.image-tag }}
+          previous-image-tag: ${{ needs.deploy.outputs.previous-image-tag }}
