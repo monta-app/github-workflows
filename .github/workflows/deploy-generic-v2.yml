@@ -81,6 +81,23 @@ on:
         required: false
         description: 'Environment variables for tests in .env format'
 
+    outputs:
+      slack-message-id:
+        description: 'Slack message ID for deployment notifications'
+        value: ${{ jobs.deploy.outputs.slack-message-id }}
+      stage:
+        description: 'Stage that was deployed to (dev,staging,production)'
+        value: ${{ jobs.deploy.outputs.stage }}
+      docker-image:
+        description: 'Docker image repository path'
+        value: ${{ jobs.deploy.outputs.docker-image }}
+      previous-image-tag:
+        description: 'Docker image tag before the deployment (for rollback reference)'
+        value: ${{ jobs.deploy.outputs.previous-image-tag }}
+      image-tag:
+        description: 'Docker image tag that was deployed'
+        value: ${{ jobs.deploy.outputs.image-tag }}
+
 permissions:
   id-token: write
   contents: read
