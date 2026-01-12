@@ -126,6 +126,9 @@ on:
       JIRA_TOKEN:
         required: false
         description: 'JIRA API token for authentication (used for ticket operations in changelog)'
+      GITHUB_TOKEN:
+        required: false
+        description: 'GitHub token for changelog generation'
 
     outputs:
       slack-message-id:
