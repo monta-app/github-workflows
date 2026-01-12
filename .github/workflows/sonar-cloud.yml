@@ -74,3 +74,13 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport sonar'
           gradle-args: ${{ inputs.gradle-args }}
+      - name: Upload build reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            **/build/reports/kover/html/**
+            **/build/reports/problems/**
+          if-no-files-found: ignore
+          retention-days: 30
