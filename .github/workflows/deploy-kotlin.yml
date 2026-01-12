@@ -126,7 +126,7 @@ on:
       JIRA_TOKEN:
         required: false
         description: 'JIRA API token for authentication (used for ticket operations in changelog)'
-      GITHUB_TOKEN:
+      CHANGELOG_GITHUB_TOKEN:
         required: false
         description: 'GitHub token for changelog generation'
 
@@ -255,7 +255,7 @@ jobs:
         with:
           service-name: ${{ inputs.service-name }}
           github-release: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.CHANGELOG_GITHUB_TOKEN }}
           github-tag-pattern: ${{ inputs.changelog-tag-pattern }}
           github-path-exclude-pattern: ${{ inputs.changelog-path-exclude-pattern }}
           jira-app-name: "montaapp"
