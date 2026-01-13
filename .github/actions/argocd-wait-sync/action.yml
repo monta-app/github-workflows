@@ -1,0 +1,61 @@
+name: 'ArgoCD Wait for Sync'
+description: 'Wait for ArgoCD application to sync and become healthy'
+author: 'Monta'
+
+inputs:
+  server:
+    description: 'ArgoCD server URL (e.g., argocd.example.com)'
+    required: true
+  app-name:
+    description: 'ArgoCD application name'
+    required: true
+  auth-token:
+    description: 'ArgoCD authentication token'
+    required: true
+  timeout:
+    description: 'Timeout in seconds to wait for sync completion'
+    required: false
+    default: '300'
+  revision:
+    description: 'Expected git revision/commit SHA to verify deployment'
+    required: true
+  namespace:
+    description: 'ArgoCD namespace where Application resource is stored (for UI URL construction)'
+    required: false
+    default: 'argocd'
+
+outputs:
+  deployment-start-time:
+    description: 'ISO 8601 timestamp when ArgoCD started the sync operation (from ArgoCD operationState)'
+    value: ${{ steps.wait-sync.outputs.deployment-start-time }}
+  deployment-end-time:
+    description: 'ISO 8601 timestamp when health status changed to Healthy (captured via real-time monitoring)'
+    value: ${{ steps.wait-sync.outputs.deployment-end-time }}
+  deployment-url:
+    description: 'Direct URL to the application in ArgoCD UI'
+    value: https://${{ inputs.server }}/applications/${{ inputs.namespace }}/${{ inputs.app-name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install ArgoCD CLI
+      shell: bash
+      run: |
+        echo "Installing ArgoCD CLI..."
+        curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        sudo install -m 755 argocd /usr/local/bin/argocd
+        rm argocd
+        argocd version --client
+
+    - name: Wait for ArgoCD sync and monitor health transition
+      id: wait-sync
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.server }}
+        ARGOCD_AUTH_TOKEN: ${{ inputs.auth-token }}
+        APP_NAME: ${{ inputs.app-name }}
+        EXPECTED_REVISION: ${{ inputs.revision }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        # Run the shared wait-sync script
+        "${{ github.action_path }}/wait-sync.sh"
