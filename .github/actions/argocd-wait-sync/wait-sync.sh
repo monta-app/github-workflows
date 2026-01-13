@@ -70,6 +70,7 @@ DEPLOYMENT_STARTED=false
 HEALTH_ACHIEVED=false
 HEALTH_TIMESTAMP=""
 MISSED_DEPLOYMENT=false
+VERIFIED_REVISION=""
 
 while true; do
     ELAPSED=$(($(date +%s) - START))
@@ -142,6 +143,8 @@ while true; do
                 HEALTH_ACHIEVED=true
                 # Use current time since we missed the actual transition
                 HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                # Capture the verified revision before breaking
+                VERIFIED_REVISION="$CURRENT_REVISION"
                 break
             else
                 # Found our revision and it's deploying!
@@ -157,8 +160,9 @@ while true; do
     # Phase 2: Monitor for health transition (once we've confirmed deployment started)
     if [ "$DEPLOYMENT_STARTED" = true ] && [ "$HEALTH_ACHIEVED" = false ]; then
         if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
-            # Capture timestamp the moment we detect health
+            # Capture timestamp and revision the moment we detect health
             HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            VERIFIED_REVISION="$CURRENT_REVISION"
             echo "✓ Application became healthy at: $HEALTH_TIMESTAMP"
             HEALTH_ACHIEVED=true
             break
@@ -176,12 +180,21 @@ fi
 echo ""
 echo "Application '$APP_NAME' is synced and healthy!"
 
-# Get deployment start time and verify revision
-echo ""
-echo "Retrieving deployment information from ArgoCD..."
-APP_INFO=$(argocd app get "$APP_NAME" -o json "${ARGOCD_FLAGS[@]}")
+# Verify we have the revision we captured during monitoring
+if [ -z "$VERIFIED_REVISION" ]; then
+    echo "::error::Internal error: No revision was captured during monitoring"
+    exit 1
+fi
+
+echo "Expected revision: $EXPECTED_REVISION"
+echo "Deployed revision: $VERIFIED_REVISION (captured when health achieved)"
 
 # Get deployment start time from ArgoCD's operationState
+# Note: We fetch this separately to get accurate start time, but use VERIFIED_REVISION
+# which was captured during the monitoring loop, not the current revision
+echo ""
+echo "Retrieving deployment start time from ArgoCD..."
+APP_INFO=$(argocd app get "$APP_NAME" -o json "${ARGOCD_FLAGS[@]}")
 START_TIME=$(echo "$APP_INFO" | jq -r '.status.operationState.startedAt // empty')
 
 if [ -z "$START_TIME" ]; then
@@ -191,26 +204,11 @@ fi
 
 echo "Deployment started at: $START_TIME (from ArgoCD operationState)"
 
-# Verify revision
-DEPLOYED_REVISION=$(echo "$APP_INFO" | jq -r '.status.sync.revision // empty')
-echo "Expected revision: $EXPECTED_REVISION"
-echo "Deployed revision: $DEPLOYED_REVISION"
+# Note: We already verified VERIFIED_REVISION matches EXPECTED_REVISION during the
+# monitoring loop, so we don't need to check again. This allows the action to succeed
+# even if another deployment happened after ours and ArgoCD moved to a newer revision.
 
-if [ -z "$DEPLOYED_REVISION" ]; then
-    echo "::error::Could not determine deployed revision from ArgoCD"
-    exit 1
-fi
-
-# Check if deployed revision starts with expected revision (allows short SHAs)
-if [[ ! "$DEPLOYED_REVISION" =~ ^${EXPECTED_REVISION} ]]; then
-    echo "::error::Revision mismatch! Expected: $EXPECTED_REVISION, Deployed: $DEPLOYED_REVISION"
-    echo "::error::The synced application is not running the expected revision."
-    echo "::error::This could mean auto-sync already completed with a different commit,"
-    echo "::error::or the sync operation deployed an unexpected version."
-    exit 1
-fi
-
-echo "✓ Revision verified: $DEPLOYED_REVISION"
+echo "✓ Revision verified: $VERIFIED_REVISION"
 echo ""
 
 # Output results
