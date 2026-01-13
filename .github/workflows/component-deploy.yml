@@ -61,9 +61,9 @@ on:
       deployment-end-time:
         description: 'ISO 8601 timestamp when deployment became healthy (only if auto-sync enabled)'
         value: ${{ jobs.deploy.outputs.deployment-end-time }}
-      argocd-url:
+      deployment-url:
         description: 'Direct URL to the application in ArgoCD UI (only if auto-sync enabled)'
-        value: ${{ jobs.deploy.outputs.argocd-url }}
+        value: ${{ jobs.deploy.outputs.deployment-url }}
 
 permissions:
   contents: read
@@ -81,7 +81,7 @@ jobs:
       image-tag: ${{ inputs.image-tag }}
       deployment-start-time: ${{ steps.argocd-sync.outputs.deployment-start-time }}
       deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
-      argocd-url: ${{ steps.argocd-sync.outputs.argocd-url }}
+      deployment-url: ${{ steps.argocd-sync.outputs.deployment-url }}
     steps:
       - name: Update existing slack message
         id: slack-update

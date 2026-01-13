@@ -27,7 +27,7 @@ This action installs the ArgoCD CLI and monitors an ArgoCD application until it 
 |--------|-------------|
 | `deployment-start-time` | ISO 8601 timestamp when ArgoCD started the sync operation (UTC) |
 | `deployment-end-time` | ISO 8601 timestamp when deployment completed and application became healthy (UTC) |
-| `argocd-url` | Direct URL to the application in ArgoCD UI |
+| `deployment-url` | Direct URL to the application in ArgoCD UI |
 
 These timestamps capture the **full deployment window** including pod rollout:
 
@@ -122,7 +122,7 @@ jobs:
         run: |
           echo "Deployment started: ${{ steps.argocd-sync.outputs.deployment-start-time }}"
           echo "Deployment completed: ${{ steps.argocd-sync.outputs.deployment-end-time }}"
-          echo "ArgoCD UI: ${{ steps.argocd-sync.outputs.argocd-url }}"
+          echo "ArgoCD UI: ${{ steps.argocd-sync.outputs.deployment-url }}"
 
       - name: Comment on PR with deployment info
         if: github.event_name == 'pull_request'
@@ -139,7 +139,7 @@ jobs:
               - Started: ${{ steps.argocd-sync.outputs.deployment-start-time }}
               - Completed: ${{ steps.argocd-sync.outputs.deployment-end-time }}
 
-              [View in ArgoCD](${{ steps.argocd-sync.outputs.argocd-url }})`
+              [View in ArgoCD](${{ steps.argocd-sync.outputs.deployment-url }})`
             })
 
       - name: Log to monitoring system
@@ -148,7 +148,7 @@ jobs:
             -d "service=my-service" \
             -d "start=${{ steps.argocd-sync.outputs.deployment-start-time }}" \
             -d "end=${{ steps.argocd-sync.outputs.deployment-end-time }}" \
-            -d "argocd_url=${{ steps.argocd-sync.outputs.argocd-url }}"
+            -d "argocd_url=${{ steps.argocd-sync.outputs.deployment-url }}"
 ```
 
 ## Prerequisites

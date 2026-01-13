@@ -31,7 +31,7 @@ outputs:
   deployment-end-time:
     description: 'ISO 8601 timestamp when health status changed to Healthy (captured via real-time monitoring)'
     value: ${{ steps.wait-sync.outputs.deployment-end-time }}
-  argocd-url:
+  deployment-url:
     description: 'Direct URL to the application in ArgoCD UI'
     value: https://${{ inputs.server }}/applications/${{ inputs.namespace }}/${{ inputs.app-name }}
 
