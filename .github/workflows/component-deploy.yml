@@ -146,6 +146,14 @@ jobs:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
           repository: monta-app/kube-manifests
+      - name: Get manifest commit SHA
+        id: manifest-sha
+        shell: bash
+        working-directory: './manifests'
+        run: |
+          MANIFEST_SHA=$(git rev-parse HEAD)
+          echo "sha=$MANIFEST_SHA" >> "$GITHUB_OUTPUT"
+          echo "Manifest commit SHA: $MANIFEST_SHA"
       - name: Check ArgoCD credentials
         id: check-argocd-creds
         shell: bash
@@ -175,7 +183,7 @@ jobs:
           server: ${{ inputs.argocd-server }}
           app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
-          revision: ${{ github.sha }}
+          revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: 300
       - name: Publish result message to slack
         if: always()
