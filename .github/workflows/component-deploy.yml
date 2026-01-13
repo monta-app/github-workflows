@@ -26,6 +26,10 @@ on:
         required: false
         type: string
         description: 'Existing Slack message ID to update'
+      argocd-server:
+        required: false
+        type: string
+        description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -33,9 +37,6 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
-      ARGOCD_SERVER:
-        required: false
-        description: 'ArgoCD server URL (required if auto-sync is enabled in config.yaml)'
       ARGOCD_TOKEN:
         required: false
         description: 'ArgoCD authentication token (required if auto-sync is enabled in config.yaml)'
@@ -149,7 +150,7 @@ jobs:
         id: check-argocd-creds
         shell: bash
         env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_SERVER: ${{ inputs.argocd-server }}
           ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
         run: |
           if [ -n "$ARGOCD_SERVER" ] && [ -n "$ARGOCD_TOKEN" ]; then
@@ -164,14 +165,14 @@ jobs:
           if [ "${{ steps.detect-autosync.outputs.enabled }}" = "false" ]; then
             echo "⏭️ Skipping ArgoCD sync monitoring - auto-sync is not configured for this application"
           else
-            echo "⏭️ Skipping ArgoCD sync monitoring - ARGOCD_SERVER or ARGOCD_TOKEN secrets not provided"
+            echo "⏭️ Skipping ArgoCD sync monitoring - argocd-server input or ARGOCD_TOKEN secret not provided"
           fi
       - name: Wait for ArgoCD sync
         if: ${{ steps.detect-autosync.outputs.enabled == 'true' && steps.check-argocd-creds.outputs.available == 'true' }}
         id: argocd-sync
         uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
         with:
-          server: ${{ secrets.ARGOCD_SERVER }}
+          server: ${{ inputs.argocd-server }}
           app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ github.sha }}
