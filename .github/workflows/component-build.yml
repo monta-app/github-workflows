@@ -164,6 +164,10 @@ jobs:
           context: .
           file: ./${{ inputs.docker-file-name }}
           push: true
+          # Disable provenance to keep single-platform images simple (not manifest lists)
+          # Buildx (used for caching) enables provenance by default, unlike the default docker driver
+          # Required for manual multi-arch manifest creation in create-manifest job
+          provenance: false
           no-cache: ${{ !inputs.enable-cache }}
           cache-from: ${{ inputs.enable-cache && 'type=gha' || '' }}
           cache-to: ${{ inputs.enable-cache && 'type=gha,mode=max' || '' }}
