@@ -88,6 +88,10 @@ on:
         type: boolean
         default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
+      argocd-server:
+        required: false
+        type: string
+        description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
 
     secrets:
       GHL_USERNAME:
@@ -129,9 +133,6 @@ on:
       CHANGELOG_GITHUB_TOKEN:
         required: false
         description: 'GitHub token for changelog generation'
-      ARGOCD_SERVER:
-        required: false
-        description: 'ArgoCD server URL for deployment monitoring'
       ARGOCD_TOKEN:
         required: false
         description: 'ArgoCD authentication token for API access'
@@ -234,10 +235,10 @@ jobs:
       stage: ${{ inputs.stage }}
       image-tag: ${{ needs.build.outputs.image-tag }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+      argocd-server: ${{ inputs.argocd-server }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
-      ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
   update-service-profile:
     name: Update Service Profile
