@@ -169,8 +169,9 @@ jobs:
           # Required for manual multi-arch manifest creation in create-manifest job
           provenance: false
           no-cache: ${{ !inputs.enable-cache }}
-          cache-from: ${{ inputs.enable-cache && 'type=gha' || '' }}
-          cache-to: ${{ inputs.enable-cache && 'type=gha,mode=max' || '' }}
+          # Scope cache by architecture to prevent amd64/arm64 builds from overwriting each other
+          cache-from: ${{ inputs.enable-cache && format('type=gha,scope=build-{0}', matrix.arch) || '' }}
+          cache-to: ${{ inputs.enable-cache && format('type=gha,mode=max,scope=build-{0}', matrix.arch) || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
