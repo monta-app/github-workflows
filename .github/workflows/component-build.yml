@@ -162,8 +162,8 @@ jobs:
           file: ./${{ inputs.docker-file-name }}
           push: true
           no-cache: ${{ !inputs.enable-cache }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: ${{ inputs.enable-cache && 'type=gha' || '' }}
+          cache-to: ${{ inputs.enable-cache && 'type=gha,mode=max' || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
