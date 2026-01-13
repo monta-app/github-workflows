@@ -88,6 +88,11 @@ on:
         type: boolean
         default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
+      enable-cache:
+        required: false
+        type: boolean
+        default: false
+        description: 'Enable Docker layer caching'
 
     secrets:
       GHL_USERNAME:
@@ -193,6 +198,7 @@ jobs:
       docker-file-name: ${{ inputs.docker-file-name }}
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
+      enable-cache: ${{ inputs.enable-cache }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
