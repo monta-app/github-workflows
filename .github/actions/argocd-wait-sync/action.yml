@@ -23,6 +23,10 @@ inputs:
     description: 'ArgoCD namespace where Application resource is stored (for UI URL construction)'
     required: false
     default: 'argocd'
+  manifest-repo:
+    description: 'GitHub repository containing ArgoCD manifests (e.g., owner/repo-name) for supersede detection'
+    required: false
+    default: 'monta-app/kube-manifests'
 
 outputs:
   deployment-start-time:
@@ -56,6 +60,7 @@ runs:
         APP_NAME: ${{ inputs.app-name }}
         EXPECTED_REVISION: ${{ inputs.revision }}
         TIMEOUT: ${{ inputs.timeout }}
+        MANIFEST_REPO: ${{ inputs.manifest-repo }}
       run: |
         # Run the shared wait-sync script
         "${{ github.action_path }}/wait-sync.sh"
