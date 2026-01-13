@@ -33,6 +33,12 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+      ARGOCD_SERVER:
+        required: false
+        description: 'ArgoCD server URL (required if auto-sync is enabled in config.yaml)'
+      ARGOCD_TOKEN:
+        required: false
+        description: 'ArgoCD authentication token (required if auto-sync is enabled in config.yaml)'
     outputs:
       slack-message-id:
         description: 'Slack message ID for subsequent updates'
@@ -49,6 +55,15 @@ on:
       image-tag:
         description: 'Docker image tag that was deployed'
         value: ${{ jobs.deploy.outputs.image-tag }}
+      deployment-start-time:
+        description: 'ISO 8601 timestamp when ArgoCD started the sync (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-start-time }}
+      deployment-end-time:
+        description: 'ISO 8601 timestamp when deployment became healthy (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-end-time }}
+      argocd-url:
+        description: 'Direct URL to the application in ArgoCD UI (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.argocd-url }}
 
 permissions:
   contents: read
@@ -64,6 +79,9 @@ jobs:
       docker-image: ${{ steps.update-image-tag.outputs.docker-image }}
       previous-image-tag: ${{ steps.update-image-tag.outputs.previous-image-tag }}
       image-tag: ${{ inputs.image-tag }}
+      deployment-start-time: ${{ steps.argocd-sync.outputs.deployment-start-time }}
+      deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
+      argocd-url: ${{ steps.argocd-sync.outputs.argocd-url }}
     steps:
       - name: Update existing slack message
         id: slack-update
@@ -101,6 +119,19 @@ jobs:
           previousHash=$(yq e .currentHash config.yaml) yq e '.previousHash = strenv(previousHash)' -i config.yaml
           # Update currentHash
           currentHash=${GITHUB_SHA::8} yq e '.currentHash = strenv(currentHash)' -i config.yaml
+      - name: Detect ArgoCD auto-sync configuration
+        id: detect-autosync
+        shell: bash
+        working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
+        run: |
+          # Check if autoSync is configured in config.yaml
+          if yq e '.autoSync' config.yaml | grep -q -v "null"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "✓ ArgoCD auto-sync is enabled for this application"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ ArgoCD auto-sync is not configured for this application"
+          fi
       - name: Commit to manifest repository
         working-directory: './manifests'
         run: |
@@ -114,6 +145,25 @@ jobs:
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}
           directory: './manifests'
           repository: monta-app/kube-manifests
+      - name: Log ArgoCD sync skip
+        if: ${{ steps.detect-autosync.outputs.enabled == 'false' || secrets.ARGOCD_SERVER == '' || secrets.ARGOCD_TOKEN == '' }}
+        shell: bash
+        run: |
+          if [ "${{ steps.detect-autosync.outputs.enabled }}" = "false" ]; then
+            echo "⏭️ Skipping ArgoCD sync monitoring - auto-sync is not configured for this application"
+          else
+            echo "⏭️ Skipping ArgoCD sync monitoring - ARGOCD_SERVER or ARGOCD_TOKEN secrets not provided"
+          fi
+      - name: Wait for ArgoCD sync
+        if: ${{ steps.detect-autosync.outputs.enabled == 'true' && secrets.ARGOCD_SERVER != '' && secrets.ARGOCD_TOKEN != '' }}
+        id: argocd-sync
+        uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
+        with:
+          server: ${{ secrets.ARGOCD_SERVER }}
+          app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
+          auth-token: ${{ secrets.ARGOCD_TOKEN }}
+          revision: ${{ github.sha }}
+          timeout: 300
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main

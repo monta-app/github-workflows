@@ -129,6 +129,12 @@ on:
       CHANGELOG_GITHUB_TOKEN:
         required: false
         description: 'GitHub token for changelog generation'
+      ARGOCD_SERVER:
+        required: false
+        description: 'ArgoCD server URL for deployment monitoring'
+      ARGOCD_TOKEN:
+        required: false
+        description: 'ArgoCD authentication token for API access'
 
     outputs:
       slack-message-id:
@@ -222,6 +228,8 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
   update-service-profile:
     name: Update Service Profile
     needs: deploy
