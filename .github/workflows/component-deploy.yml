@@ -153,9 +153,9 @@ jobs:
           ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
         run: |
           if [ -n "$ARGOCD_SERVER" ] && [ -n "$ARGOCD_TOKEN" ]; then
-            echo "available=true" >> $GITHUB_OUTPUT
+            echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "available=false" >> $GITHUB_OUTPUT
+            echo "available=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Log ArgoCD sync skip
         if: ${{ steps.detect-autosync.outputs.enabled == 'false' || steps.check-argocd-creds.outputs.available == 'false' }}
