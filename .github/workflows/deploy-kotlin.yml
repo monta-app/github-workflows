@@ -286,3 +286,6 @@ jobs:
           docker-image: ${{ needs.deploy.outputs.docker-image }}
           image-tag: ${{ needs.deploy.outputs.image-tag }}
           previous-image-tag: ${{ needs.deploy.outputs.previous-image-tag }}
+          deployment-start-time: ${{ needs.deploy.outputs.deployment-start-time }}
+          deployment-end-time: ${{ needs.deploy.outputs.deployment-end-time }}
+          deployment-url: ${{ needs.deploy.outputs.deployment-url }}
