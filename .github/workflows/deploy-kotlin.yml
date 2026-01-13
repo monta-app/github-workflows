@@ -152,6 +152,15 @@ on:
       image-tag:
         description: 'Docker image tag that was deployed'
         value: ${{ jobs.deploy.outputs.image-tag }}
+      deployment-start-time:
+        description: 'ISO 8601 timestamp when deployment started (only if ArgoCD auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-start-time }}
+      deployment-end-time:
+        description: 'ISO 8601 timestamp when deployment became healthy (only if ArgoCD auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-end-time }}
+      deployment-url:
+        description: 'Direct URL to the application in ArgoCD UI (only if ArgoCD auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-url }}
 
 permissions:
   id-token: write
