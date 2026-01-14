@@ -163,15 +163,21 @@ while true; do
                 echo "  Running supersede detection check..."
 
                 # Use GitHub API to check if expected revision is an ancestor of current revision
+                # Disable pipefail temporarily to capture errors without exiting
+                set +e
                 COMPARE_STATUS=$(gh api repos/${MANIFEST_REPO}/compare/${EXPECTED_REVISION}...${CURRENT_REVISION} --jq '.status' 2>&1)
                 COMPARE_EXIT_CODE=$?
+                set -e
 
                 if [ $COMPARE_EXIT_CODE -ne 0 ]; then
-                    echo "  Warning: Failed to check commit ancestry: $COMPARE_STATUS"
+                    echo "  Warning: Failed to check commit ancestry (exit code: $COMPARE_EXIT_CODE)"
+                    echo "  Response: $COMPARE_STATUS"
+                elif [ -z "$COMPARE_STATUS" ] || [ "$COMPARE_STATUS" = "null" ]; then
+                    echo "  Warning: Comparison returned empty or null status"
                 else
-                    echo "  Comparison result: $EXPECTED_REVISION...$CURRENT_REVISION = $COMPARE_STATUS"
+                    echo "  Comparison result: ${EXPECTED_REVISION:0:7}...${CURRENT_REVISION:0:7} = $COMPARE_STATUS"
 
-                    if echo "$COMPARE_STATUS" | grep -q "ahead\|diverged"; then
+                    if [ "$COMPARE_STATUS" = "ahead" ] || [ "$COMPARE_STATUS" = "diverged" ]; then
                         echo "::error::Deployment superseded - ArgoCD moved to a newer commit"
                         echo "::error::Expected revision: $EXPECTED_REVISION"
                         echo "::error::Current revision: $CURRENT_REVISION"
