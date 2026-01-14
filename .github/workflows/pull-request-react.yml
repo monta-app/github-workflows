@@ -15,8 +15,8 @@ on:
       pnpm-version:
         required: false
         type: string
-        default: '10'
-        description: "pnpm version to use"
+        default: ''
+        description: "pnpm version to use (leave empty to use packageManager from package.json)"
       working-directory:
         required: false
         type: string
@@ -76,7 +76,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: ${{ inputs.pnpm-version }}
+          version: ${{ inputs.pnpm-version || null }}
           run_install: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
