@@ -151,6 +151,33 @@ while true; do
         else
             # Still waiting for ArgoCD to detect our revision
             echo "  Waiting for ArgoCD to detect new revision (current: ${CURRENT_REVISION:0:7}, expected: ${EXPECTED_REVISION:0:7})"
+
+            # Check if current revision is ahead of expected revision (deployment was superseded)
+            # This requires GitHub CLI to check commit ancestry in manifest repo
+            if command -v gh &> /dev/null && [ -n "$CURRENT_REVISION" ] && [ "$ELAPSED" -gt 30 ]; then
+                # Only check after 30s to avoid false positives during initial polling
+                echo "  Running supersede detection check..."
+
+                # Use GitHub API to check if expected revision is an ancestor of current revision
+                COMPARE_STATUS=$(gh api repos/${MANIFEST_REPO}/compare/${EXPECTED_REVISION}...${CURRENT_REVISION} --jq '.status' 2>&1)
+                COMPARE_EXIT_CODE=$?
+
+                if [ $COMPARE_EXIT_CODE -ne 0 ]; then
+                    echo "  Warning: Failed to check commit ancestry: $COMPARE_STATUS"
+                else
+                    echo "  Comparison result: $EXPECTED_REVISION...$CURRENT_REVISION = $COMPARE_STATUS"
+
+                    if echo "$COMPARE_STATUS" | grep -q "ahead\|diverged"; then
+                        echo "::error::Deployment superseded - ArgoCD moved to a newer commit"
+                        echo "::error::Expected revision: $EXPECTED_REVISION"
+                        echo "::error::Current revision: $CURRENT_REVISION"
+                        echo "::error::Comparison status: $COMPARE_STATUS"
+                        echo "::error::Another service deployed after yours, and ArgoCD skipped your commit."
+                        echo "::error::Your changes are still in the manifest, but were deployed as part of the newer commit."
+                        exit 1
+                    fi
+                fi
+            fi
         fi
     fi
 
