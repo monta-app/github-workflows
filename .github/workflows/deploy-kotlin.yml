@@ -78,6 +78,16 @@ on:
         required: false
         type: string
         description: 'Regex pattern for excluding file paths from changelog - example: ^gateway/'
+      comment-on-prs:
+        required: false
+        type: boolean
+        default: true
+        description: 'Comment on PRs with production deployment information (automatically disabled if requirements not met)'
+      comment-on-jira:
+        required: false
+        type: boolean
+        default: true
+        description: 'Comment on JIRA tickets with production deployment information (automatically disabled if requirements not met)'
       run-tests:
         required: false
         type: boolean
@@ -296,3 +306,5 @@ jobs:
           deployment-start-time: ${{ needs.deploy.outputs.deployment-start-time }}
           deployment-end-time: ${{ needs.deploy.outputs.deployment-end-time }}
           deployment-url: ${{ needs.deploy.outputs.deployment-url }}
+          comment-on-prs: ${{ inputs.comment-on-prs }}
+          comment-on-jira: ${{ inputs.comment-on-jira }}
