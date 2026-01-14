@@ -34,6 +34,10 @@ on:
         required: false
         type: string
         description: 'Repository name override (default: service-{service-identifier})'
+      argocd-server:
+        required: false
+        type: string
+        description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -41,6 +45,9 @@ on:
       SLACK_APP_TOKEN:
         required: true
         description: 'Slack app token'
+      ARGOCD_TOKEN:
+        required: false
+        description: 'ArgoCD authentication token (required if auto-sync is enabled)'
     outputs:
       slack-message-id:
         description: 'Slack message ID for subsequent updates'
@@ -57,6 +64,15 @@ on:
       image-tag:
         description: 'Docker image tag that was deployed'
         value: ${{ jobs.deploy.outputs.image-tag }}
+      deployment-start-time:
+        description: 'ISO 8601 timestamp when ArgoCD started the sync (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-start-time }}
+      deployment-end-time:
+        description: 'ISO 8601 timestamp when deployment became healthy (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-end-time }}
+      deployment-url:
+        description: 'Direct URL to the application in ArgoCD UI (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-url }}
 
 permissions:
   contents: read
@@ -65,13 +81,16 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     outputs:
       slack-message-id: ${{ steps.slack-update.outputs.message-id }}
       stage: ${{ inputs.stage }}
       docker-image: ${{ steps.capture-image-info.outputs.docker-image }}
       previous-image-tag: ${{ steps.capture-image-info.outputs.previous-image-tag }}
       image-tag: ${{ inputs.image-tag }}
+      deployment-start-time: ${{ steps.argocd-sync.outputs.deployment-start-time }}
+      deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
+      deployment-url: ${{ steps.argocd-sync.outputs.deployment-url }}
     steps:
       - name: Update existing slack message
         id: slack-update
@@ -118,6 +137,64 @@ jobs:
             yq e '.kotlin.build = ${{ github.run_number }}' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
           max_retries: 10
           retry_delay: 2
+      - name: Get manifest commit SHA
+        id: manifest-sha
+        shell: bash
+        working-directory: './service-repo'
+        run: |
+          MANIFEST_SHA=$(git rev-parse HEAD)
+          echo "sha=$MANIFEST_SHA" >> "$GITHUB_OUTPUT"
+          echo "Manifest commit SHA: $MANIFEST_SHA"
+      - name: Detect ArgoCD auto-sync configuration
+        id: detect-autosync
+        shell: bash
+        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}', inputs.service-identifier, inputs.stage) }}
+        run: |
+          # Check if config.yaml exists and has autoSync configured
+          if [ -f "../cluster/config.yaml" ]; then
+            if yq e '.autoSync' ../cluster/config.yaml | grep -q -v "null"; then
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+              echo "✓ ArgoCD auto-sync is enabled for this application"
+            else
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "⏭️ ArgoCD auto-sync is not configured for this application"
+            fi
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ No config.yaml found - ArgoCD auto-sync is not configured"
+          fi
+      - name: Check ArgoCD credentials
+        id: check-argocd-creds
+        shell: bash
+        env:
+          ARGOCD_SERVER: ${{ inputs.argocd-server }}
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+        run: |
+          if [ -n "$ARGOCD_SERVER" ] && [ -n "$ARGOCD_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Log ArgoCD sync skip
+        if: ${{ steps.detect-autosync.outputs.enabled == 'false' || steps.check-argocd-creds.outputs.available == 'false' }}
+        shell: bash
+        run: |
+          if [ "${{ steps.detect-autosync.outputs.enabled }}" = "false" ]; then
+            echo "⏭️ Skipping ArgoCD sync monitoring - auto-sync is not configured for this application"
+          else
+            echo "⏭️ Skipping ArgoCD sync monitoring - argocd-server input or ARGOCD_TOKEN secret not provided"
+          fi
+      - name: Wait for ArgoCD sync
+        if: ${{ steps.detect-autosync.outputs.enabled == 'true' && steps.check-argocd-creds.outputs.available == 'true' }}
+        id: argocd-sync
+        uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
+        with:
+          server: ${{ inputs.argocd-server }}
+          app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
+          auth-token: ${{ secrets.ARGOCD_TOKEN }}
+          revision: ${{ steps.manifest-sha.outputs.sha }}
+          timeout: 300
+          manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
       - name: Fix permissions for cleanup
         if: always()
         shell: bash
