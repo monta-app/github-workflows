@@ -27,6 +27,9 @@ inputs:
     description: 'GitHub repository containing ArgoCD manifests (e.g., owner/repo-name) for supersede detection'
     required: false
     default: 'monta-app/kube-manifests'
+  github-token:
+    description: 'GitHub token for API access (required for supersede detection)'
+    required: true
 
 outputs:
   deployment-start-time:
@@ -61,6 +64,7 @@ runs:
         EXPECTED_REVISION: ${{ inputs.revision }}
         TIMEOUT: ${{ inputs.timeout }}
         MANIFEST_REPO: ${{ inputs.manifest-repo }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         # Run the shared wait-sync script
         "${{ github.action_path }}/wait-sync.sh"
