@@ -195,7 +195,7 @@ jobs:
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: 300
           manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
-          github-token: ${{ github.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Fix permissions for cleanup
         if: always()
         shell: bash
