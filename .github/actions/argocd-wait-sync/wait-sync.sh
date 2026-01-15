@@ -66,6 +66,12 @@ echo "Expected revision: ${EXPECTED_REVISION:0:7}"
 echo "Timeout: ${TIMEOUT}s"
 echo ""
 
+# Trigger immediate refresh to hint ArgoCD about the new revision
+# This reduces wait time from minutes to seconds by avoiding ArgoCD's polling interval
+echo "Triggering ArgoCD refresh to detect new revision immediately..."
+argocd app get "$APP_NAME" --refresh "${ARGOCD_FLAGS[@]}" &>/dev/null || true
+echo ""
+
 START=$(date +%s)
 DEPLOYMENT_STARTED=false
 HEALTH_ACHIEVED=false
