@@ -106,7 +106,28 @@ while true; do
         exit 1
     fi
 
-    if [ "$SYNC_STATUS" = "Unknown" ] && [ "$ELAPSED" -gt 30 ]; then
+    # Check for ComparisonError condition
+    COMPARISON_ERROR=$(echo "$APP_INFO" | jq -r '.status.conditions[] | select(.type == "ComparisonError") | .message // ""' 2>/dev/null || echo "")
+
+    if [ -n "$COMPARISON_ERROR" ]; then
+        echo "::warning::ArgoCD ComparisonError detected: $COMPARISON_ERROR"
+
+        # Attempt hard refresh to clear corrupted cache
+        if [ "$ELAPSED" -eq 5 ] || [ "$ELAPSED" -eq 10 ]; then
+            echo "  Attempting hard refresh to clear ArgoCD cache..."
+            argocd app get "$APP_NAME" --hard-refresh "${ARGOCD_FLAGS[@]}" &>/dev/null || true
+            echo "  Hard refresh triggered, waiting for ArgoCD to recompute state..."
+        fi
+
+        if [ "$ELAPSED" -gt 60 ]; then
+            # Give it 60 seconds to resolve ComparisonError with hard refresh
+            echo "::error::ArgoCD ComparisonError persists after 60s and hard refresh attempts"
+            echo "::error::This indicates a server-side issue with ArgoCD's repository cache"
+            echo "::error::ComparisonError: $COMPARISON_ERROR"
+            argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
+            exit 1
+        fi
+    elif [ "$SYNC_STATUS" = "Unknown" ] && [ "$ELAPSED" -gt 30 ]; then
         # Give it 30 seconds before failing on Unknown status (might be transient)
         echo "::error::Application sync status is Unknown after 30s"
         argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
