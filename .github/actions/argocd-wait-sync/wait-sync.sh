@@ -198,13 +198,29 @@ while true; do
                 else
                     echo "  Comparison result: ${EXPECTED_REVISION:0:7}...${CURRENT_REVISION:0:7} = $COMPARE_STATUS"
 
-                    if [ "$COMPARE_STATUS" = "ahead" ] || [ "$COMPARE_STATUS" = "diverged" ]; then
-                        echo "::error::Deployment superseded - ArgoCD moved to a newer commit"
+                    if [ "$COMPARE_STATUS" = "ahead" ]; then
+                        # Current revision is ahead of expected - expected commit is an ancestor
+                        # This means our changes ARE deployed, just bundled with other changes
+                        echo "::warning::Deployment bundled - ArgoCD deployed a newer commit that includes your changes"
+                        echo "::warning::Expected revision: ${EXPECTED_REVISION:0:7}"
+                        echo "::warning::Deployed revision: ${CURRENT_REVISION:0:7}"
+                        echo "::warning::Your changes were deployed as part of the newer commit (git ancestry confirmed)"
+                        # Treat this as successful - capture current revision and mark as deployed
+                        DEPLOYMENT_STARTED=true
+                        VERIFIED_REVISION="$CURRENT_REVISION"
+                        # Check if already healthy
+                        if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
+                            HEALTH_ACHIEVED=true
+                            HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                            MISSED_DEPLOYMENT=true
+                            break
+                        fi
+                    elif [ "$COMPARE_STATUS" = "diverged" ]; then
+                        # Branches have diverged - expected commit might not be in current
+                        echo "::error::Deployment diverged - branches have no common ancestry"
                         echo "::error::Expected revision: $EXPECTED_REVISION"
                         echo "::error::Current revision: $CURRENT_REVISION"
-                        echo "::error::Comparison status: $COMPARE_STATUS"
-                        echo "::error::Another service deployed after yours, and ArgoCD skipped your commit."
-                        echo "::error::Your changes are still in the manifest, but were deployed as part of the newer commit."
+                        echo "::error::The manifest repo history has diverged. Your changes may not be deployed."
                         exit 1
                     fi
                 fi
