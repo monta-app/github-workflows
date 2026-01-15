@@ -58,6 +58,10 @@ on:
         required: false
         type: string
         description: 'Repository name override (default: service-{service-identifier})'
+      argocd-server:
+        required: false
+        type: string
+        description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -80,6 +84,9 @@ on:
       TEST_ENV_FILE:
         required: false
         description: 'Environment variables for tests in .env format'
+      ARGOCD_TOKEN:
+        required: false
+        description: 'ArgoCD authentication token (required if auto-sync is enabled)'
 
     outputs:
       slack-message-id:
@@ -97,6 +104,15 @@ on:
       image-tag:
         description: 'Docker image tag that was deployed'
         value: ${{ jobs.deploy.outputs.image-tag }}
+      deployment-start-time:
+        description: 'ISO 8601 timestamp when ArgoCD started the sync (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-start-time }}
+      deployment-end-time:
+        description: 'ISO 8601 timestamp when deployment became healthy (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-end-time }}
+      deployment-url:
+        description: 'Direct URL to the application in ArgoCD UI (only if auto-sync enabled)'
+        value: ${{ jobs.deploy.outputs.deployment-url }}
 
 permissions:
   id-token: write
@@ -152,6 +168,8 @@ jobs:
       slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
       helm-values-path: ${{ inputs.helm-values-path }}
       repository-name: ${{ inputs.repository-name }}
+      argocd-server: ${{ inputs.argocd-server }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
