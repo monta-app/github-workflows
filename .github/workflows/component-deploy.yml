@@ -185,7 +185,7 @@ jobs:
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: 300
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
