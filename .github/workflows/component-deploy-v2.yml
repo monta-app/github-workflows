@@ -149,19 +149,38 @@ jobs:
         id: detect-autosync
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}', inputs.service-identifier, inputs.stage) }}
+        env:
+          GH_TOKEN: ${{ secrets.MANIFEST_REPO_PAT }}
         run: |
-          # Check if config.yaml exists and has autoSync configured
+          # Check if config.yaml exists locally and has autoSync configured
           if [ -f "../cluster/config.yaml" ]; then
             if yq e '.autoSync' ../cluster/config.yaml | grep -q -v "null"; then
               echo "enabled=true" >> "$GITHUB_OUTPUT"
-              echo "✓ ArgoCD auto-sync is enabled for this application"
+              echo "✓ ArgoCD auto-sync is enabled for this application (local config)"
             else
               echo "enabled=false" >> "$GITHUB_OUTPUT"
               echo "⏭️ ArgoCD auto-sync is not configured for this application"
             fi
           else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ No config.yaml found - ArgoCD auto-sync is not configured"
+            echo "⏭️ No local config.yaml found, checking kube-manifests repo..."
+
+            # Fallback: Check kube-manifests repo via GitHub API
+            CONFIG_PATH="apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml"
+
+            # Try fetching from kube-manifests repo
+            if CONFIG_CONTENT=$(gh api repos/monta-app/kube-manifests/contents/$CONFIG_PATH --jq '.content' 2>/dev/null); then
+              # Decode base64 content and check for autoSync
+              if echo "$CONFIG_CONTENT" | base64 -d | yq e '.autoSync' - | grep -q -v "null"; then
+                echo "enabled=true" >> "$GITHUB_OUTPUT"
+                echo "✓ ArgoCD auto-sync is enabled for this application (kube-manifests config)"
+              else
+                echo "enabled=false" >> "$GITHUB_OUTPUT"
+                echo "⏭️ ArgoCD auto-sync is not configured for this application"
+              fi
+            else
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "⏭️ No config.yaml found in local repo or kube-manifests - ArgoCD auto-sync is not configured"
+            fi
           fi
       - name: Check ArgoCD credentials
         id: check-argocd-creds
