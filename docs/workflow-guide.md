@@ -828,21 +828,18 @@ jobs:
 ## Track Pending Release
 
 **File:** `track-pending-release.yml`
-**Purpose:** Automatically tracks and displays commits on main that haven't been deployed to production yet, using a persistent GitHub issue with dynamic status indicators.
+**Purpose:** For repositories where production releases are triggered manually (via workflow dispatch or tags), this workflow maintains a persistent GitHub issue that shows at a glance what commits are pending deployment. The issue title uses color-coded emoji indicators to quickly show deployment status in your issue list.
 
-### What it does:
-1. Compares the latest production release tag with the current main branch
-2. Creates or updates a GitHub issue labeled `pending-release`
-3. Updates the issue title with emoji status indicator (🟢/🟡/🔴)
-4. Generates a changelog of pending commits with links
-5. Provides deployment instructions via GitHub Actions UI
-6. Automatically reopens the issue if it was previously closed
-7. Keeps the issue open with updated content (no close/reopen spam)
+### How it works:
+- Compares latest production release tag with main branch
+- Creates/updates a persistent GitHub issue with status emoji in title
+- Shows commit list with links and deployment instructions
+- Updates automatically on every push to main and after production deployments
 
 ### Status Indicators:
-- **🟢 Green** (0 commits): Production is up-to-date with main
-- **🟡 Yellow** (1 commit): One commit pending deployment
-- **🔴 Red** (>1 commits): Multiple commits pending deployment
+- **🟢 Green**: Production is up-to-date (0 commits)
+- **🟡 Yellow**: 1 commit pending
+- **🔴 Red**: Multiple commits pending
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -889,85 +886,19 @@ jobs:
       production-workflow: 'deploy-prod.yml'
 ```
 
-### Issue Output Examples:
+### What the issue looks like:
+- **Title:** `🟢 Production Release Tracker` (changes to 🟡 or 🔴 based on pending commits)
+- **Body:** Shows latest deploy tag, current main commit, and list of pending commits with links
+- **When up-to-date:** Displays "Recently Released" confirmation message
+- **When pending:** Shows commit list with direct link to trigger deployment via workflow dispatch
 
-#### 🟢 Up-to-date State:
-```markdown
-🟢 Production Release Tracker
-
-## 🟢 Recently Released
-
-**Status:** ✅ Up-to-date - Production is in sync with main
-
-**Latest Production Deploy:**
-- Tag: `2026-01-16-12-30`
-- Commit: [`abc123de`](...)
-
-All changes on main have been deployed to production.
-
-*Last updated: 2026-01-16 12:35:00 UTC*
-```
-
-#### 🟡 Warning State (1 commit):
-```markdown
-🟡 Production Release Tracker
-
-## 🟡 Pending Release Changelog
-
-**Status:** ⚠️ 1 commit pending deployment
-
-**Latest Production Deploy:**
-- Tag: `2026-01-16-12-30`
-- Commit: [`abc123de`](...)
-
-**Current Main Branch:**
-- Commit: [`def456gh`](...)
-
-### 📝 Commits Pending Deployment
-
-- [`def456gh`](...) feat: add new feature by @developer
-
----
-
-**To deploy these changes to production:**
-
-1. Go to [Actions > Deploy Production](...)
-2. Click "Run workflow"
-3. Select branch: `main`
-4. Click "Run workflow"
-
-*Last updated: 2026-01-16 12:40:00 UTC*
-```
-
-#### 🔴 Action Required State (>1 commits):
-```markdown
-🔴 Production Release Tracker
-
-## 🔴 Pending Release Changelog
-
-**Status:** ⚠️ 3 commits pending deployment
-
-[Commit list and deployment instructions]
-```
-
-### Benefits:
-- **At-a-glance status:** Issue title shows color-coded priority in issue list
-- **No notification spam:** Issue stays open, updates in-place
-- **Team visibility:** Pin the issue for easy access to pending changes
-- **Deployment ready:** Includes direct link to workflow dispatch
-- **Automatic updates:** Runs on both main pushes and production tag pushes
-- **Full traceability:** Links to commits, diffs, and deployment workflows
-
-### Integration with Deploy Workflows:
-This workflow pairs perfectly with `deploy-kotlin.yml` when using:
-- `enable-release-tag: true` - Creates tags that this workflow tracks
-- `enable-changelog: true` - Generates release notes after deployment
+### Requirements:
+- Service must use `enable-release-tag: true` in production deployment workflow (creates the tags this workflow tracks)
 
 ### Best Practices:
-1. **Pin the issue:** Pin the pending release issue for easy team access
-2. **Run on tags:** Include tag trigger to update immediately after production deploy
-3. **Consistent naming:** Use standard `deploy-production.yml` filename across services
-4. **Team workflow:** Use the GitHub Actions UI instructions for easier team adoption
+1. Pin the issue for easy team access
+2. Include tag trigger (`tags: ['*']`) to update immediately after production deploys
+3. Pairs well with `enable-changelog: true` for automated release notes
 
 ---
 
