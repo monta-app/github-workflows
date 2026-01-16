@@ -18,6 +18,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
 13. [Rollback](#rollback)
 14. [SonarCloud Analysis](#sonarcloud-analysis)
+15. [Track Pending Release](#track-pending-release)
 
 ---
 
@@ -821,6 +822,152 @@ jobs:
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 ```
+
+---
+
+## Track Pending Release
+
+**File:** `track-pending-release.yml`
+**Purpose:** Automatically tracks and displays commits on main that haven't been deployed to production yet, using a persistent GitHub issue with dynamic status indicators.
+
+### What it does:
+1. Compares the latest production release tag with the current main branch
+2. Creates or updates a GitHub issue labeled `pending-release`
+3. Updates the issue title with emoji status indicator (🟢/🟡/🔴)
+4. Generates a changelog of pending commits with links
+5. Provides deployment instructions via GitHub Actions UI
+6. Automatically reopens the issue if it was previously closed
+7. Keeps the issue open with updated content (no close/reopen spam)
+
+### Status Indicators:
+- **🟢 Green** (0 commits): Production is up-to-date with main
+- **🟡 Yellow** (1 commit): One commit pending deployment
+- **🔴 Red** (>1 commits): Multiple commits pending deployment
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `main-branch` | No | "main" | Main branch name to track |
+| `production-workflow` | No | "deploy-production.yml" | Production deployment workflow filename |
+
+### Secrets:
+None required - uses `GITHUB_TOKEN` which is automatically provided by GitHub Actions.
+
+### Requirements:
+- Service must use `enable-release-tag: true` in production deployment workflow
+- Production deployment must create git tags (used to identify deployed version)
+
+### Example Usage:
+
+#### Basic Setup (Caller Workflow):
+```yaml
+name: Track Pending Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  track-release:
+    uses: monta-app/github-workflows/.github/workflows/track-pending-release.yml@main
+    with:
+      main-branch: 'main'
+      production-workflow: 'deploy-production.yml'
+```
+
+#### Custom Branch:
+```yaml
+jobs:
+  track-release:
+    uses: monta-app/github-workflows/.github/workflows/track-pending-release.yml@main
+    with:
+      main-branch: 'master'
+      production-workflow: 'deploy-prod.yml'
+```
+
+### Issue Output Examples:
+
+#### 🟢 Up-to-date State:
+```markdown
+🟢 Production Release Tracker
+
+## 🟢 Recently Released
+
+**Status:** ✅ Up-to-date - Production is in sync with main
+
+**Latest Production Deploy:**
+- Tag: `2026-01-16-12-30`
+- Commit: [`abc123de`](...)
+
+All changes on main have been deployed to production.
+
+*Last updated: 2026-01-16 12:35:00 UTC*
+```
+
+#### 🟡 Warning State (1 commit):
+```markdown
+🟡 Production Release Tracker
+
+## 🟡 Pending Release Changelog
+
+**Status:** ⚠️ 1 commit pending deployment
+
+**Latest Production Deploy:**
+- Tag: `2026-01-16-12-30`
+- Commit: [`abc123de`](...)
+
+**Current Main Branch:**
+- Commit: [`def456gh`](...)
+
+### 📝 Commits Pending Deployment
+
+- [`def456gh`](...) feat: add new feature by @developer
+
+---
+
+**To deploy these changes to production:**
+
+1. Go to [Actions > Deploy Production](...)
+2. Click "Run workflow"
+3. Select branch: `main`
+4. Click "Run workflow"
+
+*Last updated: 2026-01-16 12:40:00 UTC*
+```
+
+#### 🔴 Action Required State (>1 commits):
+```markdown
+🔴 Production Release Tracker
+
+## 🔴 Pending Release Changelog
+
+**Status:** ⚠️ 3 commits pending deployment
+
+[Commit list and deployment instructions]
+```
+
+### Benefits:
+- **At-a-glance status:** Issue title shows color-coded priority in issue list
+- **No notification spam:** Issue stays open, updates in-place
+- **Team visibility:** Pin the issue for easy access to pending changes
+- **Deployment ready:** Includes direct link to workflow dispatch
+- **Automatic updates:** Runs on both main pushes and production tag pushes
+- **Full traceability:** Links to commits, diffs, and deployment workflows
+
+### Integration with Deploy Workflows:
+This workflow pairs perfectly with `deploy-kotlin.yml` when using:
+- `enable-release-tag: true` - Creates tags that this workflow tracks
+- `enable-changelog: true` - Generates release notes after deployment
+
+### Best Practices:
+1. **Pin the issue:** Pin the pending release issue for easy team access
+2. **Run on tags:** Include tag trigger to update immediately after production deploy
+3. **Consistent naming:** Use standard `deploy-production.yml` filename across services
+4. **Team workflow:** Use the GitHub Actions UI instructions for easier team adoption
 
 ---
 
