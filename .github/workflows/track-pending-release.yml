@@ -34,19 +34,23 @@ jobs:
             echo "No tags found, using initial commit"
             LATEST_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
-          echo "latest-tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "latest-tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
 
           # Get the commit SHA for this tag
           DEPLOYED_SHA=$(git rev-parse "$LATEST_TAG^{commit}")
-          echo "deployed-sha=$DEPLOYED_SHA" >> $GITHUB_OUTPUT
-          echo "deployed-sha-short=$(echo $DEPLOYED_SHA | cut -c1-8)" >> $GITHUB_OUTPUT
+          {
+            echo "deployed-sha=$DEPLOYED_SHA"
+            echo "deployed-sha-short=$(echo "$DEPLOYED_SHA" | cut -c1-8)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get main branch SHA
         id: get-main
         run: |
           MAIN_SHA=$(git rev-parse HEAD)
-          echo "main-sha=$MAIN_SHA" >> $GITHUB_OUTPUT
-          echo "main-sha-short=$(echo $MAIN_SHA | cut -c1-8)" >> $GITHUB_OUTPUT
+          {
+            echo "main-sha=$MAIN_SHA"
+            echo "main-sha-short=$(echo "$MAIN_SHA" | cut -c1-8)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Compare commits
         id: compare
@@ -57,9 +61,9 @@ jobs:
           MAIN="${{ steps.get-main.outputs.main-sha }}"
 
           # Use GitHub API to compare commits
-          COMPARISON=$(gh api repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN} --jq '{status: .status, ahead_by: .ahead_by, behind_by: .behind_by, total_commits: .total_commits}')
+          COMPARISON=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '{status: .status, ahead_by: .ahead_by, behind_by: .behind_by, total_commits: .total_commits}')
 
-          echo "comparison=$COMPARISON" >> $GITHUB_OUTPUT
+          echo "comparison=$COMPARISON" >> "$GITHUB_OUTPUT"
           echo "$COMPARISON" | jq .
 
       - name: Generate changelog and determine status
@@ -71,10 +75,10 @@ jobs:
           MAIN="${{ steps.get-main.outputs.main-sha }}"
 
           # Get commits between deployed and main
-          COMMITS=$(gh api repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN} --jq '.commits[] | "- [`\(.sha[0:7])`](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
+          COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.commits[] | "- [`\(.sha[0:7])`](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
 
           # Count commits
-          COMMIT_COUNT=$(gh api repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN} --jq '.total_commits')
+          COMMIT_COUNT=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.total_commits')
 
           # Determine status emoji: 🟢 green = 0, 🟡 yellow = 1, 🔴 red = >1
           if [ "$COMMIT_COUNT" -eq 0 ]; then
@@ -91,9 +95,11 @@ jobs:
             STATUS_TEXT="⚠️ ${COMMIT_COUNT} commits pending deployment"
           fi
 
-          echo "commit-count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-          echo "status-emoji=$STATUS_EMOJI" >> $GITHUB_OUTPUT
-          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          {
+            echo "commit-count=$COMMIT_COUNT"
+            echo "status-emoji=$STATUS_EMOJI"
+            echo "title=$TITLE"
+          } >> "$GITHUB_OUTPUT"
 
           # Build changelog for all states
           if [ "$COMMIT_COUNT" -eq 0 ]; then
@@ -185,7 +191,7 @@ jobs:
             fi
           fi
 
-          echo "issue-number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "issue-number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Update tracking issue
         env:
