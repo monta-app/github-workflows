@@ -867,6 +867,10 @@ on:
     tags:
       - '*'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Production"]  # Must match your production workflow name
+    types:
+      - completed
 
 jobs:
   track-release:
@@ -875,6 +879,8 @@ jobs:
       main-branch: 'main'
       production-workflow: 'deploy-production.yml'
 ```
+
+**Important:** The `workflow_run` trigger is required because `enable-release-tag` creates tags using `GITHUB_TOKEN`, which doesn't trigger other workflows. This ensures the tracker updates immediately after production deploys.
 
 #### Custom Branch:
 ```yaml
