@@ -18,6 +18,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
 13. [Rollback](#rollback)
 14. [SonarCloud Analysis](#sonarcloud-analysis)
+15. [Track Pending Release](#track-pending-release)
 
 ---
 
@@ -821,6 +822,89 @@ jobs:
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 ```
+
+---
+
+## Track Pending Release
+
+**File:** `track-pending-release.yml`
+**Purpose:** For repositories where production releases are triggered manually (via workflow dispatch or tags), this workflow maintains a persistent GitHub issue that shows at a glance what commits are pending deployment. The issue title uses color-coded emoji indicators to quickly show deployment status in your issue list.
+
+### How it works:
+- Compares latest production release tag with main branch
+- Creates/updates a persistent GitHub issue with status emoji in title
+- Shows commit list with links and deployment instructions
+- Updates automatically on every push to main and after production deployments
+
+### Status Indicators:
+- **🟢 Green**: Production is up-to-date (0 commits)
+- **🟡 Yellow**: 1 commit pending
+- **🔴 Red**: Multiple commits pending
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `main-branch` | No | "main" | Main branch name to track |
+| `production-workflow` | No | "deploy-production.yml" | Production deployment workflow filename |
+
+### Secrets:
+None required - uses `GITHUB_TOKEN` which is automatically provided by GitHub Actions.
+
+### Requirements:
+- Service must use `enable-release-tag: true` in production deployment workflow
+- Production deployment must create git tags (used to identify deployed version)
+
+### Example Usage:
+
+#### Basic Setup (Caller Workflow):
+```yaml
+name: Track Pending Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Production"]  # Must match your production workflow name
+    types:
+      - completed
+
+jobs:
+  track-release:
+    uses: monta-app/github-workflows/.github/workflows/track-pending-release.yml@main
+    with:
+      main-branch: 'main'
+      production-workflow: 'deploy-production.yml'
+```
+
+**Important:** The `workflow_run` trigger is required because `enable-release-tag` creates tags using `GITHUB_TOKEN`, which doesn't trigger other workflows. This ensures the tracker updates immediately after production deploys.
+
+#### Custom Branch:
+```yaml
+jobs:
+  track-release:
+    uses: monta-app/github-workflows/.github/workflows/track-pending-release.yml@main
+    with:
+      main-branch: 'master'
+      production-workflow: 'deploy-prod.yml'
+```
+
+### What the issue looks like:
+- **Title:** `🟢 Production Release Tracker` (changes to 🟡 or 🔴 based on pending commits)
+- **Body:** Shows latest deploy tag, current main commit, and list of pending commits with links
+- **When up-to-date:** Displays "Recently Released" confirmation message
+- **When pending:** Shows commit list with direct link to trigger deployment via workflow dispatch
+
+### Requirements:
+- Service must use `enable-release-tag: true` in production deployment workflow (creates the tags this workflow tracks)
+
+### Best Practices:
+1. Pin the issue for easy team access
+2. Include tag trigger (`tags: ['*']`) to update immediately after production deploys
+3. Pairs well with `enable-changelog: true` for automated release notes
 
 ---
 
