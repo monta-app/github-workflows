@@ -145,6 +145,12 @@ jobs:
           commit_message: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
           user_name: "GitHub Action"
           user_email: "action@github.com"
+          yq_command: |
+            sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/values.yaml
+            sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/values.yaml
+            sed -i "s/build: .*/build: ${{ github.run_number }}/" apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/values.yaml
+            previousHash=$(yq e .currentHash apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml) yq e '.previousHash = strenv(previousHash)' -i apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml
+            currentHash=${GITHUB_SHA::8} yq e '.currentHash = strenv(currentHash)' -i apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml
           max_retries: 10
           retry_delay: 2
       - name: Get manifest commit SHA
