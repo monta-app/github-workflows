@@ -30,6 +30,11 @@ on:
         required: false
         type: string
         description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
+      argocd-sync-wait-seconds:
+        required: false
+        default: 300
+        type: number
+        description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -184,7 +189,7 @@ jobs:
           app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
-          timeout: 300
+          timeout: ${{ inputs.argocd-sync-wait-seconds }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Publish result message to slack
         if: always()
