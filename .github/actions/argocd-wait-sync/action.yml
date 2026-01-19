@@ -16,7 +16,7 @@ inputs:
     description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
     required: false
     type: number
-    default: '300'
+    default: 300
   revision:
     description: 'Expected git revision/commit SHA to verify deployment'
     required: true

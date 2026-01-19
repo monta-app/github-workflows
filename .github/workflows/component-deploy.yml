@@ -32,7 +32,7 @@ on:
         description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
       argocd-sync-wait-seconds:
         required: false
-        default: '300'
+        default: 300
         type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
     secrets:
