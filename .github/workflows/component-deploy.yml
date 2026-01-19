@@ -193,6 +193,15 @@ jobs:
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Fix manifest directory permissions
+        if: always()
+        shell: bash
+        run: |
+          # Fix permissions on manifest directory to allow cleanup
+          # The git-rebase-push-action may create files with restricted permissions
+          if [ -d "./manifests/.git" ]; then
+            chmod -R u+w ./manifests/.git || true
+          fi
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
