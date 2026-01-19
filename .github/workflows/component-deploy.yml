@@ -78,7 +78,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     outputs:
       slack-message-id: ${{ steps.slack-update.outputs.message-id }}
       stage: ${{ inputs.stage }}
