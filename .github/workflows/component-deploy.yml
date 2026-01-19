@@ -142,7 +142,7 @@ jobs:
         uses: Artur-Davtyan/git-rebase-push-action@v1
         with:
           repository_path: manifests
-          commit_message: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
+          commit_message: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
           user_name: "GitHub Action"
           user_email: "action@github.com"
           max_retries: 10
