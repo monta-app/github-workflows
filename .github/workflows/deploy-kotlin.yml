@@ -102,6 +102,10 @@ on:
         required: false
         type: string
         description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
+      argocd-sync-wait-seconds:
+        required: false
+        default: '300'
+        description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
 
     secrets:
       GHL_USERNAME:
@@ -246,6 +250,7 @@ jobs:
       image-tag: ${{ needs.build.outputs.image-tag }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
       argocd-server: ${{ inputs.argocd-server }}
+      argocd-sync-wait-seconds: ${{ inputs.argocd-sync-wait-seconds }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}

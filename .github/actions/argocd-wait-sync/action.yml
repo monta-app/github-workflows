@@ -13,7 +13,7 @@ inputs:
     description: 'ArgoCD authentication token'
     required: true
   timeout:
-    description: 'Timeout in seconds to wait for sync completion'
+    description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
     required: false
     default: '300'
   revision:
