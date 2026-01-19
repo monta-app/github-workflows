@@ -161,6 +161,12 @@ jobs:
           MANIFEST_SHA=$(git rev-parse HEAD)
           echo "sha=$MANIFEST_SHA" >> "$GITHUB_OUTPUT"
           echo "Manifest commit SHA: $MANIFEST_SHA"
+      - name: Remove manifests directory
+        shell: bash
+        run: |
+          # Remove manifests directory to avoid cleanup permission issues
+          # The git-rebase-push-action creates files owned by different user
+          sudo rm -rf ./manifests || true
       - name: Check ArgoCD credentials
         id: check-argocd-creds
         shell: bash
@@ -193,15 +199,6 @@ jobs:
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Fix manifest directory permissions
-        if: always()
-        shell: bash
-        run: |
-          # Fix permissions on manifest directory to allow cleanup
-          # The git-rebase-push-action may create files with restricted permissions
-          if [ -d "./manifests/.git" ]; then
-            chmod -R u+w ./manifests/.git || true
-          fi
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
