@@ -105,6 +105,7 @@ on:
       argocd-sync-wait-seconds:
         required: false
         default: '300'
+        type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
 
     secrets:
