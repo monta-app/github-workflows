@@ -43,15 +43,25 @@ if [ -z "${APP_NAME:-}" ]; then
     exit 1
 fi
 
-if [ -z "${EXPECTED_REVISION:-}" ]; then
-    echo "::error::EXPECTED_REVISION environment variable is required"
-    exit 1
-fi
-
 # Set defaults
 TIMEOUT="${TIMEOUT:-300}"
 POLL_INTERVAL="${POLL_INTERVAL:-5}"
 MANIFEST_REPO="${MANIFEST_REPO:-monta-app/kube-manifests}"
+EXPECTED_REVISION="${EXPECTED_REVISION:-}"
+
+# Determine monitoring mode
+if [ -z "$EXPECTED_REVISION" ]; then
+    REVISION_MODE="disabled"
+    echo "Monitoring ArgoCD application '$APP_NAME' for sync and health..."
+    echo "Revision checking: disabled (monitoring sync/health status only)"
+else
+    REVISION_MODE="enabled"
+    echo "Monitoring ArgoCD application '$APP_NAME' for sync and health..."
+    echo "Expected revision: ${EXPECTED_REVISION:0:7}"
+fi
+
+echo "Timeout: ${TIMEOUT}s"
+echo ""
 
 # ArgoCD CLI flags - pass auth token directly (no login session needed)
 ARGOCD_FLAGS=(
@@ -61,14 +71,13 @@ ARGOCD_FLAGS=(
     "--insecure"
 )
 
-echo "Monitoring ArgoCD application '$APP_NAME' for sync and health..."
-echo "Expected revision: ${EXPECTED_REVISION:0:7}"
-echo "Timeout: ${TIMEOUT}s"
-echo ""
-
-# Trigger immediate refresh to hint ArgoCD about the new revision
+# Trigger immediate refresh to hint ArgoCD about changes
 # This reduces wait time from minutes to seconds by avoiding ArgoCD's polling interval
-echo "Triggering ArgoCD refresh to detect new revision immediately..."
+if [ "$REVISION_MODE" = "enabled" ]; then
+    echo "Triggering ArgoCD refresh to detect new revision immediately..."
+else
+    echo "Triggering ArgoCD refresh to detect changes immediately..."
+fi
 argocd app get "$APP_NAME" --refresh "${ARGOCD_FLAGS[@]}" &>/dev/null || true
 echo ""
 
@@ -152,16 +161,28 @@ while true; do
         exit 1
     fi
 
-    # Check if current revision matches expected
+    # Check if current revision matches expected (only if revision mode enabled)
     REVISION_MATCHES=false
-    if [ -n "$CURRENT_REVISION" ] && [[ "$CURRENT_REVISION" =~ ^${EXPECTED_REVISION} ]]; then
+    if [ "$REVISION_MODE" = "enabled" ] && [ -n "$CURRENT_REVISION" ] && [[ "$CURRENT_REVISION" =~ ^${EXPECTED_REVISION} ]]; then
         REVISION_MATCHES=true
     fi
 
-    # Phase 1: Wait for deployment to start (revision matches + not fully healthy yet)
-    # This handles the case where ArgoCD hasn't detected our git push yet
+    # Phase 1: Wait for deployment to start
+    # In revision mode: wait for revision match
+    # In no-revision mode: immediately mark as started and wait for sync+health
     if [ "$DEPLOYMENT_STARTED" = false ]; then
-        if [ "$REVISION_MATCHES" = true ]; then
+        if [ "$REVISION_MODE" = "disabled" ]; then
+            # No revision checking - just mark as started and wait for sync+health
+            DEPLOYMENT_STARTED=true
+            if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
+                # Already healthy
+                echo "✓ Application is synced and healthy"
+                HEALTH_ACHIEVED=true
+                HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                VERIFIED_REVISION="$CURRENT_REVISION"
+                break
+            fi
+        elif [ "$REVISION_MATCHES" = true ]; then
             # We found our revision!
             if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
                 # Already healthy with our revision - we missed the deployment!

@@ -18,8 +18,9 @@ inputs:
     type: number
     default: 300
   revision:
-    description: 'Expected git revision/commit SHA to verify deployment'
-    required: true
+    description: 'Expected git revision/commit SHA to verify deployment (optional - if not provided, skips revision checking)'
+    required: false
+    default: ''
   namespace:
     description: 'ArgoCD namespace where Application resource is stored (for UI URL construction)'
     required: false
@@ -29,8 +30,9 @@ inputs:
     required: false
     default: 'monta-app/kube-manifests'
   github-token:
-    description: 'GitHub token for API access (required for supersede detection)'
-    required: true
+    description: 'GitHub token for API access (optional - required for supersede detection when revision is provided)'
+    required: false
+    default: ''
 
 outputs:
   deployment-start-time:
