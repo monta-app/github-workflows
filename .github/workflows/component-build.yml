@@ -45,6 +45,10 @@ on:
         required: false
         type: string
         description: 'Existing Slack message ID to update'
+      git-ref:
+        required: false
+        type: string
+        description: 'Git ref (branch, tag, or SHA) to checkout and build from. Defaults to the triggering ref.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -90,9 +94,18 @@ jobs:
     outputs:
       runner-x64: ${{ steps.runner-x64.outputs.runner-name }}
       runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
+      sha: ${{ steps.get-sha.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-ref || github.sha }}
+      - name: Get checked out SHA
+        id: get-sha
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Building from SHA: $SHA"
       - name: Get x64 runner name
         id: runner-x64
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
@@ -132,6 +145,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-ref || github.sha }}
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -144,10 +159,12 @@ jobs:
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
-            type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
+            type=raw,value=${{ needs.setup.outputs.sha }}-${{ matrix.arch }}
             type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
@@ -173,11 +190,13 @@ jobs:
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
   create-manifest:
     name: Create Multi-Arch Manifest
-    needs: build
+    needs:
+      - setup
+      - build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      image-tag: ${{ github.sha }}
+      image-tag: ${{ needs.setup.outputs.sha }}
     steps:
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
@@ -195,7 +214,7 @@ jobs:
 
           # Define the base image name and tag
           BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}"
-          SHA_TAG="${{ github.sha }}"
+          SHA_TAG="${{ needs.setup.outputs.sha }}"
 
           # Create manifest list
           docker manifest create ${BASE_IMAGE}:${SHA_TAG} \

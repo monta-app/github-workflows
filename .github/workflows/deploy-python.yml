@@ -46,6 +46,10 @@ on:
         required: false
         type: string
         description: 'File path of the docker compose file'
+      git-ref:
+        required: false
+        type: string
+        description: 'Git ref (branch, tag, or SHA) to checkout and build from. Defaults to the triggering ref.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -112,6 +116,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+      git-ref: ${{ inputs.git-ref }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
