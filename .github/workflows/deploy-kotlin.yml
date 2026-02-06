@@ -107,6 +107,10 @@ on:
         default: 300
         type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
+      git-sha:
+        required: false
+        type: string
+        description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
 
     secrets:
       GHL_USERNAME:
@@ -225,6 +229,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
+      git-sha: ${{ inputs.git-sha }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}

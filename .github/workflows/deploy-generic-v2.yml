@@ -62,6 +62,10 @@ on:
         required: false
         type: string
         description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
+      git-sha:
+        required: false
+        type: string
+        description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -145,6 +149,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
+      git-sha: ${{ inputs.git-sha }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}

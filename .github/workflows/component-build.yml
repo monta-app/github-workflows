@@ -45,6 +45,10 @@ on:
         required: false
         type: string
         description: 'Existing Slack message ID to update'
+      git-sha:
+        required: false
+        type: string
+        description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -93,6 +97,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-sha || github.sha }}
       - name: Get x64 runner name
         id: runner-x64
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
@@ -132,6 +138,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -147,7 +155,7 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
-            type=sha,format=long,prefix=,suffix=-${{ matrix.arch }}
+            type=raw,value=${{ inputs.git-sha || github.sha }},suffix=-${{ matrix.arch }}
             type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
@@ -177,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      image-tag: ${{ github.sha }}
+      image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@v4
@@ -195,7 +203,7 @@ jobs:
 
           # Define the base image name and tag
           BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}"
-          SHA_TAG="${{ github.sha }}"
+          SHA_TAG="${{ inputs.git-sha || github.sha }}"
 
           # Create manifest list
           docker manifest create ${BASE_IMAGE}:${SHA_TAG} \
