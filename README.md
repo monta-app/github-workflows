@@ -272,6 +272,8 @@ jobs:
 - **PHP**: `p/php`, `r/php.lang.security`
 - **All**: `p/security-audit`, `p/secrets`, `p/github-actions`, `p/docker`
 
+**Documentation:** See [docs/security/semgrep.md](docs/security/semgrep.md) for common findings, fixes, and local setup.
+
 ## Contributing ##
 
 If you are adding new workflows or updating existing ones, please ensure to update this `README` with descriptions and usage examples for easy integration by other teams. Make sure your workflows follow best practices for GitHub Actions to ensure reliability and maintainability.
