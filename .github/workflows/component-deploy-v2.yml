@@ -38,6 +38,10 @@ on:
         required: false
         type: string
         description: 'ArgoCD server URL (e.g., argocd.monta.app) for deployment monitoring'
+      argocd-app-name:
+        required: false
+        type: string
+        description: 'ArgoCD application name prefix (without stage). Defaults to service-identifier. Used for kube-manifests lookup (apps/{argocd-app-name}/{stage}/...) and ArgoCD app name ({argocd-app-name}-{stage}).'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -172,7 +176,8 @@ jobs:
             echo "⏭️ No local config.yaml found, checking kube-manifests repo..."
 
             # Fallback: Check kube-manifests repo via GitHub API
-            CONFIG_PATH="apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster/config.yaml"
+            ARGOCD_APP="${{ inputs.argocd-app-name || inputs.service-identifier }}"
+            CONFIG_PATH="apps/${ARGOCD_APP}/${{ inputs.stage }}/cluster/config.yaml"
 
             # Try fetching from kube-manifests repo
             if CONFIG_CONTENT=$(gh api repos/monta-app/kube-manifests/contents/$CONFIG_PATH --jq '.content' 2>/dev/null); then
@@ -216,7 +221,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
         with:
           server: ${{ inputs.argocd-server }}
-          app-name: ${{ inputs.service-identifier }}-${{ inputs.stage }}
+          app-name: ${{ format('{0}-{1}', inputs.argocd-app-name || inputs.service-identifier, inputs.stage) }}
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: 300
