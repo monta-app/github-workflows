@@ -912,23 +912,142 @@ jobs:
 
 ### Setting Up Secrets
 
-Most workflows require organization or repository secrets. Add these in your repository settings:
+These workflows use **organization-level secrets** that are automatically available to all **private** repositories in the `monta-app` org. You do not need to add them manually — just reference the correct name when passing secrets to a workflow.
 
-1. **GitHub Tokens:**
-   - `GHL_USERNAME`: Your GitHub username
-   - `GHL_PASSWORD`: A GitHub personal access token with `read:packages` scope
-   - `MANIFEST_REPO_PAT`: PAT with write access to kube-manifests repo
+> **Public repositories** do not have access to org secrets. If your repo is public, you must add required secrets at the repository level.
 
-2. **AWS Credentials:**
-   - `AWS_ACCOUNT_ID`: Your AWS account ID
-   - `TECHDOCS_AWS_ACCESS_KEY_ID`: AWS access key for TechDocs S3
-   - `TECHDOCS_AWS_SECRET_ACCESS_KEY`: AWS secret key for TechDocs S3
+#### Organization Secrets Reference
 
-3. **Third-party Services:**
-   - `SLACK_APP_TOKEN`: Slack app-level token
-   - `SONAR_TOKEN`: SonarCloud authentication token
-   - `TAILSCALE_AUTHKEY`: Tailscale VPN authentication key
-   - `SENTRY_AUTH_TOKEN`: Sentry authentication token (optional)
+**GitHub & Authentication:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `GHL_USERNAME` | build, test, deploy-kotlin, pull-request-kotlin, sonar-cloud | GitHub username for package registry access |
+| `GHL_PASSWORD` | build, test, deploy-kotlin, pull-request-kotlin, sonar-cloud | GitHub PAT with `read:packages` scope |
+| `PAT` | deploy workflows | PAT with write access to manifest repos (passed as `MANIFEST_REPO_PAT`) |
+| `MONTA_BOT_TOKEN` | changelog-cli-action | GitHub token for creating releases and PR comments |
+| `SSH_KEY_MONTA_BOT` | service-profile-kotlin | SSH key for cross-repo access |
+
+**AWS:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `INTERNAL_AWS_ACCOUNT_ID` | build, deploy workflows | AWS account ID (passed as `AWS_ACCOUNT_ID`) |
+| `PRODUCTION_AWS_ACCOUNT_ID` | deploy workflows (production) | Production AWS account ID |
+| `STAGING_AWS_ACCOUNT_ID` | deploy workflows (staging) | Staging AWS account ID |
+| `ECR_AWS_ACCESS_KEY_ID` | legacy deploy workflows | ECR access key |
+| `ECR_AWS_SECRET_ACCESS_KEY` | legacy deploy workflows | ECR secret key |
+| `TECHDOCS_AWS_ACCESS_KEY_ID` | publish-tech-docs | TechDocs S3 access key |
+| `TECHDOCS_AWS_SECRET_ACCESS_KEY` | publish-tech-docs | TechDocs S3 secret key |
+| `CDN_PRODUCTION_ACCESS_KEY` | build (via `AWS_CDN_ACCESS_KEY_ID`) | CDN access for production builds |
+| `CDN_PRODUCTION_SECRET_ACCESS_KEY` | build (via `AWS_CDN_SECRET_ACCESS_KEY`) | CDN secret for production builds |
+| `CDN_STAGING_ACCESS_KEY` | build (via `AWS_CDN_ACCESS_KEY_ID`) | CDN access for staging builds |
+| `CDN_STAGING_SECRET_ACCESS_KEY` | build (via `AWS_CDN_SECRET_ACCESS_KEY`) | CDN secret for staging builds |
+
+**Deployment & ArgoCD:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `ARGOCD_TOKEN_PRODUCTION` | deploy workflows (passed as `ARGOCD_TOKEN`) | ArgoCD auth for production deployments |
+| `ARGOCD_TOKEN_STAGING` | deploy workflows (passed as `ARGOCD_TOKEN`) | ArgoCD auth for staging deployments |
+| `INFRA_PORTAL_TOKEN_PRODUCTION` | service-ocpp gateway | Infra Portal API auth for production |
+| `INFRA_PORTAL_TOKEN_STAGING` | service-ocpp, service-support, data services | Infra Portal API auth for staging |
+| `SLACK_APP_TOKEN` | all deploy/build workflows | Slack notifications for build and deploy status |
+| `SLACK_WEBHOOK` | rollback | Slack webhook for rollback notifications |
+| `SLACK_DEPLOYMENT_WEBHOOK_URL` | service-user, service-kratos, service-roaming-prices | Legacy Slack webhook for deploy notifications |
+| `SENTRY_AUTH_TOKEN` | build workflows | Sentry release tracking (optional) |
+| `WEBAPPS_DEPLOY_TOKEN` | web app deployments | Web application deploy token |
+
+**Changelog & Jira:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `JIRA_EMAIL` | deploy-kotlin, changelog-cli-action | Jira API authentication email |
+| `JIRA_TOKEN` | deploy-kotlin, changelog-cli-action | Jira API authentication token |
+| `MONTA_BOT_TOKEN` | changelog-cli-action | GitHub token (used as `github-token` and `CHANGELOG_GITHUB_TOKEN`) |
+
+**Code Quality & Testing:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `SONAR_TOKEN` | sonar-cloud, pull-request-kotlin, code-coverage-kotlin | SonarCloud analysis |
+| `TAILSCALE_AUTHKEY` | code-coverage-kotlin | VPN access for integration tests |
+| `TEST_VISIBILITY_DB_PASSWORD` | server (unit-tests, integration-tests) | Upload test results to test visibility DB |
+| `K6_PRODUCTION_USERNAME` / `K6_PRODUCTION_PASSWORD` | grafana-k6 | k6 browser test credentials (production) |
+| `K6_STAGING_USERNAME` / `K6_STAGING_PASSWORD` | grafana-k6 | k6 browser test credentials (staging) |
+| `K6_GRAFANA_AUTH_TOKEN` | grafana-k6 | k6 Grafana Cloud integration |
+| `K6_GRAFANA_SM_ACCESS_TOKEN` | grafana-k6 | k6 Grafana synthetic monitoring |
+| `K6_GRAFANA_URL` | grafana-k6 | k6 Grafana endpoint URL |
+
+**Localization:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `LOKALISE_TOKEN` | service-wallet, service-grid (via deploy-kotlin) | Lokalise API token for fetching translations during build |
+| `LOKALISE_PROJECT_ID` | service-wallet, service-grid (via deploy-kotlin) | Lokalise project identifier |
+
+**Other:**
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `POSTHOG_API_KEY` | analytics workflows | PostHog product analytics |
+| `GRAFANA_CLOUD_MONTA_BOT_TOKEN` | monitoring workflows | Grafana Cloud access |
+| `PRODUCTION_AWS_ACCESS_KEY_ID` / `PRODUCTION_AWS_SECRET_ACCESS_KEY` | server, dbt-pipeline, data services, legacy deploys | AWS credentials for production (legacy pattern — prefer IAM role-based `AWS_ACCOUNT_ID`) |
+| `STAGING_AWS_ACCESS_KEY_ID` / `STAGING_AWS_SECRET_ACCESS_KEY` | legacy deploy workflows | AWS credentials for staging |
+| `DEV_AWS_ACCESS_KEY_ID` / `DEV_AWS_SECRET_ACCESS_KEY` | service-roaming-prices | AWS credentials for dev environment |
+| `STAGING_KUBECONFIG` / `STAGING_KUBECONFIG_BASE64` | frontend-monorepo (PR preview deploys) | Kubernetes config for staging cluster |
+
+**Likely Deprecated (no workflow references found):**
+
+| Secret | Last Updated | Notes |
+|--------|-------------|-------|
+| `BRANCH_TO_ENV_DEVELOPMENT` | 5 years ago | No references found — likely from old deploy pattern |
+| `BRANCH_TO_ENV_MASTER` | 6 years ago | No references found |
+| `BRANCH_TO_ENV_STAGING` | 6 years ago | No references found |
+| `DEV_KUBECONFIG` / `DEV_KUBECONFIG_BASE` | 4 years ago | No references found — dev cluster may no longer exist |
+| `FLUTTER_AWS_ACCESS_KEY_ID` / `FLUTTER_AWS_SECRET_ACCESS_KEY` | 3 years ago | No references found — Flutter builds may use different approach now |
+| `K8S_SERVICE_PROFILE_OCPP_STAGING` / `K8S_SERVICE_PROFILE_STAGING` | 7 months ago | No references found |
+| `SSH_KEY_LIB_ARCHITECTURE` / `SSH_KEY_LIB_ELECTRA` | 3 years ago | No references found — libraries may have moved to package registry |
+| `SLACK_BOT_TOKEN` | 5 years ago | No references found — replaced by `SLACK_APP_TOKEN` |
+| `VAPOR_API_TOKEN` | 6 years ago | No references found — Vapor (Swift) likely no longer used |
+
+#### Common Secret Mappings
+
+Some org secrets have different names than what workflows expect. Here are the most common mappings:
+
+```yaml
+# In your workflow file:
+secrets:
+  AWS_ACCOUNT_ID: ${{ secrets.INTERNAL_AWS_ACCOUNT_ID }}      # or PRODUCTION_AWS_ACCOUNT_ID / STAGING_AWS_ACCOUNT_ID
+  MANIFEST_REPO_PAT: ${{ secrets.PAT }}
+  ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN_PRODUCTION }}         # or ARGOCD_TOKEN_STAGING
+  CHANGELOG_GITHUB_TOKEN: ${{ secrets.MONTA_BOT_TOKEN }}
+  AWS_CDN_ACCESS_KEY_ID: ${{ secrets.CDN_PRODUCTION_ACCESS_KEY }}  # or CDN_STAGING_ACCESS_KEY
+  AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.CDN_PRODUCTION_SECRET_ACCESS_KEY }}  # or CDN_STAGING_SECRET_ACCESS_KEY
+  # These are passed directly (org name = workflow name):
+  GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+  GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+  SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+  JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+  JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+#### Secrets per Workflow
+
+Quick reference for which secrets each workflow needs:
+
+| Workflow | Required Secrets | Optional Secrets |
+|----------|-----------------|------------------|
+| `component-build.yml` | `AWS_ACCOUNT_ID`, `SLACK_APP_TOKEN` | `GHL_USERNAME`, `GHL_PASSWORD`, `SENTRY_AUTH_TOKEN`, `AWS_CDN_ACCESS_KEY_ID`, `AWS_CDN_SECRET_ACCESS_KEY`, `LOKALISE_TOKEN`, `LOKALISE_PROJECT_ID` |
+| `component-deploy-v2.yml` | `MANIFEST_REPO_PAT`, `SLACK_APP_TOKEN` | `ARGOCD_TOKEN` |
+| `deploy-generic-v2.yml` | `AWS_ACCOUNT_ID`, `SLACK_APP_TOKEN`, `MANIFEST_REPO_PAT` | `SENTRY_AUTH_TOKEN`, `AWS_CDN_ACCESS_KEY_ID`, `AWS_CDN_SECRET_ACCESS_KEY`, `TEST_ENV_FILE`, `ARGOCD_TOKEN` |
+| `deploy-kotlin.yml` | `GHL_USERNAME`, `GHL_PASSWORD`, `AWS_ACCOUNT_ID`, `SLACK_APP_TOKEN`, `MANIFEST_REPO_PAT` | `SENTRY_AUTH_TOKEN`, `AWS_CDN_ACCESS_KEY_ID`, `AWS_CDN_SECRET_ACCESS_KEY`, `LOKALISE_TOKEN`, `LOKALISE_PROJECT_ID`, `JIRA_EMAIL`, `JIRA_TOKEN`, `CHANGELOG_GITHUB_TOKEN`, `ARGOCD_TOKEN` |
+| `publish-tech-docs.yml` | `TECHDOCS_AWS_ACCESS_KEY_ID`, `TECHDOCS_AWS_SECRET_ACCESS_KEY` | — |
+| `sonar-cloud.yml` | `GHL_USERNAME`, `GHL_PASSWORD`, `SONAR_TOKEN` | — |
+| `code-coverage-kotlin.yml` | `GHL_USERNAME`, `GHL_PASSWORD`, `SONAR_TOKEN` | `TAILSCALE_AUTHKEY` |
+| `changelog-cli-action` (direct) | `MONTA_BOT_TOKEN`, `JIRA_EMAIL`, `JIRA_TOKEN`, `SLACK_APP_TOKEN` | — |
 
 ### Repository Structure Requirements
 
