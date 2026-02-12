@@ -7,6 +7,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      architecture:
+        required: false
+        type: string
+        description: "Runner architecture (x64 or arm64)"
+        default: "x64"
       node-version:
         required: false
         type: string
@@ -62,6 +67,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
+          architecture: ${{ inputs.architecture }}
   lint-build-test:
     name: Lint & Build & Test
     needs: setup
