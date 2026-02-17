@@ -8,6 +8,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      architecture:
+        required: false
+        type: string
+        description: "Runner architecture (x64 or arm64)"
+        default: "x64"
       stage:
         required: true
         type: string
@@ -203,6 +208,7 @@ jobs:
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
+      architecture: ${{ inputs.architecture }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       gradle-module: ${{ inputs.gradle-module }}
