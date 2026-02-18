@@ -29,7 +29,7 @@ permissions:
 jobs:
   initialize:
     name: Initialize
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: 5
     outputs:
       slack-message-id: ${{ steps.send-slack-message.outputs.slack-message-id }}

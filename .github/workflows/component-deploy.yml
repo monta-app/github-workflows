@@ -77,7 +77,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: 20
     outputs:
       slack-message-id: ${{ steps.slack-update.outputs.message-id }}
