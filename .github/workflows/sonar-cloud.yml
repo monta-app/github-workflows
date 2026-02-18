@@ -70,6 +70,8 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+      - name: Configure Docker API version for Testcontainers
+        run: echo 'api.version=1.44' > ~/.docker-java.properties
       - name: Build and analyze
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}

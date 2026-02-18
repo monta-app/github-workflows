@@ -79,6 +79,8 @@ jobs:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
           cache: 'gradle'
+      - name: Configure Docker API version for Testcontainers
+        run: echo 'api.version=1.44' > ~/.docker-java.properties
       - name: Test project
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}

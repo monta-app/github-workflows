@@ -112,6 +112,8 @@ jobs:
           java-version: ${{ inputs.java-version }}
           distribution: "corretto"
           cache: "gradle"
+      - name: Configure Docker API version for Testcontainers
+        run: echo 'api.version=1.44' > ~/.docker-java.properties
       - name: Run tests with Kover
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
