@@ -20,7 +20,7 @@ on:
 jobs:
   semgrep:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: ${{ inputs.timeout-minutes }}
     permissions:
       contents: read

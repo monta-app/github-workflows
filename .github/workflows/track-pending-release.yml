@@ -17,7 +17,7 @@ on:
 jobs:
   update-pending-release:
     name: Update Pending Release Changelog
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: 5
     steps:
       - name: Checkout

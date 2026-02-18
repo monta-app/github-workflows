@@ -13,7 +13,7 @@ on:
 
 jobs:
   publish-techdocs-site:
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
 
     env:
       TECHDOCS_S3_BUCKET_NAME: 'monta-tech-docs'
