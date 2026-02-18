@@ -164,6 +164,9 @@ jobs:
           context: .
           file: ./${{ inputs.docker-file-name }}
           push: true
+          # Disable provenance to keep single-platform images simple (not manifest lists).
+          # Required for manual multi-arch manifest creation in create-manifest job.
+          provenance: false
           no-cache: true
           build-args: |
             ${{ inputs.additional-build-args }}
