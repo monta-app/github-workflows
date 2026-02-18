@@ -51,7 +51,7 @@ jobs:
   slackNotification:
     name: Send Slack notification
     if: ${{ !inputs.dry-run }}
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     steps:
       - uses: actions/checkout@v4
       - name: Slack Notification
@@ -79,7 +79,7 @@ jobs:
     needs: block-deploys
     if: ${{ !cancelled() && (needs.block-deploys.result == 'success' || needs.block-deploys.result == 'skipped') }}
     name: Deploy rollback
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
