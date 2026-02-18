@@ -136,18 +136,41 @@ jobs:
           yq e '.kotlin.revision = "${{ github.sha }}"' -i values.yaml
           yq e '.kotlin.build = ${{ github.run_number }}' -i values.yaml
       - name: Commit and push with automatic retry
-        uses: Artur-Davtyan/git-rebase-push-action@v1
-        with:
-          repository_path: service-repo
-          commit_message: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
-          user_name: "GitHub Action"
-          user_email: "action@github.com"
-          yq_command: |
-            yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
-            yq e '.kotlin.revision = "${{ github.sha }}"' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
-            yq e '.kotlin.build = ${{ github.run_number }}' -i ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}/values.yaml
-          max_retries: 10
-          retry_delay: 2
+        shell: bash
+        working-directory: ./service-repo
+        env:
+          HELM_VALUES_PATH: ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+          git add .
+          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+
+          for attempt in $(seq 1 10); do
+            echo "Push attempt $attempt..."
+            if git push origin main; then
+              echo "Push successful after $attempt attempt(s)"
+              exit 0
+            fi
+            echo "Push failed, rebasing and retrying..."
+            git fetch origin main
+            if git rebase origin/main; then
+              echo "Rebase clean, retrying push..."
+            else
+              echo "Rebase conflict, re-applying changes on top of latest main..."
+              git rebase --abort
+              git reset --soft origin/main
+              yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i "$HELM_VALUES_PATH/values.yaml"
+              yq e '.kotlin.revision = "${{ github.sha }}"' -i "$HELM_VALUES_PATH/values.yaml"
+              yq e '.kotlin.build = ${{ github.run_number }}' -i "$HELM_VALUES_PATH/values.yaml"
+              git add .
+              git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+            fi
+            sleep 2
+          done
+          echo "Failed after 10 attempts"
+          exit 1
       - name: Get manifest commit SHA
         id: manifest-sha
         shell: bash
@@ -227,12 +250,6 @@ jobs:
           timeout: 300
           manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
-      - name: Fix permissions for cleanup
-        if: always()
-        shell: bash
-        run: |
-          # Docker action creates root-owned files; fix permissions for cleanup
-          sudo chown -R "$USER:$USER" service-repo || true
       - name: Publish result message to slack
         if: always()
         uses: monta-app/slack-notifier-cli-action@main
