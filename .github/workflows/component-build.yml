@@ -160,13 +160,19 @@ jobs:
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
           context: .
           file: ./${{ inputs.docker-file-name }}
           push: true
-          # Disable provenance to keep single-platform images simple (not manifest lists).
+          # Disable provenance and SBOM to keep single-platform images simple (not manifest lists).
           # Required for manual multi-arch manifest creation in create-manifest job.
+          # Note: provenance: false alone is insufficient with newer BuildKit versions;
+          # BUILDX_NO_DEFAULT_ATTESTATIONS=1 is also needed to prevent attestation
+          # manifests from being generated, which turn images into manifest lists.
           provenance: false
+          sbom: false
           no-cache: true
           build-args: |
             ${{ inputs.additional-build-args }}
