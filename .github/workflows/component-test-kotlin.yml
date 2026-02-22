@@ -91,7 +91,7 @@ jobs:
           gradle-args: ${{ inputs.gradle-args }}
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-result-${{ inputs.gradle-module || 'root' }}
           path: |
