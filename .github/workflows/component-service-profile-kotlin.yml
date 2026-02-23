@@ -38,7 +38,7 @@ on:
 jobs:
   update-service-profile:
     name: Update service profile
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
