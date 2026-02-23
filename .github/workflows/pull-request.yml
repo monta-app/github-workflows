@@ -13,7 +13,7 @@ permissions:
 jobs:
   lint-workflows:
     name: Lint GitHub Workflows
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

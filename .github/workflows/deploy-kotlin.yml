@@ -292,7 +292,7 @@ jobs:
     name: Create and Publish Changelog
     needs: [create-release-tag, deploy]
     if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: 5
     steps:
       - name: Run changelog cli action
