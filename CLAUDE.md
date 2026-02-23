@@ -1,11 +1,18 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2025-07-11
-- **Latest SHA**: 6a249ca (check for newer commits)
-- **Changes**: Added `release-tag-prefix` parameter to deploy-kotlin workflow for customizable release tag prefixes
+- **Date**: 2026-02-23
+- **Latest SHA**: b65d4f5 (check for newer commits)
+- **Changes**: Created `deploy-kotlin-v2.yml` workflow for repo-based Kotlin service deployments
 
-## Recent Workflow Changes (2025-07-11)
+## Recent Workflow Changes (2026-02-23)
+1. **Kotlin V2 Deploy Workflow**: Created `deploy-kotlin-v2.yml` for repo-based deployments
+   - Uses `component-deploy-v2.yml` for service repository-based deployment pattern
+   - Includes all Kotlin-specific features: tests, Gradle, service profile updates, release tags, changelog
+   - Added `helm-values-path`, `repository-name`, and `argocd-app-name` inputs for flexible repo configuration
+   - Maintains compatibility with all existing Kotlin workflow features
+
+## Previous Changes (2025-07-11)
 1. **Release Tag Prefix**: Added `release-tag-prefix` input to `deploy-kotlin.yml` for creating prefixed release tags (e.g., 'service-2024-01-15-14-30')
 2. **Documentation**: Updated workflow guide with prefix parameter and usage example
 
