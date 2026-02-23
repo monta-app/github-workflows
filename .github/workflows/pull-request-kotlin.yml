@@ -11,7 +11,7 @@ on:
         required: false
         type: string
         description: "Runner architecture (x64 or arm64)"
-        default: "x64"
+        default: "arm64"
       java-version:
         required: false
         type: string

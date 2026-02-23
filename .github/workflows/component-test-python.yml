@@ -10,7 +10,7 @@ on:
         required: false
         type: string
         description: "Runner architecture (x64 or arm64)"
-        default: "x64"
+        default: "arm64"
       service-name:
         required: false
         type: string
