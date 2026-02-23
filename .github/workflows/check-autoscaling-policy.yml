@@ -1,0 +1,147 @@
+name: Autoscaling Policy Audit
+
+on:
+  workflow_call:
+    inputs:
+      environments:
+        description: 'Comma-separated list of environment folder names to scan'
+        type: string
+        default: 'staging,production'
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+
+jobs:
+  audit:
+    name: Autoscaling Policy Audit
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install PyYAML
+
+      - name: Check autoscaling policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ENVIRONMENTS: ${{ inputs.environments }}
+        run: |
+          python3 << 'PYTHON_EOF'
+          import os, sys, yaml, subprocess, re
+
+          pr_number = os.environ['PR_NUMBER']
+          environments = os.environ.get('ENVIRONMENTS', 'staging,production').split(',')
+          repo = os.environ['GITHUB_REPOSITORY']
+
+          def check_status(d):
+              if not isinstance(d, dict):
+                  return None
+              if d.get('autoscaling', {}).get('enabled') is True:
+                  return ('hpa', 'autoscaling.enabled')
+              if d.get('autoscalingKeda', {}).get('enabled') is True:
+                  return ('keda', 'autoscalingKeda.enabled')
+              policy = d.get('autoscalingPolicy', {})
+              if isinstance(policy, dict) and policy.get('exempt') is True:
+                  return ('exempt', policy.get('reason', ''))
+              for v in d.values():
+                  result = check_status(v)
+                  if result:
+                      return result
+              return None
+
+          result = subprocess.run(
+              ['gh', 'pr', 'diff', pr_number, '--name-only', '--repo', repo],
+              capture_output=True, text=True
+          )
+          if result.returncode != 0:
+              print(f"Warning: gh pr diff failed: {result.stderr}", file=sys.stderr)
+              sys.exit(0)
+
+          changed_files = [f for f in result.stdout.strip().split('\n') if f]
+          env_pattern = '|'.join(re.escape(e.strip()) for e in environments)
+          pattern = re.compile(rf'^apps/[^/]+/({env_pattern})/app/values\.yaml$')
+          matched_files = [f for f in changed_files if pattern.match(f)]
+
+          if not matched_files:
+              print("No matching values.yaml files found in changed files.")
+              sys.exit(0)
+
+          rows = []
+          has_missing = False
+          for filepath in matched_files:
+              parts = filepath.split('/')
+              service = parts[1] if len(parts) > 1 else 'unknown'
+              env = parts[2] if len(parts) > 2 else 'unknown'
+              try:
+                  with open(filepath, 'r') as f:
+                      data = yaml.safe_load(f) or {}
+              except Exception as e:
+                  has_missing = True
+                  rows.append((service, env, 'error', str(e)))
+                  continue
+
+              status = check_status(data)
+              if status is None:
+                  has_missing = True
+                  rows.append((service, env, 'missing',
+                      'Enable `autoscaling.enabled` or `autoscalingKeda.enabled`, or set `autoscalingPolicy.exempt: true` with a reason'))
+              elif status[0] == 'exempt':
+                  reason = status[1]
+                  if not reason:
+                      print(f"Warning: {service}/{env} is exempt but has no reason set.", file=sys.stderr)
+                  rows.append((service, env, 'exempt', reason or '(no reason provided)'))
+              else:
+                  rows.append((service, env, status[0], status[1]))
+
+          if not has_missing:
+              print("All changed services have autoscaling configured or are exempt. No comment needed.")
+              sys.exit(0)
+
+          status_icons = {
+              'hpa': '✅ HPA',
+              'keda': '✅ KEDA',
+              'exempt': '🚫 Exempt',
+              'missing': '⚠️ Missing',
+              'error': '❓ Error',
+          }
+          table_rows = '\n'.join(
+              f'| {svc} | {env} | {status_icons.get(st, st)} | {det} |'
+              for svc, env, st, det in rows
+          )
+          comment = f"""## ⚠️ Autoscaling Audit
+
+| Service | Environment | Status | Details |
+|---------|-------------|--------|---------|
+{table_rows}
+
+> This is informational and does not block merging."""
+
+          with open('/tmp/autoscaling-comment.md', 'w') as f:
+              f.write(comment)
+          print("Missing autoscaling configuration found. Will post PR comment.")
+          PYTHON_EOF
+
+      - name: Post or update PR comment
+        run: |
+          if [ -f /tmp/autoscaling-comment.md ]; then
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --repo ${{ github.repository }} \
+              --body-file /tmp/autoscaling-comment.md \
+              --edit-last || \
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --repo ${{ github.repository }} \
+              --body-file /tmp/autoscaling-comment.md
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
