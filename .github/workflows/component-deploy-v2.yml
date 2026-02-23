@@ -125,16 +125,16 @@ jobs:
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
         run: |
-          echo "docker-image=$(yq .kotlin.image.repository values.yaml)" >> "$GITHUB_OUTPUT"
-          echo "previous-image-tag=$(yq .kotlin.image.tag values.yaml)" >> "$GITHUB_OUTPUT"
+          echo "docker-image=$(yq '.. | select(has("image")).image.repository' values.yaml | head -1)" >> "$GITHUB_OUTPUT"
+          echo "previous-image-tag=$(yq '.. | select(has("image")).image.tag' values.yaml | head -1)" >> "$GITHUB_OUTPUT"
       - name: Update image tag
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
         run: |
-          # Update image tag, revision, and build using yq for proper YAML manipulation
-          yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i values.yaml
-          yq e '.kotlin.revision = "${{ github.sha }}"' -i values.yaml
-          yq e '.kotlin.build = ${{ github.run_number }}' -i values.yaml
+          # Update image tag using sed for chart-agnostic replacement (works with kotlin, static, etc.)
+          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
+          sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
+          sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
       - name: Commit and push with automatic retry
         shell: bash
         working-directory: ./service-repo
@@ -161,9 +161,9 @@ jobs:
               echo "Rebase conflict, re-applying changes on top of latest main..."
               git rebase --abort
               git reset --soft origin/main
-              yq e '.kotlin.image.tag = "${{ inputs.image-tag }}"' -i "$HELM_VALUES_PATH/values.yaml"
-              yq e '.kotlin.revision = "${{ github.sha }}"' -i "$HELM_VALUES_PATH/values.yaml"
-              yq e '.kotlin.build = ${{ github.run_number }}' -i "$HELM_VALUES_PATH/values.yaml"
+              sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$HELM_VALUES_PATH/values.yaml"
+              sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$HELM_VALUES_PATH/values.yaml"
+              sed -i "s/build: .*/build: ${{ github.run_number }}/" "$HELM_VALUES_PATH/values.yaml"
               git add .
               git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
             fi
