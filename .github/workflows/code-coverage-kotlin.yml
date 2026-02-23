@@ -132,7 +132,7 @@ jobs:
     needs:
       - setup
       - generate-coverage-report
-    runs-on: linux-x64
+    runs-on: linux-arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
