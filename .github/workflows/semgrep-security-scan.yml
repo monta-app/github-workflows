@@ -38,7 +38,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install Semgrep
-        run: pip install semgrep==1.86.0
+        run: pip install semgrep==1.152.0
 
       - name: Get changed files
         id: changed-files
