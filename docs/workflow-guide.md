@@ -12,13 +12,14 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 6. [Component Initialize](#component-initialize)
 7. [Component Test (Kotlin)](#component-test-kotlin)
 8. [Deploy Kotlin](#deploy-kotlin)
-9. [Publish Tech Docs](#publish-tech-docs)
-10. [Pull Request Kotlin](#pull-request-kotlin)
-11. [Pull Request React (Bun)](#pull-request-react-bun)
-12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-13. [Rollback](#rollback)
-14. [SonarCloud Analysis](#sonarcloud-analysis)
-15. [Track Pending Release](#track-pending-release)
+9. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
+10. [Publish Tech Docs](#publish-tech-docs)
+11. [Pull Request Kotlin](#pull-request-kotlin)
+12. [Pull Request React (Bun)](#pull-request-react-bun)
+13. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+14. [Rollback](#rollback)
+15. [SonarCloud Analysis](#sonarcloud-analysis)
+16. [Track Pending Release](#track-pending-release)
 
 ---
 
@@ -563,6 +564,225 @@ jobs:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       TEST_ENV_FILE: ${{ secrets.TEST_ENV_FILE }}
 ```
+
+---
+
+## Deploy Kotlin V2 (Service Repo)
+
+**File:** `deploy-kotlin-v2.yml`
+**Purpose:** Complete CI/CD pipeline for Kotlin services using service repository-based deployment pattern. This workflow follows the v2 pattern where helm values are stored in a separate service repository instead of the central kube-manifests repo.
+
+### What it does:
+1. **Initialize**: Sets up Slack notifications for the deployment process
+2. **Test**: Runs unit tests and validates code quality (optional, controlled by `run-tests`)
+3. **Build**: Creates multi-architecture Docker images and pushes to ECR
+4. **Deploy**: Updates helm values in the service repository and syncs with ArgoCD
+5. **Update Service Profile** (optional): Generates linkerd service profile from OpenAPI spec
+6. **Create Release Tag** (optional): Creates a release tag when `enable-release-tag` is true
+7. **Create Changelog** (optional): Generates and publishes changelog to Slack and GitHub releases
+
+### Differences from v1 (`deploy-kotlin.yml`):
+- Uses `component-deploy-v2.yml` which updates a separate service repository instead of kube-manifests
+- Adds `helm-values-path` input for flexible helm values directory structure
+- Adds `repository-name` input to specify the service repository name
+- Adds `argocd-app-name` input for custom ArgoCD application naming
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
+| `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
+| `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
+| `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
+| `service-identifier` | Yes | - | Service identifier for ECR and Kubernetes (e.g., "charging") |
+| `gradle-module` | No | - | Gradle module name for multi-module projects |
+| `java-version` | No | "21" | Java version to use |
+| `gradle-args` | No | "--no-daemon --parallel" | Additional Gradle arguments |
+| `region` | No | "eu-west-1" | AWS region for deployment |
+| `docker-file-name` | No | "Dockerfile" | Name of the Dockerfile to build |
+| `additional-build-args` | No | - | Additional Docker build arguments |
+| `ecr-repository-name` | No | - | Override ECR repository name |
+| `run-tests` | No | true | Run tests before deployment |
+| `update-service-profile` | No | true | Generate linkerd service profile from OpenAPI spec |
+| `helm-values-path` | No | `helm/{service-identifier}/{stage}/app` | Path to helm values directory in service repo |
+| `repository-name` | No | `service-{service-identifier}` | Service repository name override |
+| `argocd-server` | No | - | ArgoCD server URL (e.g., argocd.monta.app) |
+| `argocd-app-name` | No | `{service-identifier}` | ArgoCD application name prefix (without stage) |
+| `argocd-sync-wait-seconds` | No | 300 | Timeout for ArgoCD sync monitoring |
+| `git-sha` | No | - | Git SHA to checkout and build from |
+| `enable-release-tag` | No | false | Enable automatic release tag creation |
+| `release-tag-prefix` | No | '' | Optional prefix for release tag names |
+| `enable-changelog` | No | false | Enable changelog generation |
+| `changelog-tag-pattern` | No | - | Regex pattern for tag matching (monorepo filtering) |
+| `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding paths from changelog |
+| `comment-on-prs` | No | true | Comment on PRs with deployment info |
+| `comment-on-jira` | No | true | Comment on JIRA tickets with deployment info |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GHL_USERNAME` | Yes | GitHub username for Gradle dependencies |
+| `GHL_PASSWORD` | Yes | GitHub token for Gradle dependencies |
+| `AWS_ACCOUNT_ID` | Yes | AWS Account ID for ECR and deployment |
+| `SLACK_APP_TOKEN` | Yes | Slack token for notifications |
+| `MANIFEST_REPO_PAT` | Yes | GitHub PAT for updating service repository |
+| `SENTRY_AUTH_TOKEN` | No | Sentry authentication token |
+| `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key for S3 access |
+| `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key for S3 access |
+| `LOKALISE_TOKEN` | No | Lokalise API token |
+| `LOKALISE_PROJECT_ID` | No | Lokalise project ID |
+| `JIRA_EMAIL` | No | Email for JIRA API authentication |
+| `JIRA_TOKEN` | No | JIRA API token |
+| `CHANGELOG_GITHUB_TOKEN` | No | GitHub token for changelog generation |
+| `ARGOCD_TOKEN` | No | ArgoCD authentication token |
+
+### Outputs:
+- `slack-message-id`: Slack message ID for notifications
+- `stage`: Stage that was deployed to
+- `docker-image`: Docker image repository path
+- `previous-image-tag`: Previous Docker image tag (for rollback)
+- `image-tag`: Deployed Docker image tag
+- `deployment-start-time`: ISO 8601 timestamp when deployment started
+- `deployment-end-time`: ISO 8601 timestamp when deployment completed
+- `deployment-url`: Direct URL to the application in ArgoCD UI
+
+### Example Usage:
+
+#### Basic Deployment with Service Repo:
+```yaml
+name: Deploy to Production
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin-v2.yml@main
+    with:
+      stage: "production"
+      service-name: "Payment Service"
+      service-emoji: "💳"
+      service-identifier: "payment"
+      repository-name: "service-payment"  # Service repo with helm values
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+```
+
+#### With Custom Helm Path and ArgoCD Monitoring:
+```yaml
+name: Deploy to Staging
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin-v2.yml@main
+    with:
+      stage: "staging"
+      service-name: "Auth Service"
+      service-emoji: "🔐"
+      service-identifier: "auth"
+      repository-name: "service-auth"
+      helm-values-path: "infrastructure/helm/staging/app"
+      argocd-server: "argocd.monta.app"
+      argocd-app-name: "auth"
+      java-version: "21"
+      gradle-module: "auth-api"
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+```
+
+#### Production with Release Management:
+```yaml
+name: Deploy Production with Release
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: monta-app/github-workflows/.github/workflows/deploy-kotlin-v2.yml@main
+    with:
+      stage: "production"
+      runner-size: "large"
+      service-name: "Gateway Service"
+      service-emoji: "🚪"
+      service-identifier: "gateway"
+      repository-name: "service-gateway"
+      enable-release-tag: true
+      release-tag-prefix: "gateway"
+      enable-changelog: true
+      changelog-tag-pattern: "gateway-(.*)"
+      argocd-server: "argocd.monta.app"
+      comment-on-prs: true
+      comment-on-jira: true
+    secrets:
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      AWS_ACCOUNT_ID: ${{ secrets.PRODUCTION_AWS_ACCOUNT_ID }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+      ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+```
+
+### Service Repository Structure:
+The service repository should have the following structure:
+```
+service-{identifier}/
+├── helm/
+│   ├── {service-identifier}/
+│   │   ├── dev/
+│   │   │   ├── app/
+│   │   │   │   └── values.yaml
+│   │   │   └── cluster/
+│   │   │       └── config.yaml  # Optional: ArgoCD auto-sync config
+│   │   ├── staging/
+│   │   │   └── app/
+│   │   │       └── values.yaml
+│   │   └── production/
+│   │       └── app/
+│   │           └── values.yaml
+└── ...
+```
+
+Or with custom path:
+```
+service-{identifier}/
+├── infrastructure/
+│   └── helm/
+│       ├── dev/
+│       │   └── app/
+│       │       └── values.yaml
+│       └── staging/
+│           └── app/
+│               └── values.yaml
+└── ...
+```
+
+### When to Use V2 vs V1:
+- **Use V2** (`deploy-kotlin-v2.yml`) when:
+  - Helm values should live in the service repository
+  - You want tighter coupling between code and infrastructure
+  - Each service manages its own deployment configuration
+
+- **Use V1** (`deploy-kotlin.yml`) when:
+  - Helm values are centralized in the `kube-manifests` repository
+  - You prefer separation of concerns between code and infrastructure
+  - Infrastructure team manages all deployment configurations
 
 ---
 
