@@ -77,6 +77,9 @@ on:
       LOKALISE_PROJECT_ID:
         required: false
         description: 'Lokalise project ID for Lokalise API, this value is injected into the secrets of a docker image'
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:
+        required: false
+        description: 'Encryption key for Next.js Server Actions, this value is injected into the secrets of a docker image'
     outputs:
       image-tag:
         description: 'The image tag that was built'
@@ -188,6 +191,7 @@ jobs:
             AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
             LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
+            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
   create-manifest:
     name: Create Multi-Arch Manifest
     needs: build
