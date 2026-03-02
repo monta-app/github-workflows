@@ -35,6 +35,30 @@ jobs:
       slack-message-id: ${{ steps.send-slack-message.outputs.slack-message-id }}
       slack-channel-id: ${{ steps.send-slack-message.outputs.slack-channel-id }}
     steps:
+      - name: Enrich event for workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          # workflow_dispatch events don't include commit info, causing
+          # null Committer/Message/Change in Slack notifications.
+          # Fetch HEAD commit info and write a push-compatible event file
+          # so the slack-notifier-cli can parse it.
+          gh api "repos/${{ github.repository }}/commits/${{ github.sha }}" \
+            --jq '{
+              head_commit: {
+                id: .sha,
+                message: .commit.message,
+                author: .commit.author,
+                committer: .commit.committer
+              },
+              pusher: {
+                name: (.commit.author.name // "${{ github.triggering_actor }}"),
+                email: (.commit.author.email // "")
+              }
+            }' > "$GITHUB_EVENT_PATH"
+
       - name: Send slack message
         id: send-slack-message
         uses: monta-app/slack-notifier-cli-action@main
