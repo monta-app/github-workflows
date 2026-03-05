@@ -74,7 +74,7 @@ jobs:
     steps:
       # Checkout
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # to check out the actual pull request commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha }}

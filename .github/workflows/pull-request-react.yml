@@ -75,7 +75,7 @@ jobs:
     timeout-minutes: ${{ inputs.build-timeout-minutes }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0

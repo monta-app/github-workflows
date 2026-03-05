@@ -23,7 +23,7 @@ jobs:
     runs-on: linux-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Disable CD on merge to main
       - name: Disable ${{ inputs.workflow }} workflow
