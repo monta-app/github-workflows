@@ -16,9 +16,6 @@ This repository contains several reusable workflows designed to streamline the C
 ### `sonar-cloud.yml`
 - **Purpose**: Integrates with SonarCloud for analyzing code quality and vulnerabilities.
 
-### `check-jira-link.yml`
-- **Purpose**: Validates that pull requests include a link to a Jira ticket in their description. Skips automated PRs (Renovate, Dependabot) and allows opting out by including `nojira` or `no-jira` in the branch name, PR title, or description.
-
 ### `semgrep-security-scan.yml`
 - **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns. Designed primarily for pull requests (PR commenting, diff-aware scanning), but can be called from other event types via `workflow_call` with limited functionality.
 
