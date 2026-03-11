@@ -1,6 +1,6 @@
 # PR Title Check Action
 
-A composite action that validates pull request titles against conventional commit standards.
+A composite action that validates pull request titles against conventional commit standards and ensures a Jira ticket is referenced.
 
 ## Usage
 
@@ -11,7 +11,14 @@ A composite action that validates pull request titles against conventional commi
 
 ## How it Works
 
-This action uses [Slashgear/action-check-pr-title](https://github.com/Slashgear/action-check-pr-title) to validate PR titles against a conventional commit pattern.
+This action runs two checks:
+
+1. **Title format**: Uses [Slashgear/action-check-pr-title](https://github.com/Slashgear/action-check-pr-title) to validate PR titles against a conventional commit pattern.
+2. **Jira reference**: Ensures every PR links to a Jira ticket, either via a full URL in the description (`https://montaapp.atlassian.net/browse/PROJECT-123`) or a ticket reference in the title (`[FOO-123]`).
+
+### Skipping the Jira check
+
+Include `nojira` or `no-jira` in the branch name, PR title, or description to skip the Jira check. Automated PRs from Renovate and Dependabot are skipped automatically.
 
 ## Title Format
 
