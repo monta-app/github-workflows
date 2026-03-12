@@ -160,7 +160,7 @@ jobs:
       # github.event_name will not be 'pull_request' and this step will be skipped.
       - name: Post PR Comment
         if: steps.evaluate.outputs.total > 0 && github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
