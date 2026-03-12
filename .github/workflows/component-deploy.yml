@@ -101,7 +101,7 @@ jobs:
           slack-channel-id: "C01KL9FUPNK"
           slack-message-id: ${{ inputs.slack-message-id }}
       - name: Check out manifest repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: monta-app/kube-manifests
           path: 'manifests'

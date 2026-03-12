@@ -99,7 +99,7 @@ jobs:
       runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Get x64 runner name
@@ -140,7 +140,7 @@ jobs:
             runner: ${{ needs.setup.outputs.runner-arm64 }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role

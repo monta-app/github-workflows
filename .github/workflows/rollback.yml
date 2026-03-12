@@ -53,7 +53,7 @@ jobs:
     if: ${{ !inputs.dry-run }}
     runs-on: linux-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2
         env:
@@ -82,7 +82,7 @@ jobs:
     runs-on: linux-arm64
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
@@ -96,7 +96,7 @@ jobs:
           echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Check out kube-manifests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
