@@ -144,7 +144,7 @@ jobs:
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{inputs.stage}}
@@ -154,7 +154,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
@@ -162,7 +162,7 @@ jobs:
             type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
@@ -201,7 +201,7 @@ jobs:
       image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: create-manifest-${{ inputs.service-identifier }}-${{inputs.stage}}
