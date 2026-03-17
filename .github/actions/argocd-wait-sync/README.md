@@ -126,7 +126,7 @@ jobs:
 
       - name: Comment on PR with deployment info
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
