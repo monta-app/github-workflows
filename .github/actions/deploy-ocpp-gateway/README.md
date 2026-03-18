@@ -55,7 +55,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Deploy to Staging
         uses: monta-app/github-workflows/.github/actions/deploy-ocpp-gateway@main
