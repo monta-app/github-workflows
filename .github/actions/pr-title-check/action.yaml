@@ -35,7 +35,7 @@ runs:
             return;
           }
 
-          // Check for Jira link
+          // Check for Jira link, supports both montaapp.atlassian.net and monta.atlassian.net
           const jiraLinkPattern = /https:\/\/monta(?:app)?\.atlassian\.net\/browse\/[A-Z]+-\d+/;
           const jiraTitleRefPattern = /\[[A-Z]+-\d+\]/;
 
