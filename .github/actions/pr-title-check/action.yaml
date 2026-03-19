@@ -36,7 +36,7 @@ runs:
           }
 
           // Check for Jira link
-          const jiraLinkPattern = /https:\/\/montaapp\.atlassian\.net\/browse\/[A-Z]+-\d+/;
+          const jiraLinkPattern = /https:\/\/monta(?:app)?\.atlassian\.net\/browse\/[A-Z]+-\d+/;
           const jiraTitleRefPattern = /\[[A-Z]+-\d+\]/;
 
           if (jiraLinkPattern.test(prBody)) {
