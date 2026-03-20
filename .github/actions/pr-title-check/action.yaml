@@ -8,3 +8,48 @@ runs:
       with:
         regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
         helpMessage: "Example: 'feat(app-ui): Add new dashboard component (WEB-123)'"
+    - name: Check for Jira link in PR description
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const prBody = context.payload.pull_request.body || '';
+          const prTitle = context.payload.pull_request.title || '';
+          const branchName = context.payload.pull_request.head.ref || '';
+          const prAuthor = context.payload.pull_request.user.login || '';
+
+          // Skip validation for automated PRs (Renovate, Dependabot, etc.)
+          const automatedBots = ['renovate[bot]', 'dependabot[bot]'];
+          if (automatedBots.includes(prAuthor)) {
+            core.info(`✅ Automated PR from ${prAuthor} - skipping Jira link validation`);
+            return;
+          }
+
+          // Check if "nojira" or "no-jira" is present in branch name, title, or description (case-insensitive)
+          const noJiraPattern = /no-?jira/i;
+          const hasNoJira = noJiraPattern.test(branchName) ||
+                            noJiraPattern.test(prTitle) ||
+                            noJiraPattern.test(prBody);
+
+          if (hasNoJira) {
+            core.info('✅ "nojira"/"no-jira" found - skipping Jira link validation');
+            return;
+          }
+
+          // Check for Jira link, supports both montaapp.atlassian.net and monta.atlassian.net
+          const jiraLinkPattern = /https:\/\/monta(?:app)?\.atlassian\.net\/browse\/[A-Z]+-\d+/;
+          const jiraTitleRefPattern = /\[[A-Z]+-\d+\]/;
+
+          if (jiraLinkPattern.test(prBody)) {
+            const match = prBody.match(jiraLinkPattern);
+            core.info(`✅ Found Jira ticket: ${match[0]}`);
+          } else if (jiraTitleRefPattern.test(prTitle)) {
+            const match = prTitle.match(jiraTitleRefPattern);
+            core.info(`✅ Found Jira ticket reference in PR title: ${match[0]}`);
+          } else {
+            core.setFailed('❌ No Jira ticket link found in PR description.\n\n' +
+              'Please add a link to your Jira ticket in the format:\n' +
+              'https://montaapp.atlassian.net/browse/PROJECT-123\n\n' +
+              'Example: https://montaapp.atlassian.net/browse/CPONETOPS-568\n\n' +
+              'Or include a ticket reference in the PR title, e.g. [FOO-123]\n\n' +
+              'To skip this check, include "nojira" or "no-jira" in the branch name, PR title, or description.');
+          }
