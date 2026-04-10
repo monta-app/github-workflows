@@ -27,7 +27,7 @@ runs:
         STAGE: ${{ inputs.stage }}
       run: |
         if [[ $STAGE =~ dev|staging ]]; then
-          INFRA_PORTAL_HOSTNAME="infra-portal.staging.monta.app"
+          INFRA_PORTAL_HOSTNAME="infra-portal.internal.monta.app"
         else
           INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
         fi
@@ -37,10 +37,12 @@ runs:
       run: |
         if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
           cluster=staging
+          path_prefix="/api/public"
         else
           cluster=production
+          path_prefix=""
         fi
-        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
+        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}${path_prefix}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
         if [[ $response_code != "200" ]]; then
           echo "::error::$(cat resp_body.txt)"
           exit 1
