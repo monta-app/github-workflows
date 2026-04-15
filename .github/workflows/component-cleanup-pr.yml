@@ -1,0 +1,99 @@
+name: Cleanup PR
+
+on:
+  workflow_call:
+    inputs:
+      namespace:
+        required: true
+        type: string
+        description: 'Kubernetes namespace to delete (e.g. hub-pr-123)'
+      chart:
+        required: true
+        type: string
+        description: 'Helm chart path used during deploy (e.g. .github/helm)'
+      runner:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+        description: 'Runner to use for the job'
+      service-name:
+        required: false
+        type: string
+        description: 'Service name for Slack notifications'
+      service-emoji:
+        required: false
+        type: string
+        default: '🧹'
+        description: 'Emoji for Slack notifications'
+    secrets:
+      STAGING_KUBECONFIG:
+        required: true
+        description: 'Staging kubeconfig (raw YAML)'
+      STAGING_KUBECONFIG_BASE64:
+        required: true
+        description: 'Staging kubeconfig (base64 encoded)'
+      SLACK_APP_TOKEN:
+        required: false
+        description: 'Slack token for failure notifications'
+
+jobs:
+  cleanup-pr:
+    name: Helm and Namespace cleanup
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Uninstall helm release
+        # continue-on-error here because the release may not exist
+        # (e.g. PR used #skip-deploy or deploy never completed)
+        continue-on-error: true
+        uses: "vimeda/helm@8fb24318e538359380b6acaaee9aa686d5f0c5cb" # v1.7.0
+        env:
+          KUBECONFIG_FILE: ${{ secrets.STAGING_KUBECONFIG }}
+        with:
+          task: remove
+          release: ${{ inputs.namespace }}
+          namespace: ${{ inputs.namespace }}
+          chart: ${{ inputs.chart }}
+          token: ${{ github.token }}
+
+      - name: Delete namespace
+        # continue-on-error here because the namespace may already be gone
+        # after helm uninstall, or may never have been created
+        continue-on-error: true
+        uses: actions-hub/kubectl@v1.28.2
+        env:
+          KUBE_CONFIG: ${{ secrets.STAGING_KUBECONFIG_BASE64 }}
+        with:
+          args: delete ns ${{ inputs.namespace }} --ignore-not-found
+
+      - name: Verify namespace is gone
+        # This is the real failure gate — if the namespace still exists
+        # after cleanup attempts, something is genuinely wrong
+        uses: actions-hub/kubectl@v1.28.2
+        env:
+          KUBE_CONFIG: ${{ secrets.STAGING_KUBECONFIG_BASE64 }}
+        with:
+          args: get namespace ${{ inputs.namespace }}
+        # We expect this to fail (namespace not found = success)
+        # If it succeeds (namespace still exists), the step exits 0 which
+        # means cleanup failed — we invert the logic below
+        continue-on-error: true
+        id: verify
+
+      - name: Fail if namespace still exists
+        if: steps.verify.outcome == 'success'
+        run: |
+          echo "::error::Namespace ${{ inputs.namespace }} still exists after cleanup. Helm uninstall or kubectl delete may have failed."
+          exit 1
+
+      - name: Notify Slack on failure
+        if: failure() && secrets.SLACK_APP_TOKEN != ''
+        uses: monta-app/slack-notifier-cli-action@main
+        with:
+          job-type: cleanup
+          job-status: failure
+          service-name: ${{ inputs.service-name || inputs.namespace }}
+          service-emoji: ${{ inputs.service-emoji }}
+          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
+          slack-channel-id: "C01KL9FUPNK"
