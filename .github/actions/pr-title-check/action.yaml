@@ -9,7 +9,7 @@ runs:
         regexp: '^(\[(develop|development|staging)\]\s)?(build|chore|ci|docs|feat|feature|fix|perf|refactor|revert|style|test|release|ignore)(\([\w\- ]+\))?!?: (.+)'
         helpMessage: "Example: 'feat(app-ui): Add new dashboard component (WEB-123)'"
     - name: Check for Jira link in PR description
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           const prBody = context.payload.pull_request.body || '';
