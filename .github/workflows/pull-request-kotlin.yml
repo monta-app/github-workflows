@@ -135,7 +135,7 @@ jobs:
           gradle-tasks: 'sonar'
           gradle-args: ${{ inputs.gradle-args }}
       - name: Add code coverage to PR
-        uses: mi-kas/kover-report@v1
+        uses: mi-kas/kover-report@v2
         with:
           title: Code Coverage ${{ inputs.gradle-module }}
           path: ${{ inputs.kover-report-path }}
