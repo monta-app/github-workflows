@@ -69,7 +69,7 @@ jobs:
     timeout-minutes: ${{ inputs.build-timeout-minutes }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -79,7 +79,7 @@ jobs:
         with:
           docker-compose-path: ${{ inputs.docker-compose-path }}
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "latest"
       - name: Install dependencies
@@ -103,7 +103,7 @@ jobs:
         run: |
           sudo apt-get install -y lcov
       - name: Report code coverage
-        uses: zgosalvez/github-actions-report-lcov@v7
+        uses: zgosalvez/github-actions-report-lcov@7d72c57ce4bc101a4a0bf9d726b6c435abde8439 # v7
         with:
           coverage-files: coverage/*lcov.info*
           minimum-coverage: 0
