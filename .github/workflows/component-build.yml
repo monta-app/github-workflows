@@ -99,7 +99,7 @@ jobs:
       runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Get x64 runner name
@@ -140,21 +140,21 @@ jobs:
             runner: ${{ needs.setup.outputs.runner-arm64 }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{inputs.stage}}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
@@ -162,7 +162,7 @@ jobs:
             type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
@@ -201,14 +201,14 @@ jobs:
       image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: create-manifest-${{ inputs.service-identifier }}-${{inputs.stage}}
           aws-region: ${{ inputs.region }}
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
       - name: Create and push manifest
         run: |
           # Enable experimental features

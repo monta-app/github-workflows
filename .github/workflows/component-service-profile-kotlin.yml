@@ -41,9 +41,9 @@ jobs:
     runs-on: linux-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up JDK
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
@@ -109,7 +109,7 @@ jobs:
               {"condition": {"method": "OPTIONS"}, "name": "OPTIONS [Default]"}
             ]' > service-profile.yml
       - name: Check out manifest repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           path: 'manifests'
           repository: monta-app/kube-manifests
@@ -154,7 +154,7 @@ jobs:
           fi
       - name: Push changes
         if: always() && steps.commit-changes.outputs.has_changes == 'true'
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@d30dc2d070765d7e509df00c34c5fa2dd636ff74 # master
         with:
           directory: './manifests'
           github_token: ${{ secrets.MANIFEST_REPO_PAT }}

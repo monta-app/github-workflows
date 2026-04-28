@@ -53,9 +53,9 @@ jobs:
     if: ${{ !inputs.dry-run }}
     runs-on: linux-arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Slack Notification
-        uses: rtCamp/action-slack-notify@v2
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2
         env:
           MSG_MINIMAL: true #'ref,commit'
           SLACK_CHANNEL: ${{ inputs.slack-channel }}
@@ -82,7 +82,7 @@ jobs:
     runs-on: linux-arm64
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 2
 
@@ -96,7 +96,7 @@ jobs:
           echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Check out kube-manifests
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
@@ -130,7 +130,7 @@ jobs:
 
       - name: Push
         if: ${{ !inputs.dry-run }}
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@d30dc2d070765d7e509df00c34c5fa2dd636ff74 # master
         with:
           github_token: ${{ secrets.ADMIN_PAT }}
           directory: './kube-manifests'
