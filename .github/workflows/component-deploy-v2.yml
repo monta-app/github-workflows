@@ -42,6 +42,11 @@ on:
         required: false
         type: string
         description: 'ArgoCD application name prefix (without stage). Defaults to service-identifier. Used for kube-manifests lookup (apps/{argocd-app-name}/{stage}/...) and ArgoCD app name ({argocd-app-name}-{stage}).'
+      argocd-sync-wait-seconds:
+        required: false
+        default: 300
+        type: number
+        description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -247,7 +252,7 @@ jobs:
           app-name: ${{ format('{0}-{1}', inputs.argocd-app-name || inputs.service-identifier, inputs.stage) }}
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
-          timeout: 300
+          timeout: ${{ inputs.argocd-sync-wait-seconds }}
           manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Publish result message to slack
