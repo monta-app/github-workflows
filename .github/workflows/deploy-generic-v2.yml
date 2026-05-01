@@ -71,6 +71,11 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      enable-buildkit-cache:
+        required: false
+        type: boolean
+        default: true
+        description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -158,6 +163,7 @@ jobs:
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       slack-message-id: ${{ inputs.slack-message-id || needs.initialize.outputs.slack-message-id }}
       git-sha: ${{ inputs.git-sha }}
+      enable-buildkit-cache: ${{ inputs.enable-buildkit-cache }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
