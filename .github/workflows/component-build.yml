@@ -157,6 +157,11 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
+      # Required when enable-buildkit-cache=true: registry cache export needs the
+      # docker-container buildx driver (the default docker driver does not support cache-to).
+      - name: Set up Docker Buildx
+        if: ${{ inputs.enable-buildkit-cache }}
+        uses: docker/setup-buildx-action@v4
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
