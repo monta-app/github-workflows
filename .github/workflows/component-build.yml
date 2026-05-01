@@ -49,6 +49,11 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      enable-buildkit-cache:
+        required: false
+        type: boolean
+        default: true
+        description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -176,7 +181,12 @@ jobs:
           # manifests from being generated, which turn images into manifest lists.
           provenance: false
           sbom: false
-          no-cache: true
+          # Registry-backed BuildKit cache, scoped per-arch to keep amd64/arm64 caches separate.
+          # Cache lives in the same ECR repo as the image under a dedicated tag, so existing
+          # ecr-put-image IAM permissions cover it. mode=max exports all intermediate layers
+          # (and cache mount contents on BuildKit ≥0.12) for maximum reuse on the next build.
+          cache-from: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
+          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2},mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
