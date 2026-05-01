@@ -24,6 +24,16 @@ on:
         default: 'service-profile.yml'
         type: string
         description: 'File name for the service profile in the `templates` directory'
+      openapi-max-workers:
+        required: false
+        type: string
+        default: ''
+        description: |
+          Optional cap on Gradle parallelism for the OpenAPI build step.
+          Each kapt worker uses ~4GB heap; on multi-module repos the
+          default parallelism (Runtime.availableProcessors()) can OOM the
+          runner. Set to e.g. "2" to cap concurrent kapt JVMs. Empty
+          string keeps the default behavior unchanged.
     secrets:
       GHL_USERNAME:
         required: false
@@ -78,8 +88,13 @@ jobs:
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          OPENAPI_MAX_WORKERS: ${{ inputs.openapi-max-workers }}
         run: |
-          ./gradlew "$GRADLE_TASK"
+          if [ -n "$OPENAPI_MAX_WORKERS" ]; then
+            ./gradlew --max-workers="$OPENAPI_MAX_WORKERS" "$GRADLE_TASK"
+          else
+            ./gradlew "$GRADLE_TASK"
+          fi
       - name: Generate service profile
         shell: bash
         run: |
