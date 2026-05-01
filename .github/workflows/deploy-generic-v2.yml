@@ -74,7 +74,7 @@ on:
       enable-buildkit-cache:
         required: false
         type: boolean
-        default: true
+        default: false
         description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
     secrets:
       AWS_ACCOUNT_ID:
