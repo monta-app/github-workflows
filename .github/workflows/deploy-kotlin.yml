@@ -103,6 +103,15 @@ on:
         type: boolean
         default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
+      openapi-max-workers:
+        required: false
+        type: string
+        default: ''
+        description: |
+          Optional cap on Gradle parallelism for the OpenAPI build step in the
+          update-service-profile job. Forwarded to component-service-profile-kotlin.
+          Set to e.g. "2" on multi-module repos that OOM the runner during
+          concurrent kapt. Empty string keeps default behavior.
       argocd-server:
         required: false
         type: string
@@ -277,6 +286,7 @@ jobs:
       stage: ${{ inputs.stage }}
       gradle-module: ${{ inputs.gradle-module }}
       java-version: ${{ inputs.java-version }}
+      openapi-max-workers: ${{ inputs.openapi-max-workers }}
     secrets:
         GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
         GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
