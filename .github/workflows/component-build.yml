@@ -162,9 +162,15 @@ jobs:
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
       # Required when enable-buildkit-cache=true: registry cache export needs the
       # docker-container buildx driver (the default docker driver does not support cache-to).
+      # name + cleanup: false keep the builder container alive between jobs on the same
+      # self-hosted runner, so the Dockerfile's /root/.gradle cache mount survives locally
+      # and the registry cache only needs to bootstrap cold runners.
       - name: Set up Docker Buildx
         if: ${{ inputs.enable-buildkit-cache }}
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+        with:
+          name: monta-builder
+          cleanup: false
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
@@ -191,10 +197,12 @@ jobs:
           sbom: false
           # Registry-backed BuildKit cache, scoped per-arch to keep amd64/arm64 caches separate.
           # Cache lives in the same ECR repo as the image under a dedicated tag, so existing
-          # ecr-put-image IAM permissions cover it. mode=max exports all intermediate layers
-          # (and cache mount contents on BuildKit ≥0.12) for maximum reuse on the next build.
+          # ecr-put-image IAM permissions cover it. mode=min exports only the final image
+          # layers — not Dockerfile cache-mount contents — keeping the registry cache small
+          # so cold-runner bootstrap stays fast even when ECR pull throughput is degraded.
+          # The Gradle dep cache lives in the persistent local builder (see setup-buildx step).
           cache-from: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
-          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2},mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
+          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2},mode=min,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
