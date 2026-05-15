@@ -125,6 +125,21 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      persistent-builder:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Use a per-service named buildx builder and skip the end-of-job teardown so the
+          Dockerfile's cache mounts survive between jobs on the same self-hosted runner.
+          Off by default to preserve existing behavior. See component-build.yml for details.
+      buildkit-cache-mode:
+        required: false
+        type: string
+        default: 'max'
+        description: |
+          BuildKit registry cache export mode ('max' or 'min'). Defaults to 'max' to preserve
+          existing behavior. See component-build.yml for details.
 
     secrets:
       GHL_USERNAME:
@@ -245,6 +260,8 @@ jobs:
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       slack-message-id: ${{ needs.initialize.outputs.slack-message-id }}
       git-sha: ${{ inputs.git-sha }}
+      persistent-builder: ${{ inputs.persistent-builder }}
+      buildkit-cache-mode: ${{ inputs.buildkit-cache-mode }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
