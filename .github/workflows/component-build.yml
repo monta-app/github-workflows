@@ -70,6 +70,9 @@ on:
       SENTRY_AUTH_TOKEN:
         required: false
         description: "Sentry Auth Token, this value is injected into the secrets of a docker image"
+      FARO_API_KEY:
+        required: false
+        description: "Grafana Faro API key for source-map upload, this value is injected into the secrets of a docker image"
       AWS_CDN_ACCESS_KEY_ID:
         required: false
         description: "AWS CDN Secret Access ID, this value is injected into the secrets of a docker image"
@@ -202,6 +205,7 @@ jobs:
             GHL_USERNAME=${{ secrets.GHL_USERNAME }}
             GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            FARO_API_KEY=${{ secrets.FARO_API_KEY }}
             AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
             AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
             LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
