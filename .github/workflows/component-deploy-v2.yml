@@ -47,6 +47,11 @@ on:
         default: 300
         type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
+      wait-for-argocd-sync:
+        required: false
+        default: true
+        type: boolean
+        description: 'Whether to block the workflow on ArgoCD sync becoming healthy. Set to false to fire-and-forget the deployment (the manifest commit still happens; only the wait step is skipped).'
     secrets:
       MANIFEST_REPO_PAT:
         required: true
@@ -235,16 +240,18 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Log ArgoCD sync skip
-        if: ${{ steps.detect-autosync.outputs.enabled == 'false' || steps.check-argocd-creds.outputs.available == 'false' }}
+        if: ${{ inputs.wait-for-argocd-sync == false || steps.detect-autosync.outputs.enabled == 'false' || steps.check-argocd-creds.outputs.available == 'false' }}
         shell: bash
         run: |
-          if [ "${{ steps.detect-autosync.outputs.enabled }}" = "false" ]; then
+          if [ "${{ inputs.wait-for-argocd-sync }}" = "false" ]; then
+            echo "⏭️ Skipping ArgoCD sync monitoring - wait-for-argocd-sync input is false (fire-and-forget)"
+          elif [ "${{ steps.detect-autosync.outputs.enabled }}" = "false" ]; then
             echo "⏭️ Skipping ArgoCD sync monitoring - auto-sync is not configured for this application"
           else
             echo "⏭️ Skipping ArgoCD sync monitoring - argocd-server input or ARGOCD_TOKEN secret not provided"
           fi
       - name: Wait for ArgoCD sync
-        if: ${{ steps.detect-autosync.outputs.enabled == 'true' && steps.check-argocd-creds.outputs.available == 'true' }}
+        if: ${{ inputs.wait-for-argocd-sync == true && steps.detect-autosync.outputs.enabled == 'true' && steps.check-argocd-creds.outputs.available == 'true' }}
         id: argocd-sync
         uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
         with:

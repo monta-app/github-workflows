@@ -76,6 +76,11 @@ on:
         type: boolean
         default: false
         description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
+      wait-for-argocd-sync:
+        required: false
+        type: boolean
+        default: true
+        description: 'Whether to block the workflow on ArgoCD sync becoming healthy. Set to false to fire-and-forget the deployment (the manifest commit still happens; only the wait step is skipped).'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -193,6 +198,7 @@ jobs:
       helm-values-path: ${{ inputs.helm-values-path }}
       repository-name: ${{ inputs.repository-name }}
       argocd-server: ${{ inputs.argocd-server }}
+      wait-for-argocd-sync: ${{ inputs.wait-for-argocd-sync }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
