@@ -154,7 +154,11 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
-          git add .
+          # Stage only the helm values file we edited. A repo-wide `git add .`
+          # would sweep any other working-tree changes (stale runner state,
+          # side effects from earlier steps) into a commit mislabelled as a
+          # docker-tag bump — see monta-app/monorepo-typescript@716f5f7e3.
+          git add "$HELM_VALUES_PATH/values.yaml"
           git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
 
           for attempt in $(seq 1 10); do
@@ -169,12 +173,16 @@ jobs:
               echo "Rebase clean, retrying push..."
             else
               echo "Rebase conflict, re-applying changes on top of latest main..."
+              # Hard-reset to the new origin/main and re-apply the seds from
+              # scratch. Previous logic used `git reset --soft` + `git add .`,
+              # which kept the old tree in the index and produced commits that
+              # silently reverted unrelated changes between bases.
               git rebase --abort
-              git reset --soft origin/main
+              git reset --hard origin/main
               sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$HELM_VALUES_PATH/values.yaml"
-              git add .
+              git add "$HELM_VALUES_PATH/values.yaml"
               git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
             fi
             sleep 2
