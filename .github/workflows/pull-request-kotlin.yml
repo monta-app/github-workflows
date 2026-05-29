@@ -46,6 +46,9 @@ on:
         default: false
         description: 'Skip PR title check'
     secrets:
+      TAILSCALE_AUTHKEY:
+        required: true
+        description: "Authentication token used for logging into Tailscale"
       GHL_USERNAME:
         required: true
         description: "Github Username (Gradle plugin)"
@@ -54,7 +57,7 @@ on:
         description: "Github Password (Gradle plugin)"
       SONAR_TOKEN:
         required: true
-        description: "SonarCloud token"
+        description: "SonarQube token"
 jobs:
   setup:
     name: Setup
@@ -129,7 +132,16 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
           overwrite: true
-      - name: Upload results to SonarCloud
+      # The self-hosted SonarQube lives behind the Monta VPN, so the runner
+      # needs to join the tailnet before the scan step can reach it.
+      - name: Tailscale
+        if: ${{ !inputs.skip-sonar }}
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          hostname: "github-${{ github.run_id }}"
+          args: "--login-server https://headscale.monta.com --accept-routes"
+      - name: Upload results to SonarQube
         if: ${{ !inputs.skip-sonar }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
