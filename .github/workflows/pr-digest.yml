@@ -39,9 +39,9 @@ on:
         type: boolean
         default: true
       model:
-        description: "Anthropic model identifier for AI curation (e.g. claude-sonnet-4-7, claude-haiku-4-5)."
+        description: "Anthropic model identifier for AI curation (e.g. claude-sonnet-4-6, claude-haiku-4-5). Must be a valid API ID from https://docs.anthropic.com/en/docs/about-claude/models/overview."
         type: string
-        default: "claude-sonnet-4-7"
+        default: "claude-sonnet-4-6"
       post-thread-breakdown:
         description: "Reply in-thread with the full per-area PR breakdown."
         type: boolean
@@ -69,7 +69,7 @@ permissions:
 jobs:
   digest:
     name: Build and post PR digest
-    runs-on: ubuntu-latest
+    runs-on: linux-arm64
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
@@ -238,6 +238,8 @@ jobs:
           AI_AVAILABLE="false"
           if [[ -s /tmp/ai.json ]]; then
             AI_AVAILABLE="true"
+          else
+            echo '{"headline":"","focus":[]}' > /tmp/ai.json
           fi
           jq -n \
             --arg channel "$SLACK_CHANNEL_ID" \
@@ -270,7 +272,7 @@ jobs:
             def mergeIcon(m):
               if m == "CONFLICTING" then " · ❌ conflicts"
               else "" end;
-            def escapeSlack: gsub("[<>&]"; " ");
+            def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def prLine(pr):
               "\(severity(pr.idleDays)) *<\(pr.url)|#\(pr.n // pr.number) \(pr.title | escapeSlack)>*\n" +
               "_by *@\(pr.author.login)* · idle *\(pr.idleDays)d* · \(reviewIcon(pr.reviewDecision)) \(reviewLabel(pr.reviewDecision))\(mergeIcon(pr.mergeable))_";
@@ -393,7 +395,7 @@ jobs:
               if r == "APPROVED" then "✅"
               elif r == "CHANGES_REQUESTED" then "🛑"
               else "👀" end;
-            def escapeSlack: gsub("[<>&]"; " ");
+            def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def prLine(pr):
               "\(severity(pr.idleDays)) <\(pr.url)|#\(pr.n // pr.number)> \(pr.title | escapeSlack) · @\(pr.author.login) · \(pr.idleDays)d · \(reviewIcon(pr.reviewDecision))";
 

@@ -1228,7 +1228,7 @@ For additional support, check the workflow logs in GitHub Actions or contact the
 | `include-drafts` | No | `false` | Include draft PRs in the digest. |
 | `exclude-authors` | No | `"dependabot[bot],renovate[bot]"` | Comma-separated GitHub logins to exclude. |
 | `use-ai-curation` | No | `true` | Use Claude to pick focus PRs and write the headline. Falls back gracefully if the call fails. |
-| `model` | No | `"claude-sonnet-4-7"` | Anthropic model identifier. Use `claude-haiku-4-5` for ~10× cheaper, slightly less nuanced output. |
+| `model` | No | `"claude-sonnet-4-6"` | Anthropic model identifier ([model list](https://docs.anthropic.com/en/docs/about-claude/models/overview)). Use `claude-haiku-4-5` for ~10× cheaper, slightly less nuanced output. |
 | `post-thread-breakdown` | No | `true` | Reply in-thread with the full per-area PR breakdown. |
 | `title` | No | repo name | Header text for the Slack message. |
 | `empty-state` | No | `"silent"` | When no PRs are stale: `"silent"` (post nothing) or `"celebrate"` (post a 🎉 message). |
@@ -1307,10 +1307,12 @@ jobs:
 ```
 
 ### Manual testing:
-The workflow supports `workflow_dispatch`. Trigger from the GitHub UI ("Actions" tab → workflow → "Run workflow") or via the CLI:
+This reusable workflow only declares `workflow_call` — it cannot be dispatched directly. Manual testing is done via the **caller workflow** in the consuming repository, which must declare `workflow_dispatch` itself (both example callers above do).
+
+Once the caller is in place, trigger from the GitHub UI ("Actions" tab → caller workflow → "Run workflow") or via the CLI:
 
 ```bash
-gh workflow run automation-pr-digest.yml --repo monta-app/<your-repo>
+gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
 ```
 
 The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
