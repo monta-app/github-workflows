@@ -20,6 +20,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 14. [Rollback](#rollback)
 15. [SonarCloud Analysis](#sonarcloud-analysis)
 16. [Track Pending Release](#track-pending-release)
+17. [PR Digest](#pr-digest)
 
 ---
 
@@ -1200,3 +1201,118 @@ Most workflows require organization or repository secrets. Add these in your rep
    - Ensure tests generate coverage data
 
 For additional support, check the workflow logs in GitHub Actions or contact the platform team.
+
+---
+
+## PR Digest
+
+**File:** `pr-digest.yml`
+**Purpose:** Posts a daily Slack digest of open pull requests in the calling repository. Designed for high-volume repos (100+ open PRs): the message is AI-curated by default so the channel sees a focused triage view ("today's focus", critical PRs, area summary) instead of a flat list of every open PR. Falls back to deterministic oldest-first surfacing when AI is disabled or unavailable.
+
+### What it does:
+1. Fetches all open PRs in the calling repo via the GitHub CLI (no checkout needed).
+2. Filters out excluded authors (default: Dependabot, Renovate) and drafts (configurable).
+3. Buckets PRs as `fresh`, `stale` (≥ `stale-threshold-days`), or `critical` (≥ `critical-threshold-days`).
+4. **Optional:** sends a compact JSON of the data to the Anthropic API (Claude) and asks it to produce a 1–2 sentence headline plus up to N focus PRs with one-line "why this matters" notes.
+5. Builds a Slack Block Kit message with: header + counts, AI headline (if any), today's focus PRs, area summary, deep-link footer.
+6. **Optional:** posts a threaded follow-up with the full per-area PR breakdown.
+7. Posts via `chat.postMessage` using the existing `SLACK_APP_TOKEN`.
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `slack-channel-id` | **Yes** | - | Slack channel ID (e.g. `C0ALEGFRPU1`). The bot behind `SLACK_APP_TOKEN` must be a member. |
+| `stale-threshold-days` | No | `2` | Days of inactivity before a PR counts as "stale" in the headline stats. |
+| `critical-threshold-days` | No | `7` | Days of inactivity for a PR to be surfaced individually as "critical" (about to be auto-closed). |
+| `max-prs-to-surface` | No | `5` | Max PRs to render by name in the "Today's focus" section. |
+| `include-drafts` | No | `false` | Include draft PRs in the digest. |
+| `exclude-authors` | No | `"dependabot[bot],renovate[bot]"` | Comma-separated GitHub logins to exclude. |
+| `use-ai-curation` | No | `true` | Use Claude to pick focus PRs and write the headline. Falls back gracefully if the call fails. |
+| `model` | No | `"claude-sonnet-4-6"` | Anthropic model identifier ([model list](https://docs.anthropic.com/en/docs/about-claude/models/overview)). Use `claude-haiku-4-5` for ~10× cheaper, slightly less nuanced output. |
+| `post-thread-breakdown` | No | `true` | Reply in-thread with the full per-area PR breakdown. |
+| `title` | No | repo name | Header text for the Slack message. |
+| `empty-state` | No | `"silent"` | When no PRs are stale: `"silent"` (post nothing) or `"celebrate"` (post a 🎉 message). |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `SLACK_APP_TOKEN` | **Yes** | Slack bot token with `chat:write` scope. Bot must be in the target channel. |
+| `ANTHROPIC_API_KEY` | If `use-ai-curation: true` | Anthropic API key. If missing while AI curation is enabled, the AI step is skipped and the deterministic message ships. |
+
+### Permissions:
+The workflow declares its own `pull-requests: read` and `contents: read`. The caller does not need to pass any extra permissions.
+
+### Behaviour notes:
+- **Volume-aware**: deterministic mode hard-caps focus to `max-prs-to-surface`; the rest is summarised by area. The threaded breakdown carries the long tail so the main channel stays scannable even at 100+ open PRs.
+- **Non-blocking AI**: the Anthropic call has a 2-minute step timeout and `continue-on-error: true`. If it fails, the digest ships without the AI headline / focus, falling back to oldest-first.
+- **Area detection**: PRs are auto-grouped by the first label matching the canonical area set (`hub`, `api-gateway`, `control-v2`, `portals`, `installers`, `control`, `ocpp-toolkit`, `storybook`, `dependencies`, `security`). Anything else falls into `other`.
+- **Cost (Sonnet, ~100 PRs)**: roughly ~$0.04 per run, ~$1/month for weekday-only scheduling.
+- **Scheduling**: GitHub Actions cron runs in UTC. For 9 AM Europe/Copenhagen year-round, use dual cron entries plus a small timezone guard in the caller (see the monorepo-typescript `automation-pr-digest.yml` for the canonical pattern).
+
+### Example Usage:
+
+#### Basic — daily digest for a single channel:
+```yaml
+name: PR digest
+
+on:
+  schedule:
+    - cron: "7 7 * * 1-5"  # 09:07 CEST (summer)
+    - cron: "7 8 * * 1-5"  # 09:07 CET  (winter)
+  workflow_dispatch:
+
+jobs:
+  schedule-guard:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          LOCAL_HOUR=$(TZ=Europe/Copenhagen date +%H)
+          if [[ "$LOCAL_HOUR" == "09" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false (local hour=$LOCAL_HOUR)"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  digest:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.proceed == 'true'
+    uses: monta-app/github-workflows/.github/workflows/pr-digest.yml@main
+    with:
+      slack-channel-id: C0ALEGFRPU1
+      stale-threshold-days: 2
+      critical-threshold-days: 7
+      title: "my-repo — open PRs"
+    secrets: inherit
+```
+
+#### Low-volume repo — flat list, no AI:
+```yaml
+jobs:
+  digest:
+    uses: monta-app/github-workflows/.github/workflows/pr-digest.yml@main
+    with:
+      slack-channel-id: C0XXXXXXXXX
+      use-ai-curation: false
+      post-thread-breakdown: false
+      empty-state: celebrate
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+### Manual testing:
+This reusable workflow only declares `workflow_call` — it cannot be dispatched directly. Manual testing is done via the **caller workflow** in the consuming repository, which must declare `workflow_dispatch` itself (both example callers above do).
+
+Once the caller is in place, trigger from the GitHub UI ("Actions" tab → caller workflow → "Run workflow") or via the CLI:
+
+```bash
+gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
+```
+
+The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
