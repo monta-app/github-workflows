@@ -19,6 +19,9 @@ This repository contains several reusable workflows designed to streamline the C
 ### `semgrep-security-scan.yml`
 - **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns. Designed primarily for pull requests (PR commenting, diff-aware scanning), but can be called from other event types via `workflow_call` with limited functionality.
 
+### `pr-digest.yml`
+- **Purpose**: Posts a daily Slack digest of open pull requests for the calling repository. AI-curates the message (focus PRs, headline, area summary) for high-volume repos, with a deterministic fallback. See [PR Digest in workflow-guide.md](./docs/workflow-guide.md#pr-digest).
+
 ### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
 
@@ -271,6 +274,70 @@ jobs:
 - **Kotlin**: `p/kotlin`, `p/java`, `r/kotlin.lang.security`, `r/java.lang.security`
 - **PHP**: `p/php`, `r/php.lang.security`
 - **All**: `p/security-audit`, `p/secrets`, `p/github-actions`, `p/docker`
+
+### 6. **PR Digest (daily Slack notification of open PRs)**
+
+Post a daily Slack digest of the calling repo's open PRs. Designed for high-volume repos: AI-curates the message into a focused triage view ("today's focus", critical PRs, area summary) and posts the long-tail breakdown as a thread reply.
+
+**Prerequisites:**
+- A Slack channel ID (e.g. `C0ALEGFRPU1`) and the `SLACK_APP_TOKEN` bot is a member of that channel.
+- `ANTHROPIC_API_KEY` as a repo or org secret (only when `use-ai-curation: true`, which is the default).
+
+**Example (high-volume repo, 9 AM Europe/Copenhagen year-round):**
+```yaml
+name: PR digest
+
+on:
+  schedule:
+    - cron: "7 7 * * 1-5"  # 09:07 CEST
+    - cron: "7 8 * * 1-5"  # 09:07 CET
+  workflow_dispatch:
+
+jobs:
+  schedule-guard:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          LOCAL_HOUR=$(TZ=Europe/Copenhagen date +%H)
+          if [[ "$LOCAL_HOUR" == "09" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  digest:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.proceed == 'true'
+    uses: monta-app/github-workflows/.github/workflows/pr-digest.yml@main
+    with:
+      slack-channel-id: C0ALEGFRPU1
+      stale-threshold-days: 2
+      critical-threshold-days: 7
+      title: "my-repo — open PRs"
+    secrets: inherit
+```
+
+**Low-volume repo (flat list, no AI):**
+```yaml
+jobs:
+  digest:
+    uses: monta-app/github-workflows/.github/workflows/pr-digest.yml@main
+    with:
+      slack-channel-id: C0XXXXXXXXX
+      use-ai-curation: false
+      post-thread-breakdown: false
+      empty-state: celebrate
+    secrets:
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+```
+
+Full input/secret reference: [PR Digest in workflow-guide.md](./docs/workflow-guide.md#pr-digest).
 
 ## Contributing ##
 
