@@ -142,9 +142,11 @@ jobs:
           TOTAL=$(jq 'length' /tmp/enriched.json)
           STALE=$(jq '[.[] | select(.bucket == "stale" or .bucket == "critical")] | length' /tmp/enriched.json)
           CRITICAL=$(jq '[.[] | select(.bucket == "critical")] | length' /tmp/enriched.json)
-          echo "TOTAL_PRS=$TOTAL" >> "$GITHUB_ENV"
-          echo "STALE_PRS=$STALE" >> "$GITHUB_ENV"
-          echo "CRITICAL_PRS=$CRITICAL" >> "$GITHUB_ENV"
+          {
+            echo "TOTAL_PRS=$TOTAL"
+            echo "STALE_PRS=$STALE"
+            echo "CRITICAL_PRS=$CRITICAL"
+          } >> "$GITHUB_ENV"
           echo "Open: $TOTAL · Stale: $STALE · Critical: $CRITICAL"
 
       - name: AI curation
