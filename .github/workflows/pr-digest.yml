@@ -433,6 +433,10 @@ jobs:
         run: |
           set -euo pipefail
           THREAD_TS="${{ steps.post.outputs.thread-ts }}"
+          # The jq program below chunks each area's PR lines into groups of 15
+          # to keep every Slack section under the 3000-char/section limit
+          # (~150 chars per prLine x 15 lines ~= 2250 chars). It also caps the
+          # total block count at 48 (Slack caps each message at 50 blocks).
           jq -n \
             --arg channel "$SLACK_CHANNEL_ID" \
             --arg ts "$THREAD_TS" \
@@ -450,9 +454,6 @@ jobs:
             def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def prLine(pr):
               "\(severity(pr.idleDays)) <\(pr.url)|#\(pr.n // pr.number)> \(pr.title | escapeSlack) · @\(pr.author.login) · \(pr.idleDays)d · \(reviewIcon(pr.reviewDecision))";
-            # Slice an array into chunks of size n. Used to keep each Slack
-            # section's mrkdwn text under Slack's 3000-char-per-section limit.
-            # ~150 chars/prLine × 15 lines = ~2250 chars, safely under 3000.
             def chunks_of(n): . as $a | [range(0; length; n) | $a[.:.+n]];
 
             ($prs[0]) as $allPrs
@@ -485,11 +486,9 @@ jobs:
                             )))
                   ) | flatten)
               ) as $allBlocks
-            # Slack hard caps messages at 50 blocks. Truncate gracefully if
-            # we'd exceed — the main digest already carries the headline.
             | ($allBlocks[:48]) as $cappedBlocks
             | (if ($allBlocks | length) > 48
-               then $cappedBlocks + [{ type: "context", elements: [{ type: "mrkdwn", text: "_…and \(($allBlocks | length) - 48) more blocks — see <\($prs_url // "https://github.com")|GitHub> for the full list._" }] }]
+               then $cappedBlocks + [{ type: "context", elements: [{ type: "mrkdwn", text: "_…and \(($allBlocks | length) - 48) more blocks — see GitHub for the full list._" }] }]
                else $cappedBlocks end) as $finalBlocks
             | {
                 channel: $channel,
