@@ -150,12 +150,15 @@ jobs:
         working-directory: ./service-repo
         env:
           HELM_VALUES_PATH: ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+          COMMIT_MSG: "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
-          git add .
-          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+          # Stage only the file we sed-edited; a repo-wide `git add .` would
+          # sweep any other working-tree state into the bump commit.
+          git add "$HELM_VALUES_PATH/values.yaml"
+          git commit -m "$COMMIT_MSG"
 
           for attempt in $(seq 1 10); do
             echo "Push attempt $attempt..."
@@ -169,13 +172,16 @@ jobs:
               echo "Rebase clean, retrying push..."
             else
               echo "Rebase conflict, re-applying changes on top of latest main..."
+              # Hard-reset rather than soft: soft leaves the old tree in the
+              # index, and a subsequent broad `git add` would commit a diff
+              # that silently reverts changes between the old and new base.
               git rebase --abort
-              git reset --soft origin/main
+              git reset --hard origin/main
               sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$HELM_VALUES_PATH/values.yaml"
-              git add .
-              git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+              git add "$HELM_VALUES_PATH/values.yaml"
+              git commit -m "$COMMIT_MSG"
             fi
             sleep 2
           done
