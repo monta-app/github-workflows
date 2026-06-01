@@ -415,8 +415,8 @@ jobs:
                         { type: "section",
                           text: {
                             type: "mrkdwn",
-                            text: "*`\(.area)`* — \(.prs | length) stale\n" +
-                                  (.prs | map(prLine(.)) | join("\n"))
+                            text: ("*`\(.area)`* — \(.prs | length) stale\n"
+                                   + (.prs | map(prLine(.)) | join("\n")))
                           } } ]
                     ) | flatten)
                 )
