@@ -450,6 +450,10 @@ jobs:
             def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def prLine(pr):
               "\(severity(pr.idleDays)) <\(pr.url)|#\(pr.n // pr.number)> \(pr.title | escapeSlack) · @\(pr.author.login) · \(pr.idleDays)d · \(reviewIcon(pr.reviewDecision))";
+            # Slice an array into chunks of size n. Used to keep each Slack
+            # section's mrkdwn text under Slack's 3000-char-per-section limit.
+            # ~150 chars/prLine × 15 lines = ~2250 chars, safely under 3000.
+            def chunks_of(n): . as $a | [range(0; length; n) | $a[.:.+n]];
 
             ($prs[0]) as $allPrs
             | ([ $allPrs[] | select(.bucket == "stale" or .bucket == "critical") ]
@@ -457,21 +461,40 @@ jobs:
                 | map({ area: (.[0].primaryLabel), prs: . })
                 | sort_by(-(.prs | length))
               ) as $byArea
+            | (
+                [ { type: "section", text: { type: "mrkdwn", text: "*Full breakdown — \(($allPrs | map(select(.bucket != "fresh")) | length)) stale PR(s) by area*" } } ]
+                + ($byArea | map(
+                    (.area) as $area
+                    | (.prs) as $areaPrs
+                    | ([ { type: "divider" } ]
+                       + ($areaPrs
+                          | map(prLine(.))
+                          | chunks_of(15)
+                          | to_entries
+                          | map(
+                              { type: "section",
+                                text: {
+                                  type: "mrkdwn",
+                                  text: (
+                                    (if .key == 0
+                                     then "*`\($area)`* — \($areaPrs | length) stale\n"
+                                     else "" end)
+                                    + (.value | join("\n"))
+                                  )
+                                } }
+                            )))
+                  ) | flatten)
+              ) as $allBlocks
+            # Slack hard caps messages at 50 blocks. Truncate gracefully if
+            # we'd exceed — the main digest already carries the headline.
+            | ($allBlocks[:48]) as $cappedBlocks
+            | (if ($allBlocks | length) > 48
+               then $cappedBlocks + [{ type: "context", elements: [{ type: "mrkdwn", text: "_…and \(($allBlocks | length) - 48) more blocks — see <\($prs_url // "https://github.com")|GitHub> for the full list._" }] }]
+               else $cappedBlocks end) as $finalBlocks
             | {
                 channel: $channel,
                 thread_ts: $ts,
-                blocks: (
-                  [ { type: "section", text: { type: "mrkdwn", text: "*Full breakdown — \(($allPrs | map(select(.bucket != "fresh")) | length)) stale PR(s) by area*" } } ]
-                  + ($byArea | map(
-                      [ { type: "divider" },
-                        { type: "section",
-                          text: {
-                            type: "mrkdwn",
-                            text: ("*`\(.area)`* — \(.prs | length) stale\n"
-                                   + (.prs | map(prLine(.)) | join("\n")))
-                          } } ]
-                    ) | flatten)
-                )
+                blocks: $finalBlocks
               }
             ' > /tmp/thread-payload.json
           attempt=0
