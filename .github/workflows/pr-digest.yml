@@ -94,12 +94,29 @@ jobs:
       - name: Fetch open PRs
         run: |
           set -euo pipefail
-          gh pr list \
-            --repo "$REPO" \
-            --state open \
-            --limit 500 \
-            --json number,title,author,url,isDraft,updatedAt,createdAt,labels,reviewDecision,headRefName,mergeable,additions,deletions \
-            > /tmp/prs.json
+          # GitHub's GraphQL endpoint (which gh pr list uses internally) flaps
+          # periodically with 5xx — particularly at the top of the hour when
+          # cron workflows fire en masse. A single failure aborts the digest,
+          # so we retry with exponential backoff: 2s, 4s, 8s, 16s, 32s.
+          attempt=0
+          max_attempts=5
+          until gh pr list \
+                  --repo "$REPO" \
+                  --state open \
+                  --limit 500 \
+                  --json number,title,author,url,isDraft,updatedAt,createdAt,labels,reviewDecision,headRefName,mergeable,additions,deletions \
+                  > /tmp/prs.json 2> /tmp/prs.err; do
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::error::gh pr list failed after $max_attempts attempts. Last error:"
+              cat /tmp/prs.err
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::gh pr list attempt $attempt failed (see below); retrying in ${sleep_seconds}s."
+            cat /tmp/prs.err
+            sleep "$sleep_seconds"
+          done
           echo "Fetched $(jq 'length' /tmp/prs.json) open PRs."
 
       - name: Filter and enrich
@@ -186,16 +203,33 @@ jobs:
               max_tokens: 1024,
               messages: [{ role: "user", content: $prompt }]
             }')
-          RESPONSE=$(curl -sS --max-time 60 https://api.anthropic.com/v1/messages \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "content-type: application/json" \
-            --data "$REQUEST")
-          if [[ -z "$RESPONSE" ]] || echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-            echo "::warning::Anthropic API returned an error or empty response; falling back to deterministic curation."
-            echo "$RESPONSE" | jq . || echo "$RESPONSE"
-            exit 1
-          fi
+          # Retry transient 5xx / connection errors with exponential backoff.
+          # The AI step is non-blocking (continue-on-error: true at the job
+          # level) so a final failure here is recoverable, but a single 502
+          # shouldn't waste a whole day's curation.
+          attempt=0
+          max_attempts=4
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 60 https://api.anthropic.com/v1/messages \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "content-type: application/json" \
+              --data "$REQUEST") || true
+            if [[ -n "$RESPONSE" ]] && ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::warning::Anthropic API failed after $max_attempts attempts; falling back to deterministic curation."
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Anthropic API attempt $attempt failed; retrying in ${sleep_seconds}s."
+            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            sleep "$sleep_seconds"
+          done
           TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
           if [[ -z "$TEXT" ]]; then
             echo "::warning::Anthropic returned no text content; falling back."
@@ -362,16 +396,28 @@ jobs:
         id: post
         run: |
           set -euo pipefail
-          RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-            -H "Content-Type: application/json; charset=utf-8" \
-            --data @/tmp/main-payload.json)
-          OK=$(echo "$RESPONSE" | jq -r '.ok')
-          if [[ "$OK" != "true" ]]; then
-            echo "::error::Slack API rejected the message:"
-            echo "$RESPONSE" | jq .
-            exit 1
-          fi
+          attempt=0
+          max_attempts=4
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data @/tmp/main-payload.json) || true
+            if [[ "$(echo "$RESPONSE" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::error::Slack API rejected the message after $max_attempts attempts:"
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Slack post attempt $attempt failed; retrying in ${sleep_seconds}s."
+            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            sleep "$sleep_seconds"
+          done
           TS=$(echo "$RESPONSE" | jq -r '.ts')
           echo "thread-ts=$TS" >> "$GITHUB_OUTPUT"
           echo "✅ Posted main digest to $SLACK_CHANNEL_ID (ts=$TS)"
@@ -422,14 +468,25 @@ jobs:
                 )
               }
             ' > /tmp/thread-payload.json
-          RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-            -H "Content-Type: application/json; charset=utf-8" \
-            --data @/tmp/thread-payload.json)
-          OK=$(echo "$RESPONSE" | jq -r '.ok')
-          if [[ "$OK" != "true" ]]; then
-            echo "::warning::Failed to post thread breakdown:"
-            echo "$RESPONSE" | jq .
-            exit 0
-          fi
-          echo "✅ Posted thread breakdown."
+          attempt=0
+          max_attempts=3
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data @/tmp/thread-payload.json) || true
+            if [[ "$(echo "$RESPONSE" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+              echo "✅ Posted thread breakdown."
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::warning::Failed to post thread breakdown after $max_attempts attempts:"
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 0
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Thread post attempt $attempt failed; retrying in ${sleep_seconds}s."
+            sleep "$sleep_seconds"
+          done
