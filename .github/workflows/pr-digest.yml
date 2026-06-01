@@ -99,7 +99,7 @@ jobs:
           # cron workflows fire en masse. A single failure aborts the digest,
           # so we retry with exponential backoff: 2s, 4s, 8s, 16s, 32s.
           attempt=0
-          max_attempts=5
+          max_attempts=6
           until gh pr list \
                   --repo "$REPO" \
                   --state open \
@@ -207,8 +207,13 @@ jobs:
           # The AI step is non-blocking (continue-on-error: true at the job
           # level) so a final failure here is recoverable, but a single 502
           # shouldn't waste a whole day's curation.
+          #
+          # "Success" requires a parseable JSON body containing .content[0].text —
+          # NOT just "non-empty response without .error". Anthropic can return
+          # HTML 502 pages from the edge that aren't JSON at all, and we don't
+          # want to break out of the retry loop on those.
           attempt=0
-          max_attempts=4
+          max_attempts=5
           RESPONSE=""
           while :; do
             RESPONSE=$(curl -sS --max-time 60 https://api.anthropic.com/v1/messages \
@@ -216,7 +221,8 @@ jobs:
               -H "anthropic-version: 2023-06-01" \
               -H "content-type: application/json" \
               --data "$REQUEST") || true
-            if [[ -n "$RESPONSE" ]] && ! echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            if [[ -n "$RESPONSE" ]] \
+               && echo "$RESPONSE" | jq -e 'type == "object" and has("content") and (.content[0].text // "") != ""' > /dev/null 2>&1; then
               break
             fi
             attempt=$((attempt + 1))
@@ -397,7 +403,7 @@ jobs:
         run: |
           set -euo pipefail
           attempt=0
-          max_attempts=4
+          max_attempts=5
           RESPONSE=""
           while :; do
             RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
@@ -469,7 +475,7 @@ jobs:
               }
             ' > /tmp/thread-payload.json
           attempt=0
-          max_attempts=3
+          max_attempts=4
           RESPONSE=""
           while :; do
             RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
