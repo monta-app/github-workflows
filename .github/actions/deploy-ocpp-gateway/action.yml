@@ -16,6 +16,10 @@ inputs:
   infra-portal-token:
     description: 'Infra Portal token'
     required: true
+  infra-portal-context:
+    description: 'Kube context the infra-portal releaser should target (e.g. main-staging). Defaults to ocpp-<cluster> derived from stage.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -42,7 +46,13 @@ runs:
           cluster=production
           path_prefix=""
         fi
-        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}${path_prefix}/ocpp-${cluster}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release)
+        context="${{ inputs.infra-portal-context }}"
+        if [[ -z "$context" ]]; then
+          context="ocpp-${cluster}"
+        fi
+        release_url="https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}${path_prefix}/${context}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release"
+        echo "Posting gateway release to ${release_url}"
+        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' "${release_url}")
         if [[ $response_code != "200" ]]; then
           echo "::error::$(cat resp_body.txt)"
           exit 1
