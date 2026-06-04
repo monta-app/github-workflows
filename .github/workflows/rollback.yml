@@ -130,7 +130,7 @@ jobs:
 
       - name: Push
         if: ${{ !inputs.dry-run }}
-        uses: ad-m/github-push-action@d30dc2d070765d7e509df00c34c5fa2dd636ff74 # master
+        uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
         with:
           github_token: ${{ secrets.ADMIN_PAT }}
           directory: './kube-manifests'
