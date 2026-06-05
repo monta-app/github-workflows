@@ -111,7 +111,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sonar-${{ github.head_ref }}-
             ${{ runner.os }}-sonar-
-      - name: Run linter
+      - name: Lint & test with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -119,18 +119,8 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
         with:
           gradle-module: ${{ inputs.gradle-module }}
-          gradle-tasks: 'ktlintCheck'
-          gradle-args: ${{ inputs.gradle-args }}
-      - name: Run tests with coverage
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
-        with:
-          gradle-module: ${{ inputs.gradle-module }}
-          gradle-tasks: 'test koverXmlReport koverHtmlReport'
-          gradle-args: ${{ inputs.gradle-args }}
+          gradle-tasks: 'ktlintCheck test koverXmlReport koverHtmlReport'
+          gradle-args: ${{ inputs.gradle-args }} --continue
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
