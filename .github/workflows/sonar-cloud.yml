@@ -63,7 +63,16 @@ jobs:
         with:
           distribution: corretto
           java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-main-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-main-
       - name: Cache SonarCloud packages
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
@@ -90,3 +99,11 @@ jobs:
             **/build/reports/problems/**
           if-no-files-found: ignore
           retention-days: 30
+      - name: Save Gradle cache
+        if: ${{ always() && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-main-${{ github.sha }}
