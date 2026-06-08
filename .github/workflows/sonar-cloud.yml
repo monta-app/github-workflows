@@ -59,7 +59,7 @@ jobs:
     env:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # Shallow clones should be disabled for a better relevancy of analysis
           fetch-depth: 0
@@ -68,7 +68,16 @@ jobs:
         with:
           distribution: corretto
           java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-main-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-main-
       - name: Cache SonarQube packages
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
@@ -105,3 +114,11 @@ jobs:
             **/build/reports/problems/**
           if-no-files-found: ignore
           retention-days: 30
+      - name: Save Gradle cache
+        if: ${{ always() && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-main-${{ github.sha }}

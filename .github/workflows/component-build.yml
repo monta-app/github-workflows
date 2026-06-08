@@ -107,7 +107,7 @@ jobs:
       runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Get x64 runner name
@@ -148,11 +148,11 @@ jobs:
             runner: ${{ needs.setup.outputs.runner-arm64 }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{inputs.stage}}
@@ -164,10 +164,10 @@ jobs:
       # docker-container buildx driver (the default docker driver does not support cache-to).
       - name: Set up Docker Buildx
         if: ${{ inputs.enable-buildkit-cache }}
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
@@ -175,7 +175,7 @@ jobs:
             type=raw,value=latest,suffix=-${{ matrix.arch }}
       - name: Build and push
         id: build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
         with:
@@ -220,7 +220,7 @@ jobs:
       image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
           role-session-name: create-manifest-${{ inputs.service-identifier }}-${{inputs.stage}}

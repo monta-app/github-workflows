@@ -1,0 +1,520 @@
+name: PR Digest
+
+# Reusable workflow that posts a Slack digest of open pull requests in the
+# calling repository. Designed for high-volume repos (100+ open PRs): the
+# message is AI-curated by default so the channel sees a focused triage view
+# instead of a flat list of every open PR.
+#
+# See docs/workflow-guide.md → "PR Digest" for usage.
+
+on:
+  workflow_call:
+    inputs:
+      slack-channel-id:
+        description: "Slack channel ID to post the digest to (e.g. C0ALEGFRPU1)."
+        type: string
+        required: true
+      stale-threshold-days:
+        description: "Days of inactivity before a PR counts as 'stale' in the headline stats."
+        type: number
+        default: 2
+      critical-threshold-days:
+        description: "Days of inactivity for a PR to be surfaced individually as 'critical' (about to be auto-closed)."
+        type: number
+        default: 7
+      max-prs-to-surface:
+        description: "Max PRs to render by name in the 'Today's focus' section. The rest are summarised by area in the thread reply."
+        type: number
+        default: 5
+      include-drafts:
+        description: "Include draft PRs in the digest."
+        type: boolean
+        default: false
+      exclude-authors:
+        description: "Comma-separated list of GitHub logins to exclude (e.g. dependabot[bot])."
+        type: string
+        default: "dependabot[bot],renovate[bot]"
+      use-ai-curation:
+        description: "Use Claude to pick the focus PRs and write the headline. Falls back to deterministic 'oldest-first' if the AI call fails."
+        type: boolean
+        default: true
+      model:
+        description: "Anthropic model identifier for AI curation (e.g. claude-sonnet-4-6, claude-haiku-4-5). Must be a valid API ID from https://docs.anthropic.com/en/docs/about-claude/models/overview."
+        type: string
+        default: "claude-sonnet-4-6"
+      post-thread-breakdown:
+        description: "Reply in-thread with the full per-area PR breakdown."
+        type: boolean
+        default: true
+      title:
+        description: "Header text for the Slack message. Defaults to the repository name."
+        type: string
+        default: ""
+      empty-state:
+        description: "What to do when no PRs are stale: 'silent' (post nothing) or 'celebrate' (post a 🎉 message)."
+        type: string
+        default: "silent"
+    secrets:
+      SLACK_APP_TOKEN:
+        description: "Slack bot token with chat:write scope. Must be a member of the target channel."
+        required: true
+      ANTHROPIC_API_KEY:
+        description: "Anthropic API key. Only required when use-ai-curation is true."
+        required: false
+
+permissions:
+  pull-requests: read
+  contents: read
+
+jobs:
+  digest:
+    name: Build and post PR digest
+    runs-on: linux-arm64
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+      STALE_THRESHOLD_DAYS: ${{ inputs.stale-threshold-days }}
+      CRITICAL_THRESHOLD_DAYS: ${{ inputs.critical-threshold-days }}
+      MAX_PRS_TO_SURFACE: ${{ inputs.max-prs-to-surface }}
+      INCLUDE_DRAFTS: ${{ inputs.include-drafts }}
+      EXCLUDE_AUTHORS: ${{ inputs.exclude-authors }}
+      USE_AI_CURATION: ${{ inputs.use-ai-curation }}
+      ANTHROPIC_MODEL: ${{ inputs.model }}
+      POST_THREAD_BREAKDOWN: ${{ inputs.post-thread-breakdown }}
+      TITLE_OVERRIDE: ${{ inputs.title }}
+      EMPTY_STATE: ${{ inputs.empty-state }}
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PRS_URL: ${{ github.server_url }}/${{ github.repository }}/pulls
+
+    steps:
+      - name: Fetch open PRs
+        run: |
+          set -euo pipefail
+          # GitHub's GraphQL endpoint (which gh pr list uses internally) flaps
+          # periodically with 5xx — particularly at the top of the hour when
+          # cron workflows fire en masse. A single failure aborts the digest,
+          # so we retry with exponential backoff: 2s, 4s, 8s, 16s, 32s.
+          attempt=0
+          max_attempts=6
+          until gh pr list \
+                  --repo "$REPO" \
+                  --state open \
+                  --limit 500 \
+                  --json number,title,author,url,isDraft,updatedAt,createdAt,labels,reviewDecision,headRefName,mergeable,additions,deletions \
+                  > /tmp/prs.json 2> /tmp/prs.err; do
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::error::gh pr list failed after $max_attempts attempts. Last error:"
+              cat /tmp/prs.err
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::gh pr list attempt $attempt failed (see below); retrying in ${sleep_seconds}s."
+            cat /tmp/prs.err
+            sleep "$sleep_seconds"
+          done
+          echo "Fetched $(jq 'length' /tmp/prs.json) open PRs."
+
+      - name: Filter and enrich
+        run: |
+          set -euo pipefail
+          jq \
+            --argjson stale "$STALE_THRESHOLD_DAYS" \
+            --argjson critical "$CRITICAL_THRESHOLD_DAYS" \
+            --arg includeDrafts "$INCLUDE_DRAFTS" \
+            --arg excludeCsv "$EXCLUDE_AUTHORS" \
+            '
+            ($excludeCsv | split(",") | map(gsub("^\\s+|\\s+$"; ""))) as $excluded
+            | ($includeDrafts == "true") as $includeDrafts
+            | [ .[]
+                | (.updatedAt | fromdateiso8601) as $epoch
+                | . + {
+                    updatedEpoch: $epoch,
+                    idleDays: ((now - $epoch) / 86400 | floor),
+                    primaryLabel: (
+                      (.labels // [])
+                      | map(.name)
+                      | map(select(test("^(hub|api-gateway|control-v2|portals|installers|control|ocpp-toolkit|storybook|dependencies|security)$")))
+                      | (.[0] // "other")
+                    )
+                  }
+                | . + {
+                    bucket: (
+                      if .idleDays >= $critical then "critical"
+                      elif .idleDays >= $stale then "stale"
+                      else "fresh" end
+                    )
+                  }
+                | select(
+                    ($includeDrafts or (.isDraft | not))
+                    and (.author.login as $login | $excluded | index($login) | not)
+                  )
+              ]
+            | sort_by(.updatedEpoch)
+            ' /tmp/prs.json > /tmp/enriched.json
+          TOTAL=$(jq 'length' /tmp/enriched.json)
+          STALE=$(jq '[.[] | select(.bucket == "stale" or .bucket == "critical")] | length' /tmp/enriched.json)
+          CRITICAL=$(jq '[.[] | select(.bucket == "critical")] | length' /tmp/enriched.json)
+          {
+            echo "TOTAL_PRS=$TOTAL"
+            echo "STALE_PRS=$STALE"
+            echo "CRITICAL_PRS=$CRITICAL"
+          } >> "$GITHUB_ENV"
+          echo "Open: $TOTAL · Stale: $STALE · Critical: $CRITICAL"
+
+      - name: AI curation
+        id: ai
+        if: ${{ inputs.use-ai-curation && env.STALE_PRS != '0' && env.ANTHROPIC_API_KEY != '' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          COMPACT=$(jq '[ .[] | {
+            n: .number,
+            title: .title,
+            author: .author.login,
+            idle: .idleDays,
+            review: .reviewDecision,
+            labels: (.labels // []) | map(.name),
+            area: .primaryLabel,
+            mergeable: .mergeable,
+            additions: .additions,
+            deletions: .deletions,
+            draft: .isDraft
+          } ]' /tmp/enriched.json)
+          PROMPT=$(jq -n \
+            --arg repo "$REPO" \
+            --argjson stale "$STALE_THRESHOLD_DAYS" \
+            --argjson critical "$CRITICAL_THRESHOLD_DAYS" \
+            --argjson maxFocus "$MAX_PRS_TO_SURFACE" \
+            --arg data "$COMPACT" \
+            '
+            "You are writing the curated section of a daily Slack PR digest for the GitHub repository \($repo).\n\nInput: a JSON array of open pull requests. Fields:\n- n: PR number\n- title, author, idle (days), review (APPROVED|CHANGES_REQUESTED|REVIEW_REQUIRED|null)\n- labels, area (one of hub/api-gateway/control-v2/portals/installers/control/ocpp-toolkit/storybook/dependencies/security/other)\n- mergeable (MERGEABLE|CONFLICTING|UNKNOWN), additions, deletions, draft\n\nStale threshold: \($stale)d. Critical (about to be auto-closed): \($critical)d.\n\nReturn STRICT JSON only, no prose, no markdown fences. Schema:\n{\n  \"headline\": \"<1-2 sentences, 280 chars max. A colleague-tone standup-style nudge for the channel. Mention specific @authors and #numbers where they add value. Do NOT restate counts — the next block already shows them.>\",\n  \"focus\": [ { \"pr_number\": <int>, \"reason\": \"<short, 80 chars max, no PR title — explain WHY this one matters today>\" } ]\n}\n\nRules for `focus`:\n- Up to \($maxFocus) entries.\n- Prioritise: approved-but-unmerged > conflicts > critical-bucket (idle≥\($critical)d) > review-blocking patterns.\n- Skip if there is nothing genuinely focus-worthy (return empty array).\n- Each PR appears at most once.\n- Do not include bot-authored PRs (e.g. dependabot, renovate) unless they form a notable pattern.\n\nData:\n\($data)"
+            ')
+          REQUEST=$(jq -n \
+            --arg model "$ANTHROPIC_MODEL" \
+            --arg prompt "$PROMPT" \
+            '{
+              model: $model,
+              max_tokens: 1024,
+              messages: [{ role: "user", content: $prompt }]
+            }')
+          # Retry transient 5xx / connection errors with exponential backoff.
+          # The AI step is non-blocking (continue-on-error: true at the job
+          # level) so a final failure here is recoverable, but a single 502
+          # shouldn't waste a whole day's curation.
+          #
+          # "Success" requires a parseable JSON body containing .content[0].text —
+          # NOT just "non-empty response without .error". Anthropic can return
+          # HTML 502 pages from the edge that aren't JSON at all, and we don't
+          # want to break out of the retry loop on those.
+          attempt=0
+          max_attempts=5
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 60 https://api.anthropic.com/v1/messages \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "content-type: application/json" \
+              --data "$REQUEST") || true
+            if [[ -n "$RESPONSE" ]] \
+               && echo "$RESPONSE" | jq -e 'type == "object" and has("content") and (.content[0].text // "") != ""' > /dev/null 2>&1; then
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::warning::Anthropic API failed after $max_attempts attempts; falling back to deterministic curation."
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Anthropic API attempt $attempt failed; retrying in ${sleep_seconds}s."
+            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            sleep "$sleep_seconds"
+          done
+          TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+          if [[ -z "$TEXT" ]]; then
+            echo "::warning::Anthropic returned no text content; falling back."
+            exit 1
+          fi
+          echo "$TEXT" | jq . > /tmp/ai.json
+          echo "AI curation generated:"
+          jq . /tmp/ai.json
+
+      - name: Build Slack message
+        id: build
+        run: |
+          set -euo pipefail
+          TITLE="${TITLE_OVERRIDE:-Open PRs in $REPO}"
+          if [[ "$STALE_PRS" -eq 0 ]]; then
+            if [[ "$EMPTY_STATE" == "silent" ]]; then
+              echo "✅ No stale PRs and empty-state=silent. Exiting cleanly."
+              echo "should-post=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            jq -n \
+              --arg channel "$SLACK_CHANNEL_ID" \
+              --arg title "$TITLE" \
+              --arg run_url "$WORKFLOW_RUN_URL" \
+              --arg prs_url "$PRS_URL" \
+              --argjson stale "$STALE_THRESHOLD_DAYS" \
+              --argjson total "$TOTAL_PRS" \
+              '{
+                channel: $channel,
+                text: "🎉 No stale PRs in \($title)",
+                blocks: [
+                  { type: "header", text: { type: "plain_text", text: "🎉 \($title): all clear", emoji: true } },
+                  { type: "context", elements: [{ type: "mrkdwn", text: "\($total) open PR(s), none idle ≥ *\($stale) days*. <\($prs_url)|All open PRs ↗> · <\($run_url)|Run ↗>" }] }
+                ]
+              }' > /tmp/main-payload.json
+            echo "should-post=true" >> "$GITHUB_OUTPUT"
+            echo "post-thread=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          AI_AVAILABLE="false"
+          if [[ -s /tmp/ai.json ]]; then
+            AI_AVAILABLE="true"
+          else
+            echo '{"headline":"","focus":[]}' > /tmp/ai.json
+          fi
+          jq -n \
+            --arg channel "$SLACK_CHANNEL_ID" \
+            --arg title "$TITLE" \
+            --arg run_url "$WORKFLOW_RUN_URL" \
+            --arg prs_url "$PRS_URL" \
+            --argjson total "$TOTAL_PRS" \
+            --argjson stale "$STALE_PRS" \
+            --argjson critical "$CRITICAL_PRS" \
+            --argjson staleDays "$STALE_THRESHOLD_DAYS" \
+            --argjson criticalDays "$CRITICAL_THRESHOLD_DAYS" \
+            --argjson maxFocus "$MAX_PRS_TO_SURFACE" \
+            --slurpfile prs /tmp/enriched.json \
+            --arg aiAvailable "$AI_AVAILABLE" \
+            --slurpfile aiSlurp /tmp/ai.json \
+            '
+            def severity(d):
+              if d >= 14 then "🚨"
+              elif d >= 8 then "🔴"
+              elif d >= 5 then "🟠"
+              else "🟡" end;
+            def reviewIcon(r):
+              if r == "APPROVED" then "✅"
+              elif r == "CHANGES_REQUESTED" then "🛑"
+              else "👀" end;
+            def reviewLabel(r):
+              if r == "APPROVED" then "approved"
+              elif r == "CHANGES_REQUESTED" then "changes requested"
+              else "needs review" end;
+            def mergeIcon(m):
+              if m == "CONFLICTING" then " · ❌ conflicts"
+              else "" end;
+            def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            def prLine(pr):
+              "\(severity(pr.idleDays)) *<\(pr.url)|#\(pr.n // pr.number) \(pr.title | escapeSlack)>*\n" +
+              "_by *@\(pr.author.login)* · idle *\(pr.idleDays)d* · \(reviewIcon(pr.reviewDecision)) \(reviewLabel(pr.reviewDecision))\(mergeIcon(pr.mergeable))_";
+
+            ($prs[0]) as $allPrs
+            | ($aiAvailable == "true") as $hasAi
+            | (if $hasAi then $aiSlurp[0] else { headline: null, focus: [] } end) as $ai
+            | ($ai.focus // []) as $aiFocus
+            | ([ $aiFocus[].pr_number ]) as $focusNumbers
+            | ([ $allPrs[] | select(.bucket == "critical") ]) as $criticalPrs
+            | ([ $allPrs[] | select(.bucket == "stale" or .bucket == "critical") ]) as $stalePrs
+            | (
+                if ($focusNumbers | length) > 0 then
+                  [ $aiFocus[]
+                    | . as $f
+                    | ($allPrs[] | select(.number == $f.pr_number)) as $pr
+                    | { pr: $pr, reason: $f.reason }
+                  ]
+                else
+                  [ $stalePrs[0:$maxFocus][] | { pr: ., reason: null } ]
+                end
+              ) as $focusItems
+            | ([
+                $stalePrs
+                | group_by(.primaryLabel)
+                | map({
+                    area: (.[0].primaryLabel),
+                    total: length,
+                    critical: ([ .[] | select(.bucket == "critical") ] | length),
+                    stale: ([ .[] | select(.bucket == "stale") ] | length)
+                  })
+                | sort_by(-.total)
+              ][0]) as $areaSummary
+            | {
+                channel: $channel,
+                text: "\($stale) stale PR(s) in \($title)",
+                blocks: (
+                  [
+                    { type: "header", text: { type: "plain_text", text: "🚦 \($title)", emoji: true } },
+                    { type: "context", elements: [{ type: "mrkdwn", text: "*\($total) open* · *\($stale) stale* (≥\($staleDays)d) · *\($critical) critical* (≥\($criticalDays)d)" }] }
+                  ]
+                  + (if ($ai.headline // "") | length > 0 then [
+                      { type: "section", text: { type: "mrkdwn", text: "🧠  \($ai.headline)" } }
+                    ] else [] end)
+                  + (if ($focusItems | length) > 0 then
+                      [ { type: "divider" },
+                        { type: "section", text: { type: "mrkdwn", text: "*Today'"'"'s focus*" } } ]
+                      + ($focusItems | map(
+                          { type: "section",
+                            text: {
+                              type: "mrkdwn",
+                              text: (prLine(.pr) + (if .reason then "\n>_\(.reason)_" else "" end))
+                            } }
+                        ))
+                    else [] end)
+                  + (if ($criticalPrs | length) > 0 and ($focusNumbers | length) == 0 then
+                      [ { type: "divider" },
+                        { type: "section", text: { type: "mrkdwn", text: "*🚨 Critical (≥\($criticalDays)d, about to auto-close)*" } } ]
+                      + ($criticalPrs[0:5] | map(
+                          { type: "section", text: { type: "mrkdwn", text: prLine(.) } }
+                        ))
+                    else [] end)
+                  + (if ($areaSummary | length) > 1 then
+                      [ { type: "divider" },
+                        { type: "section", text: { type: "mrkdwn", text: "*By area*" } },
+                        { type: "section",
+                          text: {
+                            type: "mrkdwn",
+                            text: ($areaSummary | map(
+                              "• `\(.area)` — \(.total) stale" +
+                              (if .critical > 0 then " (*\(.critical) critical*)" else "" end)
+                            ) | join("\n"))
+                          } } ]
+                    else [] end)
+                  + [
+                      { type: "divider" },
+                      { type: "context", elements: [{ type: "mrkdwn", text: "<\($prs_url)|All open PRs ↗> · <\($run_url)|Workflow run ↗>" }] }
+                    ]
+                )
+              }
+            ' > /tmp/main-payload.json
+          echo "should-post=true" >> "$GITHUB_OUTPUT"
+          echo "post-thread=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post main message to Slack
+        if: steps.build.outputs.should-post == 'true'
+        id: post
+        run: |
+          set -euo pipefail
+          attempt=0
+          max_attempts=5
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data @/tmp/main-payload.json) || true
+            if [[ "$(echo "$RESPONSE" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+              break
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::error::Slack API rejected the message after $max_attempts attempts:"
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 1
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Slack post attempt $attempt failed; retrying in ${sleep_seconds}s."
+            echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+            sleep "$sleep_seconds"
+          done
+          TS=$(echo "$RESPONSE" | jq -r '.ts')
+          echo "thread-ts=$TS" >> "$GITHUB_OUTPUT"
+          echo "✅ Posted main digest to $SLACK_CHANNEL_ID (ts=$TS)"
+
+      - name: Post thread breakdown
+        if: ${{ inputs.post-thread-breakdown && steps.build.outputs.post-thread == 'true' && steps.post.outputs.thread-ts != '' }}
+        run: |
+          set -euo pipefail
+          THREAD_TS="${{ steps.post.outputs.thread-ts }}"
+          # The jq program below chunks each area's PR lines into groups of 15
+          # to keep every Slack section under the 3000-char/section limit
+          # (~150 chars per prLine x 15 lines ~= 2250 chars). It also caps the
+          # total block count at 48 (Slack caps each message at 50 blocks).
+          jq -n \
+            --arg channel "$SLACK_CHANNEL_ID" \
+            --arg ts "$THREAD_TS" \
+            --slurpfile prs /tmp/enriched.json \
+            '
+            def severity(d):
+              if d >= 14 then "🚨"
+              elif d >= 8 then "🔴"
+              elif d >= 5 then "🟠"
+              else "🟡" end;
+            def reviewIcon(r):
+              if r == "APPROVED" then "✅"
+              elif r == "CHANGES_REQUESTED" then "🛑"
+              else "👀" end;
+            def escapeSlack: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            def prLine(pr):
+              "\(severity(pr.idleDays)) <\(pr.url)|#\(pr.n // pr.number)> \(pr.title | escapeSlack) · @\(pr.author.login) · \(pr.idleDays)d · \(reviewIcon(pr.reviewDecision))";
+            def chunks_of(n): . as $a | [range(0; length; n) | $a[.:.+n]];
+
+            ($prs[0]) as $allPrs
+            | ([ $allPrs[] | select(.bucket == "stale" or .bucket == "critical") ]
+                | group_by(.primaryLabel)
+                | map({ area: (.[0].primaryLabel), prs: . })
+                | sort_by(-(.prs | length))
+              ) as $byArea
+            | (
+                [ { type: "section", text: { type: "mrkdwn", text: "*Full breakdown — \(($allPrs | map(select(.bucket != "fresh")) | length)) stale PR(s) by area*" } } ]
+                + ($byArea | map(
+                    (.area) as $area
+                    | (.prs) as $areaPrs
+                    | ([ { type: "divider" } ]
+                       + ($areaPrs
+                          | map(prLine(.))
+                          | chunks_of(15)
+                          | to_entries
+                          | map(
+                              { type: "section",
+                                text: {
+                                  type: "mrkdwn",
+                                  text: (
+                                    (if .key == 0
+                                     then "*`\($area)`* — \($areaPrs | length) stale\n"
+                                     else "" end)
+                                    + (.value | join("\n"))
+                                  )
+                                } }
+                            )))
+                  ) | flatten)
+              ) as $allBlocks
+            | ($allBlocks[:48]) as $cappedBlocks
+            | (if ($allBlocks | length) > 48
+               then $cappedBlocks + [{ type: "context", elements: [{ type: "mrkdwn", text: "_…and \(($allBlocks | length) - 48) more blocks — see GitHub for the full list._" }] }]
+               else $cappedBlocks end) as $finalBlocks
+            | {
+                channel: $channel,
+                thread_ts: $ts,
+                blocks: $finalBlocks
+              }
+            ' > /tmp/thread-payload.json
+          attempt=0
+          max_attempts=4
+          RESPONSE=""
+          while :; do
+            RESPONSE=$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json; charset=utf-8" \
+              --data @/tmp/thread-payload.json) || true
+            if [[ "$(echo "$RESPONSE" | jq -r '.ok // false' 2>/dev/null)" == "true" ]]; then
+              echo "✅ Posted thread breakdown."
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [[ $attempt -ge $max_attempts ]]; then
+              echo "::warning::Failed to post thread breakdown after $max_attempts attempts:"
+              echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+              exit 0
+            fi
+            sleep_seconds=$((2 ** attempt))
+            echo "::warning::Thread post attempt $attempt failed; retrying in ${sleep_seconds}s."
+            sleep "$sleep_seconds"
+          done
