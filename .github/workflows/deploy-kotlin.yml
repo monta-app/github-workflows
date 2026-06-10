@@ -141,6 +141,9 @@ on:
       AWS_ACCOUNT_ID:
         required: true
         description: 'AWS Account ID for ECR and deployment access'
+      SLACK_APP_TOKEN:
+        required: false
+        description: 'Slack app token for publishing the changelog to #info-releases'
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub PAT to commit/push to kube-manifests repo'
@@ -298,7 +301,10 @@ jobs:
           jira-app-name: "montaapp"
           jira-email: ${{ secrets.JIRA_EMAIL }}
           jira-token: ${{ secrets.JIRA_TOKEN }}
-          output: "console"
+          output: "slack"
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          # Slack channel: C02PDBL6GAU = #info-releases
+          slack-channel: "C02PDBL6GAU"
           stage: ${{ needs.deploy.outputs.stage }}
           docker-image: ${{ needs.deploy.outputs.docker-image }}
           image-tag: ${{ needs.deploy.outputs.image-tag }}
