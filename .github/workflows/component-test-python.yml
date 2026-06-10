@@ -38,14 +38,7 @@ on:
         required: false
         type: string
         description: 'File path of the docker compose file'
-      slack-message-id:
-        required: false
-        type: string
-        description: 'Slack message ID from initialization for updates'
     secrets:
-      SLACK_APP_TOKEN:
-        required: true
-        description: 'Slack app token'
       TEST_ENV_FILE:
         required: false
         description: 'Environment variables for tests in .env format'
@@ -118,15 +111,3 @@ jobs:
             pytest-report.html
           retention-days: 7
           overwrite: true
-
-      - name: Publish result message to slack
-        uses: monta-app/slack-notifier-cli-action@main
-        if: always()
-        with:
-          job-type: "test"
-          job-status: ${{ job.status }}
-          service-name: ${{ inputs.service-name }}
-          service-emoji: ${{ inputs.service-emoji }}
-          slack-app-token: ${{ secrets.SLACK_APP_TOKEN }}
-          slack-channel-id: "C01KL9FUPNK"
-          slack-message-id: ${{ inputs.slack-message-id }}
