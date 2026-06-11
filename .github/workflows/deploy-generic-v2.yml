@@ -84,6 +84,9 @@ on:
       MANIFEST_REPO_PAT:
         required: true
         description: 'GitHub PAT to commit/push to kube-manifests repo'
+      SLACK_APP_TOKEN:
+        required: false
+        description: 'DEPRECATED: no longer used. Kept only so existing callers do not fail validation; remove it from your secrets block.'
       SENTRY_AUTH_TOKEN:
         required: false
         description: 'Sentry auth token, passed as Docker build secret'
@@ -135,6 +138,18 @@ permissions:
   actions: read
 
 jobs:
+  slack-token-deprecation:
+    name: Deprecation check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warn if deprecated SLACK_APP_TOKEN is provided
+        env:
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+        run: |
+          if [ -n "$SLACK_APP_TOKEN" ]; then
+            echo "::warning title=Deprecated secret::SLACK_APP_TOKEN is deprecated and no longer used by this workflow. Remove it from the secrets block of your caller workflow."
+          fi
+
   build:
     name: Build
     uses: ./.github/workflows/component-build.yml
