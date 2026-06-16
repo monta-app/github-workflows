@@ -35,6 +35,11 @@ on:
         type: boolean
         description: "Allow you to skip using Sonar Cloud, only to be used for common modules"
         default: false
+      sonar-non-blocking:
+        required: false
+        type: boolean
+        description: "When true, a failure of the 'Upload results to SonarQube' step does not fail the job"
+        default: false
       gradle-args:
         required: false
         type: string
@@ -159,6 +164,7 @@ jobs:
           args: "--login-server https://headscale.monta.com --accept-routes"
       - name: Upload results to SonarQube
         if: ${{ !inputs.skip-sonar }}
+        continue-on-error: ${{ inputs.sonar-non-blocking }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
