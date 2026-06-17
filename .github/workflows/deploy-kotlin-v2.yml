@@ -8,6 +8,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      use-blacksmith-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -220,6 +225,7 @@ jobs:
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
+      use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       gradle-module: ${{ inputs.gradle-module }}
@@ -233,6 +239,7 @@ jobs:
     uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
+      use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
       stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}

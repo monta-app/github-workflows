@@ -7,6 +7,11 @@ on:
         type: string
         default: 'normal'
         description: 'Runner size (normal or large)'
+      use-blacksmith-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
       stage:
         required: true
         type: string
@@ -45,11 +50,6 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
-      enable-buildkit-cache:
-        required: false
-        type: boolean
-        default: true
-        description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -107,6 +107,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
+          use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
   build:
     name: Build
     needs: setup
@@ -128,11 +129,16 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
-      # Required when enable-buildkit-cache=true: registry cache export needs the
-      # docker-container buildx driver (the default docker driver does not support cache-to).
+      # Self-hosted path: registry cache export needs the docker-container buildx
+      # driver (the default docker driver does not support cache-to).
       - name: Set up Docker Buildx
-        if: ${{ inputs.enable-buildkit-cache }}
+        if: ${{ !inputs.use-blacksmith-runners }}
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      # Blacksmith path: a sticky-disk-backed builder that auto-hydrates the layer
+      # cache from prior runs, so no registry cache directives are needed below.
+      - name: Set up Blacksmith Docker builder
+        if: ${{ inputs.use-blacksmith-runners }}
+        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
@@ -141,8 +147,44 @@ jobs:
           tags: |
             type=raw,value=${{ inputs.git-sha || github.sha }}
             type=raw,value=latest
-      - name: Build and push
-        id: build
+      # Blacksmith path: layer cache is mounted from the sticky disk automatically,
+      # so there are no cache-from/cache-to directives.
+      - name: Build and push (Blacksmith)
+        id: build-blacksmith
+        if: ${{ inputs.use-blacksmith-runners }}
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
+        with:
+          context: .
+          file: ./${{ inputs.docker-file-name }}
+          push: true
+          platforms: linux/arm64
+          # provenance/sbom off (with BUILDX_NO_DEFAULT_ATTESTATIONS=1 above) so the
+          # pushed tag is a plain single-arch image, not a manifest list.
+          provenance: false
+          sbom: false
+          build-args: |
+            ${{ inputs.additional-build-args }}
+          labels: |
+            GITHUB_RUN_ID=${{ github.run_id }}
+            ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          secrets: |
+            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
+            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            FARO_API_KEY=${{ secrets.FARO_API_KEY }}
+            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
+            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
+            LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
+            LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
+            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
+      # Self-hosted path: registry-backed BuildKit cache (mode=max) in the same ECR
+      # repo, covered by the existing ecr-put-image IAM permissions.
+      - name: Build and push (self-hosted)
+        id: build-self-hosted
+        if: ${{ !inputs.use-blacksmith-runners }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
@@ -151,18 +193,10 @@ jobs:
           file: ./${{ inputs.docker-file-name }}
           push: true
           platforms: linux/arm64
-          # Disable provenance and SBOM attestations so the pushed tag is a plain
-          # single-arch image manifest, not a manifest list. provenance: false alone
-          # is insufficient with newer BuildKit versions; BUILDX_NO_DEFAULT_ATTESTATIONS=1
-          # is also needed to stop attestation manifests turning the image into a list.
           provenance: false
           sbom: false
-          # Registry-backed BuildKit cache. Cache lives in the same ECR repo as the
-          # image under a dedicated tag, so existing ecr-put-image IAM permissions
-          # cover it. mode=max exports all intermediate layers (and cache mount
-          # contents on BuildKit ≥0.12) for maximum reuse on the next build.
-          cache-from: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
-          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |

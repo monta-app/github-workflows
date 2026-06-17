@@ -6,6 +6,10 @@ inputs:
   runner-size:
     description: 'Runner size (normal or large)'
     required: true
+  use-blacksmith-runners:
+    description: 'Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners'
+    required: false
+    default: 'false'
 
 outputs:
   runner-name:
@@ -20,6 +24,7 @@ runs:
       shell: bash
       run: |
         SIZE="${{ inputs.runner-size }}"
+        USE_BLACKSMITH="${{ inputs.use-blacksmith-runners }}"
 
         # Validate size
         case "$SIZE" in
@@ -31,10 +36,20 @@ runs:
             ;;
         esac
 
-        # Build runner name (arm64 only)
-        RUNNER_NAME="linux-arm64"
-        if [ "$SIZE" = "large" ]; then
-          RUNNER_NAME="$RUNNER_NAME-xl"
+        # Resolve the runner name (arm64 only)
+        if [ "$USE_BLACKSMITH" = "true" ]; then
+          # Blacksmith managed arm64 cloud runners
+          if [ "$SIZE" = "large" ]; then
+            RUNNER_NAME="blacksmith-16vcpu-ubuntu-2404-arm"
+          else
+            RUNNER_NAME="blacksmith-4vcpu-ubuntu-2404-arm"
+          fi
+        else
+          # Self-hosted arm64 runners
+          RUNNER_NAME="linux-arm64"
+          if [ "$SIZE" = "large" ]; then
+            RUNNER_NAME="$RUNNER_NAME-xl"
+          fi
         fi
 
         echo "runner-name=$RUNNER_NAME" >> $GITHUB_OUTPUT

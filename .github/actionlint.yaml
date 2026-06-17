@@ -8,3 +8,5 @@ self-hosted-runner:
     - linux-arm64-xl
     - self-hosted-arm64
     - self-hosted-arm64-2xl
+    - blacksmith-4vcpu-ubuntu-2404-arm
+    - blacksmith-16vcpu-ubuntu-2404-arm

@@ -8,6 +8,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      use-blacksmith-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -62,11 +67,6 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
-      enable-buildkit-cache:
-        required: false
-        type: boolean
-        default: false
-        description: 'Enable registry-backed BuildKit cache (cache-from/cache-to) on the ECR repo. Set to false to opt out.'
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -139,6 +139,7 @@ jobs:
     uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
+      use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
       stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
@@ -148,7 +149,6 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       git-sha: ${{ inputs.git-sha }}
-      enable-buildkit-cache: ${{ inputs.enable-buildkit-cache }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

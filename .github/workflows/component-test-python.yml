@@ -6,6 +6,11 @@ on:
         required: false
         type: string
         description: 'Runner size for the component-runner-size-converter'
+      use-blacksmith-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
       service-name:
         required: false
         type: string
@@ -54,6 +59,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
+          use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
   test:
     name: Test
     needs: setup
