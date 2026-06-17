@@ -84,7 +84,7 @@ on:
     outputs:
       image-tag:
         description: 'The image tag that was built'
-        value: ${{ jobs.build.outputs.image-tag }}
+        value: ${{ jobs.setup.outputs.image-tag }}
 
 permissions:
   id-token: write
@@ -97,6 +97,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       runner: ${{ steps.runner.outputs.runner-name }}
+      image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -108,13 +109,14 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
-  build:
-    name: Build
+  # Blacksmith path: build on a Blacksmith arm64 cloud runner. Its sticky-disk builder
+  # hydrates the layer cache from prior runs, so no registry cache directives are needed.
+  build-blacksmith:
+    name: Build (Blacksmith)
     needs: setup
+    if: ${{ inputs.use-blacksmith-runners }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
-    outputs:
-      image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -129,16 +131,6 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
-      # Self-hosted path: registry cache export needs the docker-container buildx
-      # driver (the default docker driver does not support cache-to).
-      - name: Set up Docker Buildx
-        if: ${{ !inputs.use-blacksmith-runners }}
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
-      # Blacksmith path: a sticky-disk-backed builder that auto-hydrates the layer
-      # cache from prior runs, so no registry cache directives are needed below.
-      - name: Set up Blacksmith Docker builder
-        if: ${{ inputs.use-blacksmith-runners }}
-        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
@@ -147,11 +139,10 @@ jobs:
           tags: |
             type=raw,value=${{ inputs.git-sha || github.sha }}
             type=raw,value=latest
-      # Blacksmith path: layer cache is mounted from the sticky disk automatically,
-      # so there are no cache-from/cache-to directives.
-      - name: Build and push (Blacksmith)
-        id: build-blacksmith
-        if: ${{ inputs.use-blacksmith-runners }}
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1
+      - name: Build and push
+        id: build
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
@@ -180,11 +171,43 @@ jobs:
             LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
             NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
-      # Self-hosted path: registry-backed BuildKit cache (mode=max) in the same ECR
-      # repo, covered by the existing ecr-put-image IAM permissions.
-      - name: Build and push (self-hosted)
-        id: build-self-hosted
-        if: ${{ !inputs.use-blacksmith-runners }}
+
+  # Self-hosted path: build on a self-hosted linux-arm64 runner with docker buildx and
+  # a registry-backed BuildKit cache in the ECR repo.
+  build-self-hosted:
+    name: Build (self-hosted)
+    needs: setup
+    if: ${{ !inputs.use-blacksmith-runners }}
+    runs-on: ${{ needs.setup.outputs.runner }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.git-sha || github.sha }}
+      - name: Configure AWS credentials via assumed role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: push-new-image-to-${{ inputs.service-identifier }}-${{inputs.stage}}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
+          tags: |
+            type=raw,value=${{ inputs.git-sha || github.sha }}
+            type=raw,value=latest
+      # registry cache export needs the docker-container buildx driver (the default
+      # docker driver does not support cache-to).
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      - name: Build and push
+        id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         env:
           BUILDX_NO_DEFAULT_ATTESTATIONS: 1
@@ -193,8 +216,12 @@ jobs:
           file: ./${{ inputs.docker-file-name }}
           push: true
           platforms: linux/arm64
+          # provenance/sbom off (with BUILDX_NO_DEFAULT_ATTESTATIONS=1 above) so the
+          # pushed tag is a plain single-arch image, not a manifest list.
           provenance: false
           sbom: false
+          # Registry-backed BuildKit cache (mode=max) in the same ECR repo, covered by
+          # the existing ecr-put-image IAM permissions.
           cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache
           cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
           build-args: |
