@@ -12,6 +12,16 @@ on:
         type: string
         description: "Runner architecture (x64 or arm64)"
         default: "x64"
+      runner-name-override:
+        required: false
+        type: string
+        description: "Specific runner label to use, overriding runner-size/architecture"
+        default: ""
+      runner-specific:
+        required: false
+        type: string
+        description: "Specific runner label to use, overriding runner-size/architecture"
+        default: ""
       java-version:
         required: false
         type: string
@@ -76,6 +86,7 @@ jobs:
         if: ${{ !inputs.skip-pr-title-check }}
       - name: Get runner name
         id: runner
+        if: ${{ inputs.runner-name-override == '' }}
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
@@ -83,7 +94,7 @@ jobs:
   test:
     name: Test with code coverage
     needs: setup
-    runs-on: ${{ needs.setup.outputs.runner-name }}
+    runs-on: ${{ inputs.runner-name-override != '' && inputs.runner-name-override || needs.setup.outputs.runner-name }}
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     env:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
