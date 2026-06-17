@@ -1,11 +1,19 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-02-23
-- **Latest SHA**: b65d4f5 (check for newer commits)
-- **Changes**: Created `deploy-kotlin-v2.yml` workflow for repo-based Kotlin service deployments
+- **Date**: 2026-06-17
+- **Latest SHA**: bf4f995 (check for newer commits)
+- **Changes**: Removed all x86/amd64 image building; builds are now ARM64-only
 
-## Recent Workflow Changes (2026-02-23)
+## Recent Workflow Changes (2026-06-17)
+1. **ARM64-only image builds**: Purged all x86/amd64 support from the build and CI surface
+   - `component-build.yml`: removed the amd64+arm64 build matrix and the `create-manifest` job. Now does a single native ARM64 build (`platforms: linux/arm64`) that pushes the `<sha>` and `latest` tags directly, with no per-arch suffixes and no multi-arch manifest list. The setup job resolves a single arm64 runner and the buildcache is no longer per-arch scoped.
+   - `runner-size-converter` action: dropped the `architecture` input; always emits `linux-arm64` / `linux-arm64-xl`.
+   - `architecture` input: stopped forwarding it anywhere (it no longer selects a runner). Removed entirely from the internal/analysis workflows (`code-coverage-kotlin`, `component-test-kotlin`, `component-test-python`). On the entry-point workflows service repos call directly (`pull-request-{kotlin,bun,react}`, `sonar-cloud`, `deploy-{kotlin,kotlin-v2,python,generic,generic-v2}`) it is RETAINED as a deprecated no-op: the value is ignored, the description marks it deprecated, and `deploy-kotlin-v2` gains it for v1/v2 parity. Slated for removal in a future release.
+   - `actionlint.yaml`: removed the `linux-x64`, `linux-x64-xl`, `self-hosted-x64`, `self-hosted-x64-2xl` labels.
+   - **Breaking for callers**: only repos calling the internal workflows (`code-coverage-kotlin`, `component-test-kotlin`, `component-test-python`) directly with `architecture:` must drop that input. Callers of the deploy / pull-request / sonar-cloud entry points are unaffected (the input is accepted and ignored).
+
+## Previous Changes (2026-02-23)
 1. **Kotlin V2 Deploy Workflow**: Created `deploy-kotlin-v2.yml` for repo-based deployments
    - Uses `component-deploy-v2.yml` for service repository-based deployment pattern
    - Includes all Kotlin-specific features: tests, Gradle, service profile updates, release tags, changelog

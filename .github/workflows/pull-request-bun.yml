@@ -7,11 +7,14 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
+      # compatibility with callers still passing it; the value is ignored and this
+      # input will be removed in a future release.
       architecture:
         required: false
         type: string
-        description: "Runner architecture (x64 or arm64)"
-        default: "x64"
+        description: "[DEPRECATED] Ignored - all builds and CI run on arm64. No-op kept for backwards compatibility; will be removed in a future release."
+        default: "arm64"
       bun-version:
         required: false
         type: string
@@ -61,7 +64,6 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
-          architecture: ${{ inputs.architecture }}
   lint-build-test:
     name: Lint & Build & Test
     needs: setup

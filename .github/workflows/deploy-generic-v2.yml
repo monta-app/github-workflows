@@ -8,11 +8,14 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
+      # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
+      # compatibility with callers still passing it; the value is ignored and this
+      # input will be removed in a future release.
       architecture:
         required: false
         type: string
-        description: "Runner architecture (x64 or arm64)"
-        default: "x64"
+        description: "[DEPRECATED] Ignored - all builds and CI run on arm64. No-op kept for backwards compatibility; will be removed in a future release."
+        default: "arm64"
       stage:
         required: true
         type: string

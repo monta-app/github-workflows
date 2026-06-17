@@ -84,7 +84,7 @@ on:
     outputs:
       image-tag:
         description: 'The image tag that was built'
-        value: ${{ jobs.create-manifest.outputs.image-tag }}
+        value: ${{ jobs.build.outputs.image-tag }}
 
 permissions:
   id-token: write
@@ -96,39 +96,24 @@ jobs:
     runs-on: linux-arm64
     timeout-minutes: 5
     outputs:
-      runner-x64: ${{ steps.runner-x64.outputs.runner-name }}
-      runner-arm64: ${{ steps.runner-arm64.outputs.runner-name }}
+      runner: ${{ steps.runner.outputs.runner-name }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
-      - name: Get x64 runner name
-        id: runner-x64
+      - name: Get runner name
+        id: runner
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
-          architecture: x64
-      - name: Get arm64 runner name
-        id: runner-arm64
-        uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
-        with:
-          runner-size: ${{ inputs.runner-size }}
-          architecture: arm64
   build:
-    name: Build Multi-Arch
+    name: Build
     needs: setup
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
-    strategy:
-      matrix:
-        include:
-          - platform: linux/amd64
-            arch: amd64
-            runner: ${{ needs.setup.outputs.runner-x64 }}
-          - platform: linux/arm64
-            arch: arm64
-            runner: ${{ needs.setup.outputs.runner-arm64 }}
+    outputs:
+      image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -154,8 +139,8 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
           tags: |
-            type=raw,value=${{ inputs.git-sha || github.sha }},suffix=-${{ matrix.arch }}
-            type=raw,value=latest,suffix=-${{ matrix.arch }}
+            type=raw,value=${{ inputs.git-sha || github.sha }}
+            type=raw,value=latest
       - name: Build and push
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
@@ -165,19 +150,19 @@ jobs:
           context: .
           file: ./${{ inputs.docker-file-name }}
           push: true
-          # Disable provenance and SBOM to keep single-platform images simple (not manifest lists).
-          # Required for manual multi-arch manifest creation in create-manifest job.
-          # Note: provenance: false alone is insufficient with newer BuildKit versions;
-          # BUILDX_NO_DEFAULT_ATTESTATIONS=1 is also needed to prevent attestation
-          # manifests from being generated, which turn images into manifest lists.
+          platforms: linux/arm64
+          # Disable provenance and SBOM attestations so the pushed tag is a plain
+          # single-arch image manifest, not a manifest list. provenance: false alone
+          # is insufficient with newer BuildKit versions; BUILDX_NO_DEFAULT_ATTESTATIONS=1
+          # is also needed to stop attestation manifests turning the image into a list.
           provenance: false
           sbom: false
-          # Registry-backed BuildKit cache, scoped per-arch to keep amd64/arm64 caches separate.
-          # Cache lives in the same ECR repo as the image under a dedicated tag, so existing
-          # ecr-put-image IAM permissions cover it. mode=max exports all intermediate layers
-          # (and cache mount contents on BuildKit ≥0.12) for maximum reuse on the next build.
-          cache-from: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
-          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache-{2},mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage), matrix.arch) || '' }}
+          # Registry-backed BuildKit cache. Cache lives in the same ECR repo as the
+          # image under a dedicated tag, so existing ecr-put-image IAM permissions
+          # cover it. mode=max exports all intermediate layers (and cache mount
+          # contents on BuildKit ≥0.12) for maximum reuse on the next build.
+          cache-from: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
+          cache-to: ${{ inputs.enable-buildkit-cache && format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
@@ -194,42 +179,3 @@ jobs:
             LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
             NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
-  create-manifest:
-    name: Create Multi-Arch Manifest
-    needs: build
-    runs-on: linux-arm64
-    timeout-minutes: 10
-    outputs:
-      image-tag: ${{ inputs.git-sha || github.sha }}
-    steps:
-      - name: Configure AWS credentials via assumed role
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
-          role-session-name: create-manifest-${{ inputs.service-identifier }}-${{inputs.stage}}
-          aws-region: ${{ inputs.region }}
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
-      - name: Create and push manifest
-        run: |
-          # Enable experimental features
-          export DOCKER_CLI_EXPERIMENTAL=enabled
-
-          # Define the base image name and tag
-          BASE_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}"
-          SHA_TAG="${{ inputs.git-sha || github.sha }}"
-
-          # Create manifest list
-          docker manifest create ${BASE_IMAGE}:${SHA_TAG} \
-            ${BASE_IMAGE}:${SHA_TAG}-amd64 \
-            ${BASE_IMAGE}:${SHA_TAG}-arm64
-
-          # Push the manifest
-          docker manifest push ${BASE_IMAGE}:${SHA_TAG}
-
-          # Create and push latest manifest
-          docker manifest create ${BASE_IMAGE}:latest \
-            ${BASE_IMAGE}:latest-amd64 \
-            ${BASE_IMAGE}:latest-arm64
-          docker manifest push ${BASE_IMAGE}:latest
