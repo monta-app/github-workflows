@@ -177,4 +177,4 @@ jobs:
 - **Security**: Secrets not in image layers
 - **Performance**: BuildKit caching
 - **Simplicity**: Fewer parameters needed
-- **Multi-arch**: ARM64 and AMD64 support
+- **ARM64**: Native ARM64 image builds

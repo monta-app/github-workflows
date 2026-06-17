@@ -142,14 +142,13 @@ jobs:
 ## Component Build
 
 **File:** `component-build.yml`  
-**Purpose:** Builds multi-architecture Docker images and pushes them to Amazon ECR.
+**Purpose:** Builds an ARM64 Docker image and pushes it to Amazon ECR.
 
 ### What it does:
 1. Updates Slack with build progress
-2. Builds Docker images for both AMD64 and ARM64 architectures
-3. Pushes images to ECR with architecture-specific tags
-4. Creates a multi-arch manifest
-5. Notifies Slack of build completion
+2. Builds a single-platform ARM64 Docker image
+3. Pushes the image to ECR tagged with the commit SHA and `latest`
+4. Notifies Slack of build completion
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -393,7 +392,7 @@ jobs:
 1. **Create Release Tag** (optional): Creates a release tag when triggered via workflow_dispatch and `enable-release-tag` is true
 2. **Initialize**: Sets up Slack notifications for the deployment process
 3. **Test**: Runs unit tests and validates code quality
-4. **Build**: Creates multi-architecture Docker images and pushes to ECR
+4. **Build**: Builds an ARM64 Docker image and pushes to ECR
 5. **Deploy**: Updates Kubernetes manifests for deployment
 6. **Create Changelog** (optional): Generates and publishes changelog to Slack and GitHub releases
 
@@ -510,7 +509,7 @@ jobs:
 ### What it does:
 1. Initializes Slack notification
 2. Runs Python tests using pytest and uv
-3. Builds multi-arch Docker images
+3. Builds an ARM64 Docker image
 4. Deploys to Kubernetes via manifest updates
 
 ### Inputs:
@@ -576,7 +575,7 @@ jobs:
 ### What it does:
 1. **Initialize**: Sets up Slack notifications for the deployment process
 2. **Test**: Runs unit tests and validates code quality (optional, controlled by `run-tests`)
-3. **Build**: Creates multi-architecture Docker images and pushes to ECR
+3. **Build**: Builds an ARM64 Docker image and pushes to ECR
 4. **Deploy**: Updates helm values in the service repository and syncs with ArgoCD
 5. **Update Service Profile** (optional): Generates linkerd service profile from OpenAPI spec
 6. **Create Release Tag** (optional): Creates a release tag when `enable-release-tag` is true
