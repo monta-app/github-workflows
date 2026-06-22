@@ -131,10 +131,8 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar-${{ github.head_ref }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-sonar-${{ github.head_ref }}-
-            ${{ runner.os }}-sonar-
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
       - name: Run linter
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -214,9 +212,9 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ github.head_ref }}-${{ github.sha }}
-      - name: Save SonarCloud cache
+      - name: Save SonarQube cache
         if: ${{ always() && !inputs.skip-sonar && steps.sonar-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar-${{ github.head_ref }}-${{ github.sha }}
+          key: ${{ runner.os }}-sonar
