@@ -1,8 +1,8 @@
 # Runner Size Converter Action
 
 A composite action that converts a runner size into an arm64 GitHub runner name.
-By default it resolves the self-hosted `linux-arm64` runners; set
-`use-blacksmith-runners: true` to resolve the Blacksmith arm64 cloud runners
+By default it resolves the Blacksmith arm64 cloud runners; set
+`use-blacksmith-runners: false` to resolve the self-hosted `linux-arm64` runners
 instead.
 
 ## Usage
@@ -13,7 +13,7 @@ instead.
   uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
   with:
     runner-size: 'large'
-    use-blacksmith-runners: false # optional, defaults to false
+    use-blacksmith-runners: true # optional, defaults to true
 
 - name: Use runner
   runs-on: ${{ steps.runner.outputs.runner-name }}
@@ -26,7 +26,7 @@ instead.
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | Yes | - | Runner size: `normal` or `large` |
-| `use-blacksmith-runners` | No | `false` | Resolve Blacksmith arm64 cloud runners instead of the self-hosted `linux-arm64` runners |
+| `use-blacksmith-runners` | No | `true` | Resolve Blacksmith arm64 cloud runners (default). Set to `false` to resolve the self-hosted `linux-arm64` runners |
 
 ## Outputs
 

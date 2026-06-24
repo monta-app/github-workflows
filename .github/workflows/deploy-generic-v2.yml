@@ -11,8 +11,8 @@ on:
       use-blacksmith-runners:
         required: false
         type: boolean
-        default: false
-        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
+        default: true
+        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.

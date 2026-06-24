@@ -7,9 +7,9 @@ inputs:
     description: 'Runner size (normal or large)'
     required: true
   use-blacksmith-runners:
-    description: 'Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners'
+    description: 'Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners'
     required: false
-    default: 'false'
+    default: 'true'
 
 outputs:
   runner-name:

@@ -108,7 +108,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `service-name` | Yes | - | Project name in kebab-case format (e.g., "my-service") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `java-version` | No | "21" | Java version to use |
 | `gradle-module` | No | - | Gradle module name for multi-module projects |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
@@ -159,7 +159,7 @@ jobs:
 | `service-emoji` | Yes | - | Emoji for Slack notifications |
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
@@ -300,7 +300,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `gradle-module` | No | - | Gradle module name |
@@ -351,7 +351,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `python-version` | No | "3.13" | Python version |
@@ -414,7 +414,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -521,7 +521,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size ("normal" or "large") |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `stage` | **Yes** | - | Deployment stage (dev/staging/production) |
 | `service-name` | **Yes** | - | Service display name |
 | `service-emoji` | **Yes** | - | Service emoji |
@@ -597,7 +597,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -842,7 +842,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
@@ -895,7 +895,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `bun-version` | No | "latest" | Bun version |
 | `working-directory` | No | "." | Frontend code directory |
 | `build-timeout-minutes` | No | 15 | Build timeout |
@@ -941,7 +941,7 @@ The workflow automatically reports code coverage if your project generates LCOV 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `node-version` | No | "lts/jod" | Node.js version |
 | `pnpm-version` | No | "10" | pnpm version |
 | `working-directory` | No | "." | Frontend code directory |
@@ -1030,7 +1030,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | false | Run on Blacksmith arm64 cloud runners instead of self-hosted linux-arm64 |
+| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 

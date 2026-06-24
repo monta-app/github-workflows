@@ -10,8 +10,8 @@ on:
       use-blacksmith-runners:
         required: false
         type: boolean
-        default: false
-        description: "Run on Blacksmith arm64 cloud runners instead of the self-hosted linux-arm64 runners."
+        default: true
+        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
       stage:
         required: true
         type: string
