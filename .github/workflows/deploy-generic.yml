@@ -21,6 +21,11 @@ on:
         type: string
         description: "[DEPRECATED] Ignored - all builds and CI run on arm64. No-op kept for backwards compatibility; will be removed in a future release."
         default: "arm64"
+      platforms:
+        required: false
+        type: string
+        default: "linux/arm64"
+        description: 'Target build platforms. Defaults to arm64-only. Set to a comma-separated list (e.g. "linux/amd64,linux/arm64") to push a multi-arch manifest; cross-arch builds run under QEMU.'
       stage:
         required: true
         type: string
@@ -149,6 +154,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       git-sha: ${{ inputs.git-sha }}
+      platforms: ${{ inputs.platforms }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
