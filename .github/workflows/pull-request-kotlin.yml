@@ -94,6 +94,43 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+  lint:
+    name: Lint
+    needs: setup
+    runs-on: ${{ inputs.runner-name-override != '' && inputs.runner-name-override || needs.setup.outputs.runner-name }}
+    timeout-minutes: ${{ inputs.test-timeout-minutes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          # to check out the actual pull request commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Set up JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: corretto
+          java-version: ${{ inputs.java-version }}
+      - name: Restore Gradle cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ github.head_ref }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ github.head_ref }}-
+            ${{ runner.os }}-gradle-
+      - name: Run linter
+        env:
+          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
+        with:
+          gradle-module: ${{ inputs.gradle-module }}
+          gradle-tasks: 'ktlintCheck'
+          gradle-args: ${{ inputs.gradle-args }}
   test:
     name: Test with code coverage
     needs: setup
@@ -133,16 +170,6 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      - name: Run linter
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: monta-app/github-workflows/.github/actions/gradle-multi-module@main
-        with:
-          gradle-module: ${{ inputs.gradle-module }}
-          gradle-tasks: 'ktlintCheck'
-          gradle-args: ${{ inputs.gradle-args }}
       - name: Run tests with coverage
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
