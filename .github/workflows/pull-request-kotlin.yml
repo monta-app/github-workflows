@@ -196,7 +196,7 @@ jobs:
       # automatically for repos still on SonarCloud (no TAILSCALE_AUTHKEY passed).
       - name: Tailscale
         if: ${{ !inputs.skip-sonar && env.TAILSCALE_AUTHKEY != '' }}
-        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
           hostname: "github-${{ github.run_id }}"
