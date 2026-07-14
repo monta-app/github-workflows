@@ -141,6 +141,11 @@ on:
         default: 300
         type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
+      wait-for-argocd-sync:
+        required: false
+        type: boolean
+        default: true
+        description: 'Whether to block the workflow on ArgoCD sync becoming healthy. Set to false to fire-and-forget the deployment (the manifest commit still happens; only the wait step is skipped).'
       git-sha:
         required: false
         type: string
@@ -276,6 +281,7 @@ jobs:
       argocd-server: ${{ inputs.argocd-server }}
       argocd-app-name: ${{ inputs.argocd-app-name }}
       argocd-sync-wait-seconds: ${{ inputs.argocd-sync-wait-seconds }}
+      wait-for-argocd-sync: ${{ inputs.wait-for-argocd-sync }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
