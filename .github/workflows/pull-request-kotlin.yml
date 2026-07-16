@@ -203,9 +203,7 @@ jobs:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
           hostname: "github-${{ github.run_id }}"
           args: "--login-server https://headscale.monta.com --accept-routes"
-      # != 'failure' (not == 'success') so the SonarCloud path still runs when
-      # Tailscale is skipped (no TAILSCALE_AUTHKEY); only a failed VPN bring-up,
-      # which leaves SonarQube unreachable, skips the scan.
+      # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Upload results to SonarQube
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}

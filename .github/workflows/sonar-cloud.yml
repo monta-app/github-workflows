@@ -118,9 +118,7 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport'
           gradle-args: ${{ inputs.gradle-args }}
-      # != 'failure' (not == 'success') so the SonarCloud path still runs when
-      # Tailscale is skipped (no TAILSCALE_AUTHKEY); only a failed VPN bring-up,
-      # which leaves SonarQube unreachable, skips the scan.
+      # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Analyze with SonarQube
         if: ${{ steps.tailscale.outcome != 'failure' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
