@@ -101,6 +101,7 @@ jobs:
       # needs to join the tailnet before the scan step can reach it. Skipped
       # automatically for repos still on SonarCloud (no TAILSCALE_AUTHKEY passed).
       - name: Tailscale
+        id: tailscale
         if: ${{ env.TAILSCALE_AUTHKEY != '' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
         uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
@@ -117,7 +118,9 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport'
           gradle-args: ${{ inputs.gradle-args }}
+      # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Analyze with SonarQube
+        if: ${{ steps.tailscale.outcome != 'failure' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
