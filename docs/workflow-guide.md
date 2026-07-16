@@ -848,13 +848,15 @@ jobs:
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
 | `test-timeout-minutes` | No | 30 | Test timeout |
 | `skip-sonar` | No | false | Skip SonarCloud analysis |
+| `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube upload does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
 
 ### Secrets:
 | Secret | Required | Description |
 |--------|----------|-------------|
+| `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
-| `SONAR_TOKEN` | Yes | SonarCloud token |
+| `SONAR_TOKEN` | Yes | SonarQube token |
 
 ### Example Usage:
 ```yaml
@@ -1022,9 +1024,10 @@ jobs:
 ### What it does:
 1. Checks out code with full history
 2. Sets up Java environment
-3. Caches SonarCloud packages
-4. Runs Kover coverage report
-5. Uploads analysis to SonarCloud
+3. Caches SonarQube packages
+4. Joins the Tailscale VPN (when `TAILSCALE_AUTHKEY` is set) to reach the self-hosted SonarQube
+5. Runs tests with Kover coverage (gating)
+6. Uploads analysis to SonarQube (best-effort by default)
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -1033,13 +1036,15 @@ jobs:
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
+| `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
 
 ### Secrets:
 | Secret | Required | Description |
 |--------|----------|-------------|
+| `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
-| `SONAR_TOKEN` | Yes | SonarCloud token |
+| `SONAR_TOKEN` | Yes | SonarQube token |
 
 ### Example Usage:
 ```yaml

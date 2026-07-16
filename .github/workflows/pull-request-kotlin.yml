@@ -51,8 +51,8 @@ on:
       sonar-non-blocking:
         required: false
         type: boolean
-        description: "When true, a failure of the 'Upload results to SonarQube' step does not fail the job"
-        default: false
+        description: "When true (default), a failure of the Tailscale bring-up or the 'Upload results to SonarQube' step does not fail the job. SonarQube depends on the Monta VPN, so infra outages (expired auth key, Tailscale package CDN down, SonarQube unreachable) would otherwise block every PR. Set to false to make SonarQube a hard gate again."
+        default: true
       gradle-args:
         required: false
         type: string
@@ -196,6 +196,7 @@ jobs:
       # automatically for repos still on SonarCloud (no TAILSCALE_AUTHKEY passed).
       - name: Tailscale
         if: ${{ !inputs.skip-sonar && env.TAILSCALE_AUTHKEY != '' }}
+        continue-on-error: ${{ inputs.sonar-non-blocking }}
         uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
         with:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
