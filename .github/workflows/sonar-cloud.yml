@@ -118,6 +118,50 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport'
           gradle-args: ${{ inputs.gradle-args }}
+      # Wait for the tailnet path to SonarQube to actually be usable before
+      # scanning. `tailscale up` returns before DERP/route programming has
+      # settled, so the scanner's first call (GET /api/v2/analysis/version)
+      # can hit a half-open path and fail fast with "failed: null" — the
+      # scanner's default connect timeout is only 5s. Polling that exact
+      # endpoint until it answers both waits out the race AND warms the
+      # relay path, so the scan starts on a connection we know works.
+      - name: Wait for SonarQube to be reachable over the tailnet
+        if: ${{ steps.tailscale.outcome != 'failure' && env.TAILSCALE_AUTHKEY != '' }}
+        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        shell: bash
+        env:
+          SONAR_HOST_URL: https://sonarqube.vpn.internal.monta.app/
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          BASE="${SONAR_HOST_URL%/}"                 # strip trailing slash -> no /api//...
+          HEALTH_URL="${BASE}/api/v2/analysis/version"
+
+          MAX_ATTEMPTS=18       # exits early on first success; ~3-4 min worst case
+          CONNECT_TIMEOUT=10    # seconds for the TCP/TLS connect phase per attempt
+          SLEEP_BETWEEN=5       # seconds between attempts
+
+          echo "Probing ${HEALTH_URL} until reachable…"
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            # --fail            -> non-2xx counts as a miss (retry)
+            # --connect-timeout -> bounds the connect phase (the thing that times out)
+            # -u "${TOKEN}:"    -> token as basic-auth user; harmless if the endpoint
+            #                      is anonymous, required if "Force user authentication"
+            #                      is enabled.
+            if curl --silent --show-error --fail \
+                    --connect-timeout "$CONNECT_TIMEOUT" \
+                    --max-time "$(( CONNECT_TIMEOUT + 5 ))" \
+                    -u "${SONAR_TOKEN}:" \
+                    -o /dev/null \
+                    "$HEALTH_URL"; then
+              echo "✅ Reachable on attempt ${attempt}/${MAX_ATTEMPTS}"
+              exit 0
+            fi
+            echo "… attempt ${attempt}/${MAX_ATTEMPTS} missed; retry in ${SLEEP_BETWEEN}s"
+            sleep "$SLEEP_BETWEEN"
+          done
+
+          echo "::error::SonarQube unreachable over the tailnet after ${MAX_ATTEMPTS} attempts — likely DERP/route health. Check the 'tailscale status' / 'tailscale ping' output above."
+          exit 1
       # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Analyze with SonarQube
         if: ${{ steps.tailscale.outcome != 'failure' }}
