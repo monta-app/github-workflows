@@ -202,7 +202,8 @@ jobs:
         with:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
           hostname: "github-${{ github.run_id }}"
-          args: "--login-server https://headscale.monta.com --accept-routes"
+          # v4 passes --accept-routes itself; repeating it in args fails `tailscale up`
+          args: "--login-server https://headscale.monta.com"
       # Wait for the tailnet path to SonarQube to actually be usable before
       # scanning. `tailscale up` returns before DERP/route programming has
       # settled, so the scanner's first call (GET /api/v2/analysis/version)
