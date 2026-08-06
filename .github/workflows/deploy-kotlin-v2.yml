@@ -101,6 +101,14 @@ on:
         type: boolean
         default: true
         description: 'Comment on JIRA tickets with production deployment information (automatically disabled if requirements not met)'
+      changelog-monitoring-urls:
+        required: false
+        type: string
+        description: "Comma-separated list of dashboard/monitoring URLs for the release notification - example: Grafana|https://grafana.monta.app/d/my-service,Sentry|https://sentry.io/my-service"
+      changelog-release-notify-channel:
+        required: false
+        type: string
+        description: 'Slack channel ID or name to post a release notification to, tagging PR authors/co-authors/approvers and linking changelog-monitoring-urls. Independent of enable-changelog - setting this is what enables the notification.'
       run-tests:
         required: false
         type: boolean
@@ -338,3 +346,5 @@ jobs:
           deployment-url: ${{ needs.deploy.outputs.deployment-url }}
           comment-on-prs: ${{ inputs.comment-on-prs }}
           comment-on-jira: ${{ inputs.comment-on-jira }}
+          monitoring-urls: ${{ inputs.changelog-monitoring-urls }}
+          release-notify-channel: ${{ inputs.changelog-release-notify-channel }}

@@ -431,6 +431,8 @@ This conditional logic ensures the workflow continues properly even when optiona
 | `enable-changelog` | No | false | Enable changelog generation after deployment |
 | `changelog-tag-pattern` | No | - | Regex pattern for matching tag patterns (group 1 should match version) - example: processor-(.*) |
 | `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding file paths from changelog - example: ^gateway/ |
+| `changelog-monitoring-urls` | No | - | Comma-separated list of dashboard/monitoring URLs for the release notification - example: Grafana\|https://grafana.monta.app/d/my-service,Sentry\|https://sentry.io/my-service |
+| `changelog-release-notify-channel` | No | - | Slack channel ID or name to post a release notification to, tagging PR authors/co-authors/approvers. Independent of `enable-changelog` - setting this is what enables the notification |
 
 ### Secrets:
 | Secret | Required | Description |
@@ -495,6 +497,9 @@ jobs:
       changelog-tag-pattern: "charging-(.*)"
       # Optional: Exclude paths from changelog (e.g., other services)
       changelog-path-exclude-pattern: "^(payment|vehicle)/"
+      # Optional: Release notification with dashboard links, tagging contributors
+      changelog-release-notify-channel: "#charging-releases"
+      changelog-monitoring-urls: "Grafana|https://grafana.monta.app/d/charging,Sentry|https://sentry.io/charging"
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -622,6 +627,8 @@ jobs:
 | `enable-changelog` | No | false | Enable changelog generation |
 | `changelog-tag-pattern` | No | - | Regex pattern for tag matching (monorepo filtering) |
 | `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding paths from changelog |
+| `changelog-monitoring-urls` | No | - | Comma-separated list of dashboard/monitoring URLs for the release notification |
+| `changelog-release-notify-channel` | No | - | Slack channel to post a release notification to, tagging PR authors/co-authors/approvers. Independent of `enable-changelog` |
 | `comment-on-prs` | No | true | Comment on PRs with deployment info |
 | `comment-on-jira` | No | true | Comment on JIRA tickets with deployment info |
 
@@ -730,6 +737,9 @@ jobs:
       release-tag-prefix: "gateway"
       enable-changelog: true
       changelog-tag-pattern: "gateway-(.*)"
+      # Optional: Release notification with dashboard links, tagging contributors
+      changelog-release-notify-channel: "#gateway-releases"
+      changelog-monitoring-urls: "Grafana|https://grafana.monta.app/d/gateway"
       argocd-server: "argocd.monta.app"
       comment-on-prs: true
       comment-on-jira: true
