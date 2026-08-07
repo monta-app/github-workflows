@@ -1,11 +1,14 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-06-17
+- **Date**: 2026-08-06
 - **Latest SHA**: bf4f995 (check for newer commits)
-- **Changes**: Removed all x86/amd64 image building; builds are now ARM64-only
+- **Changes**: Changelog Release Notifications
 
-## Recent Workflow Changes (2026-06-17)
+## Recent Workflow Changes (2026-08-06)
+1. **Changelog Release Notifications**: Added `changelog-monitoring-urls` and `changelog-release-notify-channel` inputs to `deploy-kotlin.yml` and `deploy-kotlin-v2.yml`, forwarded to the `changelog-cli-action`'s `monitoring-urls`/`release-notify-channel` inputs. Posts a standalone Slack message with the release link, dashboards to monitor, and tagged PR authors/co-authors/approvers - independent of `enable-changelog`/`output`, reuses the existing `SLACK_APP_TOKEN` secret.
+
+## Previous Changes (2026-06-17)
 1. **ARM64-only image builds**: Purged all x86/amd64 support from the build and CI surface
    - `component-build.yml`: removed the amd64+arm64 build matrix and the `create-manifest` job. Now does a single native ARM64 build (`platforms: linux/arm64`) that pushes the `<sha>` and `latest` tags directly, with no per-arch suffixes and no multi-arch manifest list. The setup job resolves a single arm64 runner and the buildcache is no longer per-arch scoped.
    - `runner-size-converter` action: dropped the `architecture` input; always emits `linux-arm64` / `linux-arm64-xl`.
