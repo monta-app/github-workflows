@@ -1,0 +1,86 @@
+name: 'Notify Deploy Authors'
+description: 'DM the authors of everything in a deploy, asking them to watch a dashboard now their change is live'
+author: 'Monta'
+
+inputs:
+  previous-ref:
+    description: 'Commit SHA or tag the deploy starts after (e.g. the previous image tag)'
+    required: true
+  current-ref:
+    description: 'Commit SHA or tag the deploy ends on (e.g. the image tag just deployed)'
+    required: true
+  service-name:
+    description: 'Human-readable service name, e.g. "Monta PHP Monolith"'
+    required: true
+  dashboard-url:
+    description: 'Dashboard the authors should watch'
+    required: true
+  slack-token:
+    description: 'Slack bot token. Needs users:read.email, im:write and chat:write'
+    required: true
+  github-token:
+    description: 'Token that can read the repository'
+    required: true
+  dashboard-label:
+    description: 'Link text for the dashboard'
+    required: false
+    default: 'Error Dashboard'
+  stage:
+    description: 'Deployment stage, e.g. production. Only used in the message wording'
+    required: false
+    default: ''
+  ref-url:
+    description: 'URL to link the deployed ref to. Rendered as plain text when omitted'
+    required: false
+    default: ''
+  identity-api-url:
+    description: >-
+      Base URL of the identity resolver (project-tracker) used to map GitHub logins to Slack
+      accounts. Strongly recommended: without it only authors whose public GitHub email matches
+      their Slack account are reachable, which is a minority. Needs tailnet access from the runner.
+    required: false
+    default: ''
+  monitoring-window:
+    description: 'How long to ask authors to watch for'
+    required: false
+    default: 'the next 30 minutes'
+  max-authors:
+    description: >-
+      Refuse to send anything if the ref range contains more authors than this. A range far larger
+      than a normal deploy almost always means the refs are wrong, and mass-DMing is worse than
+      sending nothing.
+    required: false
+    default: '15'
+  dry-run:
+    description: 'Print what would be sent instead of sending it'
+    required: false
+    default: 'false'
+  strict:
+    description: >-
+      Exit non-zero when the notification cannot be sent. Off by default, because a monitoring
+      nudge should never fail a deploy. Useful while testing the wiring.
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: DM the authors in this deploy
+      shell: bash
+      env:
+        PREVIOUS_REF: ${{ inputs.previous-ref }}
+        CURRENT_REF: ${{ inputs.current-ref }}
+        SERVICE_NAME: ${{ inputs.service-name }}
+        DASHBOARD_URL: ${{ inputs.dashboard-url }}
+        DASHBOARD_LABEL: ${{ inputs.dashboard-label }}
+        SLACK_TOKEN: ${{ inputs.slack-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        STAGE: ${{ inputs.stage }}
+        REF_URL: ${{ inputs.ref-url }}
+        IDENTITY_API_URL: ${{ inputs.identity-api-url }}
+        MONITORING_WINDOW: ${{ inputs.monitoring-window }}
+        MAX_AUTHORS: ${{ inputs.max-authors }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        STRICT: ${{ inputs.strict }}
+      run: |
+        "${{ github.action_path }}/notify-deploy-authors.sh"

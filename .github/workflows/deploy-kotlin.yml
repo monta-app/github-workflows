@@ -109,6 +109,26 @@ on:
         required: false
         type: string
         description: 'Slack channel ID or name to post a release notification to, tagging PR authors/co-authors/approvers and linking changelog-monitoring-urls. Independent of enable-changelog - setting this is what enables the notification.'
+      notify-deploy-authors-dashboard-url:
+        required: false
+        type: string
+        description: >-
+          Dashboard to send the authors of a successful deploy, as a DM asking them to watch it now their
+          change is live. Setting this is what enables the DM. Runs after the rollout has finished, which is
+          the point at which there is something to monitor.
+      notify-deploy-authors-dashboard-label:
+        required: false
+        type: string
+        default: 'Error Dashboard'
+        description: 'Link text for notify-deploy-authors-dashboard-url'
+      notify-deploy-authors-identity-api-url:
+        required: false
+        type: string
+        default: ''
+        description: >-
+          Identity resolver base URL used to map GitHub logins to Slack accounts for the author DM. Without
+          it only authors whose public GitHub email matches Slack are reachable, which is a minority. Needs
+          tailnet access from the runner.
       run-tests:
         required: false
         type: boolean
@@ -333,3 +353,25 @@ jobs:
           comment-on-jira: ${{ inputs.comment-on-jira }}
           monitoring-urls: ${{ inputs.changelog-monitoring-urls }}
           release-notify-channel: ${{ inputs.changelog-release-notify-channel }}
+
+  notify-deploy-authors:
+    name: Notify Deploy Authors
+    # Depends only on `deploy`: there is nothing to monitor until the rollout has finished, and this
+    # must never hold up or affect the deploy. Skipped unless a dashboard is configured.
+    needs: deploy
+    if: always() && inputs.notify-deploy-authors-dashboard-url != '' && needs.deploy.result == 'success'
+    runs-on: linux-arm64
+    timeout-minutes: 5
+    steps:
+      - name: DM the authors in this deploy
+        uses: monta-app/github-workflows/.github/actions/notify-deploy-authors@main
+        with:
+          previous-ref: ${{ needs.deploy.outputs.previous-image-tag }}
+          current-ref: ${{ needs.deploy.outputs.image-tag }}
+          service-name: ${{ inputs.service-name }}
+          stage: ${{ needs.deploy.outputs.stage }}
+          dashboard-url: ${{ inputs.notify-deploy-authors-dashboard-url }}
+          dashboard-label: ${{ inputs.notify-deploy-authors-dashboard-label }}
+          identity-api-url: ${{ inputs.notify-deploy-authors-identity-api-url }}
+          slack-token: ${{ secrets.SLACK_APP_TOKEN }}
+          github-token: ${{ secrets.CHANGELOG_GITHUB_TOKEN }}
