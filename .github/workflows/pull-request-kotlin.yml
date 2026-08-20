@@ -213,9 +213,11 @@ jobs:
       # scanner's default connect timeout is only 5s. Polling that exact
       # endpoint until it answers both waits out the race AND warms the
       # relay path, so the scan starts on a connection we know works.
+      # Same reason as the upload step below: an expression here does not survive the step failing. An unreachable
+      # tailnet then fails the scan itself, which the blocking check below re-raises.
       - name: Wait for SonarQube to be reachable over the tailnet
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        continue-on-error: true
         shell: bash
         env:
           SONAR_HOST_URL: https://sonarqube.vpn.internal.monta.app/
@@ -251,9 +253,14 @@ jobs:
           echo "::error::SonarQube unreachable over the tailnet after ${MAX_ATTEMPTS} attempts — likely DERP/route health. Check the 'tailscale status' / 'tailscale ping' output above."
           exit 1
       # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
+      # continue-on-error is re-evaluated when the step fails, in a context where `inputs` is not available: the
+      # expression renders '' and the job dies with "an error occurred when attempting to determine whether to
+      # continue on error" instead of tolerating the failure. Always tolerate it here, and let the step below
+      # re-raise it when the caller asked for a blocking scan.
       - name: Upload results to SonarQube
+        id: sonar
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        continue-on-error: true
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -263,6 +270,12 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
           gradle-args: ${{ inputs.gradle-args }}
+      # Restores what continue-on-error was meant to express, in an `if` where `inputs` does evaluate.
+      - name: Fail when a blocking Sonar scan failed
+        if: ${{ steps.sonar.outcome == 'failure' && !inputs.sonar-non-blocking }}
+        run: |
+          echo "::error::SonarQube analysis failed and sonar-non-blocking is false."
+          exit 1
       - name: Add code coverage to PR
         uses: mi-kas/kover-report@db9938358b8e1e6175dd4136132bf4eb7aa4ae6d # v2
         with:
