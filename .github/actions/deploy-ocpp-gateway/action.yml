@@ -20,6 +20,14 @@ inputs:
     description: 'Kube context the infra-portal releaser should target (e.g. main-staging). Defaults to ocpp-<cluster> derived from stage.'
     required: false
     default: ''
+  infra-portal-hostname:
+    description: 'Infra Portal host to post the release to. Defaults to infra-portal.internal.monta.app for dev/staging, infra-portal.monta.app otherwise.'
+    required: false
+    default: ''
+  infra-portal-path-prefix:
+    description: 'URL path prefix in front of /<context>/<namespace>/create-gateway-release. Defaults to /api/public for dev/staging, empty otherwise. Set to /api/public to target the v2 releaser from a production stage.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -29,8 +37,11 @@ runs:
       shell: bash
       env:
         STAGE: ${{ inputs.stage }}
+        HOSTNAME_OVERRIDE: ${{ inputs.infra-portal-hostname }}
       run: |
-        if [[ $STAGE =~ dev|staging ]]; then
+        if [[ -n $HOSTNAME_OVERRIDE ]]; then
+          INFRA_PORTAL_HOSTNAME="$HOSTNAME_OVERRIDE"
+        elif [[ $STAGE =~ dev|staging ]]; then
           INFRA_PORTAL_HOSTNAME="infra-portal.internal.monta.app"
         else
           INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
@@ -45,6 +56,9 @@ runs:
         else
           cluster=production
           path_prefix=""
+        fi
+        if [[ -n "${{ inputs.infra-portal-path-prefix }}" ]]; then
+          path_prefix="${{ inputs.infra-portal-path-prefix }}"
         fi
         context="${{ inputs.infra-portal-context }}"
         if [[ -z "$context" ]]; then
