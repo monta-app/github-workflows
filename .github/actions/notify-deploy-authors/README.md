@@ -84,4 +84,16 @@ runner. Without it the action still runs, just reaching fewer people, and it nam
 ## Testing
 
 `./test-local.sh` runs the script against a real ref range with `dry-run` on, so it prints the exact Slack
-payloads without messaging anyone. Copy `.env.example` to `.env` first.
+payloads without messaging anyone. `GITHUB_TOKEN` is picked up from `gh auth token` if unset. Export the rest
+for your own repo, service and dashboard - none of it is specific to this action, so there's no example file:
+
+```shell
+export GITHUB_REPOSITORY=owner/repo
+export PREVIOUS_REF=... CURRENT_REF=...   # any two refs with commits between them
+export SERVICE_NAME="My Service" STAGE=production
+export DASHBOARD_URL=... DASHBOARD_LABEL=...
+export IDENTITY_API_URL=https://project-tracker.vpn.internal.monta.app
+./test-local.sh
+```
+
+Or drop the same variables in a local `.env` (gitignored) and `test-local.sh` will source it for you.
