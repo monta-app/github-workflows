@@ -48,6 +48,11 @@ on:
         type: boolean
         description: "Allow you to skip using Sonar Cloud, only to be used for common modules"
         default: false
+      skip-code-coverage-on-pr:
+        required: false
+        type: boolean
+        description: "Allow you to skip writing the code coverage information on the PR. Only relevant for public repositories that allows PRs from forked repositories "
+        default: false
       sonar-non-blocking:
         required: false
         type: boolean
@@ -264,6 +269,7 @@ jobs:
           gradle-tasks: 'sonar'
           gradle-args: ${{ inputs.gradle-args }}
       - name: Add code coverage to PR
+        if: ${{ !inputs.skip-code-coverage-on-pr }}
         uses: mi-kas/kover-report@db9938358b8e1e6175dd4136132bf4eb7aa4ae6d # v2
         with:
           title: Code Coverage ${{ inputs.gradle-module }}
