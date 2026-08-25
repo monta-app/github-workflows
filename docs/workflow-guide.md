@@ -433,6 +433,9 @@ This conditional logic ensures the workflow continues properly even when optiona
 | `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding file paths from changelog - example: ^gateway/ |
 | `changelog-monitoring-urls` | No | - | Comma-separated list of dashboard/monitoring URLs for the release notification - example: Grafana\|https://grafana.monta.app/d/my-service,Sentry\|https://sentry.io/my-service |
 | `changelog-release-notify-channel` | No | - | Slack channel ID or name to post a release notification to, tagging PR authors/co-authors/approvers. Independent of `enable-changelog` - setting this is what enables the notification |
+| `notify-deploy-authors-dashboard-url` | No | - | Dashboard to DM the authors of a successful deploy, asking them to watch it now their change is live. Setting this is what enables the DM. Runs after the rollout has finished, which is the point at which there is something to monitor |
+| `notify-deploy-authors-dashboard-label` | No | `Error Dashboard` | Link text for `notify-deploy-authors-dashboard-url` |
+| `notify-deploy-authors-identity-api-url` | No | - | Identity resolver base URL used to map GitHub logins to Slack accounts for the author DM. Without it only authors whose public GitHub email matches Slack are reachable, which is a minority. Needs tailnet access from the runner |
 
 ### Secrets:
 | Secret | Required | Description |
@@ -500,6 +503,10 @@ jobs:
       # Optional: Release notification with dashboard links, tagging contributors
       changelog-release-notify-channel: "#charging-releases"
       changelog-monitoring-urls: "Grafana|https://grafana.monta.app/d/charging,Sentry|https://sentry.io/charging"
+      # Optional: DM the authors of a successful deploy asking them to watch for errors
+      notify-deploy-authors-dashboard-url: "https://montaapp.grafana.net/d/ja52q4d/server-error-dashboard?from=now-30m&to=now"
+      notify-deploy-authors-dashboard-label: "Server Error Dashboard"
+      notify-deploy-authors-identity-api-url: "https://project-tracker.vpn.internal.monta.app"
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
@@ -629,6 +636,9 @@ jobs:
 | `changelog-path-exclude-pattern` | No | - | Regex pattern for excluding paths from changelog |
 | `changelog-monitoring-urls` | No | - | Comma-separated list of dashboard/monitoring URLs for the release notification |
 | `changelog-release-notify-channel` | No | - | Slack channel to post a release notification to, tagging PR authors/co-authors/approvers. Independent of `enable-changelog` |
+| `notify-deploy-authors-dashboard-url` | No | - | Dashboard to DM the authors of a successful deploy, asking them to watch it now their change is live. Setting this is what enables the DM. Runs after the rollout has finished, which is the point at which there is something to monitor |
+| `notify-deploy-authors-dashboard-label` | No | `Error Dashboard` | Link text for `notify-deploy-authors-dashboard-url` |
+| `notify-deploy-authors-identity-api-url` | No | - | Identity resolver base URL used to map GitHub logins to Slack accounts for the author DM. Without it only authors whose public GitHub email matches Slack are reachable, which is a minority. Needs tailnet access from the runner |
 | `comment-on-prs` | No | true | Comment on PRs with deployment info |
 | `comment-on-jira` | No | true | Comment on JIRA tickets with deployment info |
 

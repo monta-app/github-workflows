@@ -1,11 +1,22 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-08-06
-- **Latest SHA**: bf4f995 (check for newer commits)
-- **Changes**: Changelog Release Notifications
+- **Date**: 2026-08-20
+- **Latest SHA**: check for newer commits
+- **Changes**: Notify Deploy Authors action
 
-## Recent Workflow Changes (2026-08-06)
+## Recent Workflow Changes (2026-08-20)
+1. **Notify Deploy Authors**: New `.github/actions/notify-deploy-authors` composite action, wired into
+   `deploy-kotlin.yml` and `deploy-kotlin-v2.yml` as a `notify-deploy-authors` job gated on
+   `needs.deploy.result == 'success'` and on `notify-deploy-authors-dashboard-url` being set. DMs everyone
+   whose commits are in the deploy, asking them to watch a dashboard now their change is live. It depends on
+   `deploy` only, because there is nothing to monitor until the rollout has finished and the notification must
+   never hold up or affect the deploy. Reaching an author in Slack needs `notify-deploy-authors-identity-api-url`: a GitHub login alone
+   does not resolve to a Slack account, since public profile emails are set on a small minority of the org and
+   commit emails are usually noreply or personal addresses. Reuses `SLACK_APP_TOKEN` and
+   `CHANGELOG_GITHUB_TOKEN`. Never fails a deploy, and refuses to send at all above `max-authors` authors.
+
+## Previous Changes (2026-08-06)
 1. **Changelog Release Notifications**: Added `changelog-monitoring-urls` and `changelog-release-notify-channel` inputs to `deploy-kotlin.yml` and `deploy-kotlin-v2.yml`, forwarded to the `changelog-cli-action`'s `monitoring-urls`/`release-notify-channel` inputs. Posts a standalone Slack message with the release link, dashboards to monitor, and tagged PR authors/co-authors/approvers - independent of `enable-changelog`/`output`, reuses the existing `SLACK_APP_TOKEN` secret.
 
 ## Previous Changes (2026-06-17)
