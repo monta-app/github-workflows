@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-08-06
+- **Date**: 2026-08-26
 - **Latest SHA**: bf4f995 (check for newer commits)
-- **Changes**: Changelog Release Notifications
+- **Changes**: Added `argocd-wait-sync-multi` composite action
+
+## Recent Changes (2026-08-26)
+1. **`argocd-wait-sync-multi` action**: New composite action at `.github/actions/argocd-wait-sync-multi` that waits concurrently for MANY ArgoCD apps to sync and become healthy at an expected revision, fails fast on any Degraded/Missing/failed/diverged/timeout, and emits one aggregated `deployments` JSON (per-app `start`/`end`/`revision`/`status`/`url`). Sibling of `argocd-wait-sync` (left untouched); reuses the same per-app state machine, fail-fast conditions and supersede-via-ancestry check. Adds a `source-repo` input to verify **multi-source** apps against `.status.sync.revisions[<source index>]` (the singular `.status.sync.revision` is empty on multi-source apps). Built for monorepo-style repos that bump many services in one manifests commit. Offline tests: `.github/actions/argocd-wait-sync-multi/test/run-tests.sh`.
 
 ## Recent Workflow Changes (2026-08-06)
 1. **Changelog Release Notifications**: Added `changelog-monitoring-urls` and `changelog-release-notify-channel` inputs to `deploy-kotlin.yml` and `deploy-kotlin-v2.yml`, forwarded to the `changelog-cli-action`'s `monitoring-urls`/`release-notify-channel` inputs. Posts a standalone Slack message with the release link, dashboards to monitor, and tagged PR authors/co-authors/approvers - independent of `enable-changelog`/`output`, reuses the existing `SLACK_APP_TOKEN` secret.

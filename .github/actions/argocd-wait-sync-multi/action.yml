@@ -1,0 +1,79 @@
+name: 'ArgoCD Wait for Sync (multi-app)'
+description: 'Wait concurrently for many ArgoCD applications to sync and become healthy; fail-fast; emit per-app timing'
+author: 'Monta'
+
+inputs:
+  server:
+    description: 'ArgoCD server URL (e.g., argocd.example.com)'
+    required: true
+  auth-token:
+    description: 'ArgoCD authentication token'
+    required: true
+  apps:
+    description: >-
+      JSON array of apps to wait for. Each entry:
+      { "app": "<argocd app name>", "revision": "<expected git SHA>", "name": "<display name, optional>" }.
+    required: true
+  timeout:
+    description: 'Overall timeout in seconds to wait for ALL apps to become healthy'
+    required: false
+    default: '900'
+  poll-interval:
+    description: 'Polling interval in seconds'
+    required: false
+    default: '5'
+  source-repo:
+    description: >-
+      For multi-source ArgoCD apps, match the expected revision against the
+      `.status.sync.revisions[]` entry whose source repoURL contains this string
+      (e.g. a manifests repo name). Leave empty for single-source apps (uses the
+      singular `.status.sync.revision`).
+    required: false
+    default: ''
+  manifest-repo:
+    description: 'owner/repo used for supersede detection (git ancestry compare)'
+    required: false
+    default: 'monta-app/kube-manifests'
+  github-token:
+    description: 'GitHub token for the supersede compare API call'
+    required: true
+
+outputs:
+  deployments:
+    description: >-
+      JSON array of verified deployments:
+      [{ name, app, revision, start, end, status, url }] (ISO 8601 UTC timestamps).
+    value: ${{ steps.wait.outputs.deployments }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install ArgoCD CLI
+      shell: bash
+      run: |
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  ARGOCD_ARCH="amd64" ;;
+          aarch64) ARGOCD_ARCH="arm64" ;;
+          *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+        echo "Installing ArgoCD CLI for $ARGOCD_ARCH..."
+        curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${ARGOCD_ARCH}"
+        sudo install -m 755 argocd /usr/local/bin/argocd
+        rm argocd
+        argocd version --client
+
+    - name: Wait for all apps to sync and become healthy
+      id: wait
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.server }}
+        ARGOCD_AUTH_TOKEN: ${{ inputs.auth-token }}
+        APPS_JSON: ${{ inputs.apps }}
+        TIMEOUT: ${{ inputs.timeout }}
+        POLL_INTERVAL: ${{ inputs.poll-interval }}
+        SOURCE_REPO: ${{ inputs.source-repo }}
+        MANIFEST_REPO: ${{ inputs.manifest-repo }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        "${{ github.action_path }}/wait-sync-multi.sh"

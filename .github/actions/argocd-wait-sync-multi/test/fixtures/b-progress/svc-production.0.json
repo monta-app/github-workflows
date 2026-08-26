@@ -1,0 +1,11 @@
+{
+  "spec": { "sources": [
+    { "repoURL": "https://github.com/monta-app/monorepo-typescript-manifests", "ref": "images" },
+    { "repoURL": "https://github.com/monta-app/monorepo-typescript", "path": "helm/x/production/app" }
+  ]},
+  "status": {
+    "sync": { "status": "Synced", "revisions": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] },
+    "health": { "status": "Progressing" },
+    "operationState": { "phase": "Running", "startedAt": "2026-08-25T10:00:00Z" }
+  }
+}
