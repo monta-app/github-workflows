@@ -1,0 +1,8 @@
+{
+  "spec": { "source": { "repoURL": "https://github.com/monta-app/kube-manifests", "path": "apps/geo" } },
+  "status": {
+    "sync": { "status": "Synced", "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "health": { "status": "Healthy" },
+    "operationState": { "phase": "Succeeded", "startedAt": "2026-08-25T10:00:00Z" }
+  }
+}
