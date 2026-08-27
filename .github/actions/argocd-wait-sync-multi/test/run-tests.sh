@@ -49,6 +49,8 @@ run "A multi-source, both healthy" 0 \
 assert_contains '"name":"hub"'
 assert_contains '"status":"healthy"'
 assert_contains 'Deployments verified: 2'
+assert_contains '"previousRevision":"cccccccccccccccccccccccccccccccccccccccc"'
+assert_contains '"name":"portals","app":"portals-production","revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","previousRevision":""'
 
 # B: single dual-source app, Progressing then Healthy across ticks
 run "B progress -> healthy" 0 \

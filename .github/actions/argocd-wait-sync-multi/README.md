@@ -60,11 +60,12 @@ commit — the same for every app in the run).
 
 | Output | Description |
 |--------|-------------|
-| `deployments` | JSON array `[{ name, app, revision, start, end, status, url }]`, ISO 8601 UTC timestamps |
+| `deployments` | JSON array `[{ name, app, revision, previousRevision, start, end, status, url }]`, ISO 8601 UTC timestamps |
 
 - `start` = ArgoCD `operationState.startedAt` (sync began)
 - `end` = wall-clock UTC captured the moment health first became `Healthy`
 - `revision` = the revision verified (may be a superseding commit that includes yours)
+- `previousRevision` = the revert target: the most recent `.status.history` revision that differs from `revision` (empty on a first-ever deploy)
 
 ## Behavior
 

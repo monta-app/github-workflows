@@ -7,8 +7,8 @@ set -euo pipefail
 # git revision, concurrently, in a single job. Fail-fast: the moment any app is
 # Degraded/Missing/failed/diverged, or the overall timeout elapses with any app
 # not yet Healthy, the script exits non-zero. On success it emits one aggregated
-# JSON array with per-app start/end timing for downstream steps (e.g. a
-# changelog message).
+# JSON array with per-app start/end timing plus the deployed and previous
+# revisions (the revert target) for downstream steps (e.g. a changelog message).
 #
 # This is the multi-app generalization of the sibling argocd-wait-sync action.
 # It reuses the same per-app state machine (refresh -> detect our revision ->
@@ -90,11 +90,12 @@ STATE=()
 START_AT=()          # ArgoCD operationState.startedAt (ISO)
 END_AT=()            # wall-clock UTC when first observed Synced+Healthy
 VERIFIED_REV=()      # the revision we verified (may be a superseding SHA)
+PREV_REV=()          # the previously-deployed revision (revert target), from sync history
 UNKNOWN_SINCE=()     # epoch when SYNC first went Unknown (transient tolerance)
 CERROR_SINCE=()      # epoch when a ComparisonError was first seen
 CERROR_REFRESHED=()  # whether we already hard-refreshed this app for a ComparisonError
 for ((i = 0; i < N; i++)); do
-    STATE+=("pending"); START_AT+=(""); END_AT+=(""); VERIFIED_REV+=("")
+    STATE+=("pending"); START_AT+=(""); END_AT+=(""); VERIFIED_REV+=(""); PREV_REV+=("")
     UNKNOWN_SINCE+=(""); CERROR_SINCE+=(""); CERROR_REFRESHED+=("false")
 done
 
@@ -144,6 +145,39 @@ extract_revision() {
     else
         echo "$info" | jq -r '.status.sync.revision // ""'
     fi
+}
+
+# Extract the revert target: the most recently deployed revision in an app's
+# sync history that differs from the one we verified. Honoring SOURCE_REPO, so
+# history entries are read at the same source index as extract_revision. Empty
+# when there is no prior distinct revision (e.g. a first-ever deploy).
+extract_previous_revision() {
+    local info="$1"
+    local verified="$2"
+    if [ -n "$SOURCE_REPO" ]; then
+        echo "$info" | jq -r --arg repo "$SOURCE_REPO" --arg verified "$verified" '
+            (.spec.sources // []) as $srcs
+            | ($srcs | to_entries | map(select(.value.repoURL | contains($repo))) | (.[0].key // null)) as $idx
+            | [ .status.history[]? ] | sort_by(.id)
+            | map(if $idx == null then (.revision // "") else ((.revisions // [])[$idx] // "") end)
+            | map(select(. != "" and . != $verified))
+            | last // ""
+        '
+    else
+        echo "$info" | jq -r --arg verified "$verified" '
+            [ .status.history[]? ] | sort_by(.id)
+            | map(.revision // "")
+            | map(select(. != "" and . != $verified))
+            | last // ""
+        '
+    fi
+}
+
+# Record the revert target once, the first time we lock onto our revision.
+capture_previous() {
+    local i="$1" info="$2" verified="$3"
+    [ -n "${PREV_REV[$i]}" ] && return 0
+    PREV_REV[$i]=$(extract_previous_revision "$info" "$verified")
 }
 
 refresh_app() {
@@ -258,6 +292,7 @@ while true; do
         if [ "${STATE[$i]}" = "pending" ]; then
             if [ "$revision_matches" = true ]; then
                 VERIFIED_REV[$i]="$current_rev"
+                capture_previous "$i" "$info" "$current_rev"
                 if [ "$sync_status" = "Synced" ] && [ "$health_status" = "Healthy" ]; then
                     # Already healthy at our revision — we joined late; use now().
                     STATE[$i]="done"
@@ -278,6 +313,7 @@ while true; do
                 if [ "$compare_status" = "ahead" ]; then
                     echo "::warning::$display: deployed a newer revision that includes your change (bundled)"
                     VERIFIED_REV[$i]="$current_rev"
+                    capture_previous "$i" "$info" "$current_rev"
                     STATE[$i]="started"
                     if [ "$sync_status" = "Synced" ] && [ "$health_status" = "Healthy" ]; then
                         STATE[$i]="done"
@@ -298,6 +334,7 @@ while true; do
                 START_AT[$i]=$(echo "$info" | jq -r '.status.operationState.startedAt // empty')
                 [ -z "${START_AT[$i]}" ] && START_AT[$i]=$(now_iso)
                 VERIFIED_REV[$i]="$current_rev"
+                capture_previous "$i" "$info" "$current_rev"
                 STATE[$i]="done"
                 echo "  ✓ $display became healthy at ${END_AT[$i]}"
             fi
@@ -320,10 +357,11 @@ for ((i = 0; i < N; i++)); do
         --arg name "${DISPLAY_NAMES[$i]}" \
         --arg app "${APP_NAMES[$i]}" \
         --arg revision "${VERIFIED_REV[$i]:-${EXPECTED_REVS[$i]}}" \
+        --arg previousRevision "${PREV_REV[$i]}" \
         --arg start "${START_AT[$i]}" \
         --arg end "${END_AT[$i]}" \
         --arg url "https://${ARGOCD_SERVER}/applications/argocd/${APP_NAMES[$i]}" \
-        '{name: $name, app: $app, revision: $revision, start: $start, end: $end, status: "healthy", url: $url}')")
+        '{name: $name, app: $app, revision: $revision, previousRevision: $previousRevision, start: $start, end: $end, status: "healthy", url: $url}')")
 done
 
 DEPLOYMENTS=$(printf '%s\n' "${RESULTS[@]}" | jq -s -c '.')

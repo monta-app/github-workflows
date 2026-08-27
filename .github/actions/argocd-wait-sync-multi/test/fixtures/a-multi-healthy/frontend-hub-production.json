@@ -6,6 +6,10 @@
   "status": {
     "sync": { "status": "Synced", "revision": "", "revisions": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] },
     "health": { "status": "Healthy" },
-    "operationState": { "phase": "Succeeded", "startedAt": "2026-08-25T10:00:00Z" }
+    "operationState": { "phase": "Succeeded", "startedAt": "2026-08-25T10:00:00Z" },
+    "history": [
+      { "id": 41, "deployedAt": "2026-08-24T09:00:00Z", "revisions": ["cccccccccccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddddddddddd"] },
+      { "id": 42, "deployedAt": "2026-08-25T10:00:00Z", "revisions": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] }
+    ]
   }
 }
