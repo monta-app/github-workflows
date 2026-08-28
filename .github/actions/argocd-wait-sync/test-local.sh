@@ -51,6 +51,11 @@ Required Options:
 
 Optional Options:
   --timeout <seconds>      Timeout in seconds (default: 300)
+  --resource-name <name>   Track a specific resource's health instead of the app's
+                           aggregate health (e.g. a single Deployment)
+  --resource-kind <kind>   Kind of the tracked resource (default: Deployment)
+  --resource-namespace <ns> Namespace of the tracked resource, to disambiguate
+                           same-named resources across namespaces
   --help                   Show this help message
 
 Prerequisites:
@@ -107,6 +112,18 @@ while [[ $# -gt 0 ]]; do
             ARGOCD_TIMEOUT="$2"
             shift 2
             ;;
+        --resource-name)
+            RESOURCE_NAME="$2"
+            shift 2
+            ;;
+        --resource-kind)
+            RESOURCE_KIND="$2"
+            shift 2
+            ;;
+        --resource-namespace)
+            RESOURCE_NAMESPACE="$2"
+            shift 2
+            ;;
         --help)
             usage
             ;;
@@ -149,6 +166,9 @@ echo "Server:    $ARGOCD_SERVER"
 echo "App Name:  $ARGOCD_APP_NAME"
 echo "Timeout:   ${ARGOCD_TIMEOUT}s"
 echo "Revision:  $ARGOCD_REVISION"
+if [ -n "${RESOURCE_NAME:-}" ]; then
+    echo "Resource:  ${RESOURCE_KIND:-Deployment}/$RESOURCE_NAME${RESOURCE_NAMESPACE:+ (namespace: $RESOURCE_NAMESPACE)}"
+fi
 echo "=========================================="
 echo ""
 
@@ -195,6 +215,9 @@ export ARGOCD_AUTH_TOKEN
 export APP_NAME="$ARGOCD_APP_NAME"
 export EXPECTED_REVISION="$ARGOCD_REVISION"
 export TIMEOUT="$ARGOCD_TIMEOUT"
+export RESOURCE_NAME="${RESOURCE_NAME:-}"
+export RESOURCE_KIND="${RESOURCE_KIND:-Deployment}"
+export RESOURCE_NAMESPACE="${RESOURCE_NAMESPACE:-}"
 
 # Run the shared script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

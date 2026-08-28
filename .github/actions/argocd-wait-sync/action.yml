@@ -31,6 +31,26 @@ inputs:
   github-token:
     description: 'GitHub token for API access (required for supersede detection)'
     required: true
+  resource-name:
+    description: >-
+      Opt-in: name of a specific resource in the app's resource tree to track (e.g. a
+      single Kubernetes Deployment in an app that manages several). When set, completion
+      and fail-fast are judged on this resource's health instead of the app's aggregate
+      health, so unrelated resources in the same app being broken or still progressing
+      won't block or falsely pass this action. Leave empty to track the app as a whole
+      (previous behavior).
+    required: false
+    default: ''
+  resource-kind:
+    description: 'Kind of the tracked resource. Only used when resource-name is set.'
+    required: false
+    default: 'Deployment'
+  resource-namespace:
+    description: >-
+      Namespace of the tracked resource, to disambiguate same-named resources across
+      namespaces. Only used when resource-name is set.
+    required: false
+    default: ''
 
 outputs:
   deployment-start-time:
@@ -72,6 +92,9 @@ runs:
         TIMEOUT: ${{ inputs.timeout }}
         MANIFEST_REPO: ${{ inputs.manifest-repo }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        RESOURCE_NAME: ${{ inputs.resource-name }}
+        RESOURCE_KIND: ${{ inputs.resource-kind }}
+        RESOURCE_NAMESPACE: ${{ inputs.resource-namespace }}
       run: |
         # Run the shared wait-sync script
         "${{ github.action_path }}/wait-sync.sh"

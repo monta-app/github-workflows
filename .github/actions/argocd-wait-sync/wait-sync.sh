@@ -14,6 +14,15 @@ set -euo pipefail
 # Optional Environment Variables:
 #   TIMEOUT           - Timeout in seconds (default: 300)
 #   POLL_INTERVAL     - Polling interval in seconds (default: 5)
+#   RESOURCE_NAME     - Name of a specific resource in the app's resource tree to track
+#                       (opt-in; e.g. a single Deployment in a shared/multi-deployment app).
+#                       When set, completion and fail-fast are judged on THIS resource's
+#                       health instead of the app's aggregate health, since unrelated
+#                       resources in the same app may be broken or still progressing.
+#   RESOURCE_KIND     - Kind of the tracked resource (default: Deployment). Only used
+#                       when RESOURCE_NAME is set.
+#   RESOURCE_NAMESPACE - Namespace of the tracked resource, to disambiguate same-named
+#                       resources across namespaces. Only used when RESOURCE_NAME is set.
 #
 # Health Status Handling:
 #   Healthy      - Success, deployment complete
@@ -52,6 +61,9 @@ fi
 TIMEOUT="${TIMEOUT:-300}"
 POLL_INTERVAL="${POLL_INTERVAL:-5}"
 MANIFEST_REPO="${MANIFEST_REPO:-monta-app/kube-manifests}"
+RESOURCE_NAME="${RESOURCE_NAME:-}"
+RESOURCE_KIND="${RESOURCE_KIND:-Deployment}"
+RESOURCE_NAMESPACE="${RESOURCE_NAMESPACE:-}"
 
 # ArgoCD CLI flags - pass auth token directly (no login session needed)
 ARGOCD_FLAGS=(
@@ -64,6 +76,9 @@ ARGOCD_FLAGS=(
 echo "Monitoring ArgoCD application '$APP_NAME' for sync and health..."
 echo "Expected revision: ${EXPECTED_REVISION:0:7}"
 echo "Timeout: ${TIMEOUT}s"
+if [ -n "$RESOURCE_NAME" ]; then
+    echo "Tracking specific resource: $RESOURCE_KIND/$RESOURCE_NAME${RESOURCE_NAMESPACE:+ (namespace: $RESOURCE_NAMESPACE)}"
+fi
 echo ""
 
 # Trigger immediate refresh to hint ArgoCD about the new revision
@@ -94,22 +109,64 @@ while true; do
     HEALTH_STATUS=$(echo "$APP_INFO" | jq -r '.status.health.status // "Unknown"')
     CURRENT_REVISION=$(echo "$APP_INFO" | jq -r '.status.sync.revision // ""')
 
-    echo "[$ELAPSED/${TIMEOUT}s] Sync: $SYNC_STATUS, Health: $HEALTH_STATUS, Rev: ${CURRENT_REVISION:0:7}"
-
-    # Check for explicit failure states and fail fast
-    if [ "$HEALTH_STATUS" = "Degraded" ]; then
-        echo "::error::Application health is Degraded - deployment failed"
-        echo "Retrieving failure details from ArgoCD..."
-        argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
-        echo ""
-        echo "::error::Check the output above for specific resource failures"
-        exit 1
+    # When tracking a specific resource, its own health (not the app's aggregate
+    # health) governs completion and fail-fast, since other resources in the same
+    # app may be unrelated and independently broken or still progressing.
+    RESOURCE_HEALTH="Unknown"
+    if [ -n "$RESOURCE_NAME" ]; then
+        RESOURCE_JSON=$(echo "$APP_INFO" | jq -c --arg kind "$RESOURCE_KIND" --arg name "$RESOURCE_NAME" --arg ns "$RESOURCE_NAMESPACE" \
+            '[.status.resources[]? | select(.kind == $kind and .name == $name and ($ns == "" or .namespace == $ns))] | first // {}' 2>/dev/null || echo "{}")
+        RESOURCE_HEALTH=$(echo "$RESOURCE_JSON" | jq -r '.health.status // "Unknown"' 2>/dev/null || echo "Unknown")
     fi
 
-    if [ "$HEALTH_STATUS" = "Missing" ]; then
-        echo "::error::Application health is Missing - resources don't exist in cluster"
-        argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
-        exit 1
+    # Single source of truth for "is the thing we care about healthy right now" -
+    # the tracked resource when RESOURCE_NAME is set, otherwise the app's aggregate health.
+    TARGET_HEALTHY=false
+    if [ -n "$RESOURCE_NAME" ]; then
+        [ "$RESOURCE_HEALTH" = "Healthy" ] && TARGET_HEALTHY=true
+    else
+        [ "$HEALTH_STATUS" = "Healthy" ] && TARGET_HEALTHY=true
+    fi
+
+    if [ -n "$RESOURCE_NAME" ]; then
+        echo "[$ELAPSED/${TIMEOUT}s] Sync: $SYNC_STATUS, Resource Health ($RESOURCE_KIND/$RESOURCE_NAME): $RESOURCE_HEALTH, Rev: ${CURRENT_REVISION:0:7}"
+    else
+        echo "[$ELAPSED/${TIMEOUT}s] Sync: $SYNC_STATUS, Health: $HEALTH_STATUS, Rev: ${CURRENT_REVISION:0:7}"
+    fi
+
+    # Check for explicit failure states and fail fast
+    if [ -n "$RESOURCE_NAME" ]; then
+        # Judge fail-fast on the tracked resource only - the app's aggregate health
+        # may be Degraded/Missing because of an unrelated resource in the same app.
+        if [ "$RESOURCE_HEALTH" = "Degraded" ]; then
+            echo "::error::Resource $RESOURCE_KIND/$RESOURCE_NAME health is Degraded - deployment failed"
+            echo "Retrieving failure details from ArgoCD..."
+            argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
+            echo ""
+            echo "::error::Check the output above for specific resource failures"
+            exit 1
+        fi
+
+        if [ "$RESOURCE_HEALTH" = "Missing" ]; then
+            echo "::error::Resource $RESOURCE_KIND/$RESOURCE_NAME is Missing - it doesn't exist in the cluster"
+            argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
+            exit 1
+        fi
+    else
+        if [ "$HEALTH_STATUS" = "Degraded" ]; then
+            echo "::error::Application health is Degraded - deployment failed"
+            echo "Retrieving failure details from ArgoCD..."
+            argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
+            echo ""
+            echo "::error::Check the output above for specific resource failures"
+            exit 1
+        fi
+
+        if [ "$HEALTH_STATUS" = "Missing" ]; then
+            echo "::error::Application health is Missing - resources don't exist in cluster"
+            argocd app get "$APP_NAME" "${ARGOCD_FLAGS[@]}" || true
+            exit 1
+        fi
     fi
 
     # Check for ComparisonError condition
@@ -163,7 +220,7 @@ while true; do
     if [ "$DEPLOYMENT_STARTED" = false ]; then
         if [ "$REVISION_MATCHES" = true ]; then
             # We found our revision!
-            if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
+            if [ "$SYNC_STATUS" = "Synced" ] && [ "$TARGET_HEALTHY" = true ]; then
                 # Already healthy with our revision - we missed the deployment!
                 echo "::warning::Application already healthy with expected revision - deployment completed before monitoring started"
                 MISSED_DEPLOYMENT=true
@@ -215,7 +272,7 @@ while true; do
                         DEPLOYMENT_STARTED=true
                         VERIFIED_REVISION="$CURRENT_REVISION"
                         # Check if already healthy
-                        if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
+                        if [ "$SYNC_STATUS" = "Synced" ] && [ "$TARGET_HEALTHY" = true ]; then
                             HEALTH_ACHIEVED=true
                             HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
                             MISSED_DEPLOYMENT=true
@@ -236,11 +293,15 @@ while true; do
 
     # Phase 2: Monitor for health transition (once we've confirmed deployment started)
     if [ "$DEPLOYMENT_STARTED" = true ] && [ "$HEALTH_ACHIEVED" = false ]; then
-        if [ "$SYNC_STATUS" = "Synced" ] && [ "$HEALTH_STATUS" = "Healthy" ]; then
+        if [ "$SYNC_STATUS" = "Synced" ] && [ "$TARGET_HEALTHY" = true ]; then
             # Capture timestamp and revision the moment we detect health
             HEALTH_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             VERIFIED_REVISION="$CURRENT_REVISION"
-            echo "✓ Application became healthy at: $HEALTH_TIMESTAMP"
+            if [ -n "$RESOURCE_NAME" ]; then
+                echo "✓ Resource $RESOURCE_KIND/$RESOURCE_NAME became healthy at: $HEALTH_TIMESTAMP"
+            else
+                echo "✓ Application became healthy at: $HEALTH_TIMESTAMP"
+            fi
             HEALTH_ACHIEVED=true
             break
         fi
