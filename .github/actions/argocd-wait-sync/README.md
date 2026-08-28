@@ -16,10 +16,14 @@ This action installs the ArgoCD CLI and monitors an ArgoCD application until it 
 | `revision` | Yes | - | Expected git commit SHA to verify deployment |
 | `timeout` | No | `300` | Timeout in seconds to wait for sync completion |
 | `namespace` | No | `argocd` | ArgoCD namespace where Application resource is stored |
+| `resource-name` | No | `''` | Opt-in: name of a specific resource in the app's resource tree to track (e.g. one Deployment in an app that manages several) |
+| `resource-kind` | No | `Deployment` | Kind of the tracked resource. Only used when `resource-name` is set |
+| `resource-namespace` | No | `''` | Namespace of the tracked resource, to disambiguate same-named resources across namespaces. Only used when `resource-name` is set |
 
 **Notes:**
 - The `revision` parameter enables two-phase monitoring that waits for ArgoCD to detect your change before monitoring health, preventing race conditions when triggered immediately after git push.
 - The `namespace` parameter is only used to construct the ArgoCD UI URL. It should be the namespace where your ArgoCD Application resource is stored (typically `argocd`), not where your deployed resources run.
+- `resource-name` is for apps that manage multiple, independently-owned resources (e.g. a shared/monorepo-style app with several Deployments). Without it, this action waits for the *app's* aggregate health, which can turn `Healthy` before or without your specific resource actually rolling out, or stay stuck `Degraded` because of an unrelated resource in the same app. Set it to track that one resource's health instead.
 
 ## Outputs
 
@@ -72,6 +76,24 @@ Useful for:
     auth-token: ${{ secrets.ARGOCD_TOKEN }}
     revision: ${{ github.sha }}
     timeout: 600  # Wait up to 10 minutes
+```
+
+### Tracking a Specific Resource in a Shared App
+
+Use this when the ArgoCD app manages more than one Deployment (e.g. a monorepo-style
+app) and you only care about the rollout of your own service, not the app's aggregate
+health:
+
+```yaml
+- name: Wait for ArgoCD sync
+  uses: monta-app/github-workflows/.github/actions/argocd-wait-sync@main
+  with:
+    server: argocd.example.com
+    app-name: shared-app-production
+    auth-token: ${{ secrets.ARGOCD_TOKEN }}
+    revision: ${{ github.sha }}
+    resource-name: my-service
+    resource-kind: Deployment
 ```
 
 ### In a Deployment Workflow

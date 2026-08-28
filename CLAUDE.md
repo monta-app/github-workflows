@@ -1,11 +1,14 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-08-26
-- **Latest SHA**: bf4f995 (check for newer commits)
-- **Changes**: Added `argocd-wait-sync-multi` composite action
+- **Date**: 2026-08-28
+- **Latest SHA**: b076da4 (check for newer commits)
+- **Changes**: Added opt-in `resource-name`/`resource-kind`/`resource-namespace` inputs to `argocd-wait-sync`
 
-## Recent Changes (2026-08-26)
+## Recent Changes (2026-08-28)
+1. **`argocd-wait-sync` resource-level tracking**: Added opt-in `resource-name` (+ `resource-kind`, default `Deployment`, and `resource-namespace`) inputs to `.github/actions/argocd-wait-sync`. When `resource-name` is set, completion and fail-fast (Degraded/Missing) are judged on that specific resource in `.status.resources[]` instead of the app's aggregate `.status.health`, so an app that manages multiple independently-owned resources (e.g. a shared/monorepo-style app with several Deployments) won't falsely pass before your resource rolls out, or block forever because an unrelated resource in the same app is Degraded/Progressing. Empty `resource-name` (default) is fully backwards compatible - identical behavior to before. `wait-sync.sh` gains a `TARGET_HEALTHY` variable that is the single source of truth for "is the thing we care about healthy" (the tracked resource when set, otherwise app aggregate health), used by both phases of the state machine. `test-local.sh` gains matching `--resource-name`/`--resource-kind`/`--resource-namespace` flags.
+
+## Previous Changes (2026-08-26)
 1. **`argocd-wait-sync-multi` action**: New composite action at `.github/actions/argocd-wait-sync-multi` that waits concurrently for MANY ArgoCD apps to sync and become healthy at an expected revision, fails fast on any Degraded/Missing/failed/diverged/timeout, and emits one aggregated `deployments` JSON (per-app `start`/`end`/`revision`/`status`/`url`). Sibling of `argocd-wait-sync` (left untouched); reuses the same per-app state machine, fail-fast conditions and supersede-via-ancestry check. Adds a `source-repo` input to verify **multi-source** apps against `.status.sync.revisions[<source index>]` (the singular `.status.sync.revision` is empty on multi-source apps). Built for monorepo-style repos that bump many services in one manifests commit. Offline tests: `.github/actions/argocd-wait-sync-multi/test/run-tests.sh`.
 
 ## Recent Workflow Changes (2026-08-06)
