@@ -81,7 +81,7 @@ jobs:
       image-tag: ${{ inputs.image-tag }}
       deployment-start-time: ${{ steps.argocd-sync.outputs.deployment-start-time }}
       deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
-      deployment-url: ${{ steps.argocd-sync.outputs.deployment-url }}
+      deployment-url: ${{ steps.deployment-url.outputs.url }}
     steps:
       - name: Check out manifest repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -202,3 +202,17 @@ jobs:
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
+      - name: Resolve deployment URL
+        id: deployment-url
+        if: ${{ inputs.argocd-server != '' }}
+        shell: bash
+        env:
+          WAIT_URL: ${{ steps.argocd-sync.outputs.deployment-url }}
+          SERVER: ${{ inputs.argocd-server }}
+          APP: ${{ inputs.service-identifier }}-${{ inputs.stage }}
+        run: |
+          url="$WAIT_URL"
+          if [ -z "$url" ]; then
+            url="https://${SERVER}/applications/argocd/${APP}"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
