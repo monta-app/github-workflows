@@ -331,5 +331,6 @@ jobs:
           deployment-url: ${{ needs.deploy.outputs.deployment-url }}
           comment-on-prs: ${{ inputs.comment-on-prs }}
           comment-on-jira: ${{ inputs.comment-on-jira }}
+          jira-project-blacklist: ${{ vars.CHANGELOG_JIRA_PROJECT_BLACKLIST }}
           monitoring-urls: ${{ inputs.changelog-monitoring-urls }}
           release-notify-channel: ${{ inputs.changelog-release-notify-channel }}
