@@ -204,7 +204,7 @@ jobs:
       - name: Tailscale
         id: tailscale
         if: ${{ !inputs.skip-sonar && env.TAILSCALE_AUTHKEY != '' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
@@ -220,7 +220,7 @@ jobs:
       # relay path, so the scan starts on a connection we know works.
       - name: Wait for SonarQube to be reachable over the tailnet
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
         shell: bash
         env:
           SONAR_HOST_URL: https://sonarqube.vpn.internal.monta.app/
@@ -258,7 +258,7 @@ jobs:
       # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Upload results to SonarQube
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking }}
+        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
