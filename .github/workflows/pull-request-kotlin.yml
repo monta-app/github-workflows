@@ -146,13 +146,18 @@ jobs:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
     steps:
       # Checkout
+      # No blob filter here (unlike the lint job): this checkout feeds the Sonar step below,
+      # and SonarQube's git-blame runs on JGit, which - unlike native git - can't lazily fetch
+      # a blob it filtered out of a partial clone. blame walks a changed file's history across
+      # ancestor commits, so it needs blobs beyond just the checked-out HEAD tree; with
+      # `filter: blob:none` those come back missing and blame throws
+      # org.eclipse.jgit.errors.MissingObjectException instead of fetching them on demand.
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # to check out the actual pull request commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          filter: blob:none
       - name: Set up JDK
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
