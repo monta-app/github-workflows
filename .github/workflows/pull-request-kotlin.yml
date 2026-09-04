@@ -144,6 +144,13 @@ jobs:
     timeout-minutes: ${{ inputs.test-timeout-minutes }}
     env:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      # actions/runner#2418: continue-on-error: ${{ inputs.X }} resolves against the wrong
+      # (composite action's own) inputs schema on a step that also `uses:` a composite action,
+      # always yielding null - "Unexpected value ''" (template validation) rather than the
+      # caller's actual value. Mirroring the input into env here and reading env.SONAR_NON_BLOCKING
+      # instead sidesteps that scope confusion for the one step below affected by it
+      # ("Upload results to SonarQube", which uses the gradle-multi-module composite action).
+      SONAR_NON_BLOCKING: ${{ inputs.sonar-non-blocking }}
     steps:
       # Checkout
       # No blob filter here (unlike the lint job): this checkout feeds the Sonar step below,
@@ -209,7 +216,7 @@ jobs:
       - name: Tailscale
         id: tailscale
         if: ${{ !inputs.skip-sonar && env.TAILSCALE_AUTHKEY != '' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
+        continue-on-error: ${{ inputs.sonar-non-blocking }}
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
           authkey: ${{ env.TAILSCALE_AUTHKEY }}
@@ -225,7 +232,7 @@ jobs:
       # relay path, so the scan starts on a connection we know works.
       - name: Wait for SonarQube to be reachable over the tailnet
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
+        continue-on-error: ${{ inputs.sonar-non-blocking }}
         shell: bash
         env:
           SONAR_HOST_URL: https://sonarqube.vpn.internal.monta.app/
@@ -263,7 +270,7 @@ jobs:
       # != 'failure' (not == 'success') keeps the SonarCloud path when Tailscale is skipped.
       - name: Upload results to SonarQube
         if: ${{ !inputs.skip-sonar && steps.tailscale.outcome != 'failure' }}
-        continue-on-error: ${{ inputs.sonar-non-blocking == true }}
+        continue-on-error: ${{ env.SONAR_NON_BLOCKING == 'true' }}
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
