@@ -1,0 +1,335 @@
+name: Terraform Stack
+
+# Plans or applies one Terraform stack. Called once per entry in the matrix
+# emitted by terraform-discover.yml. See docs/workflow-guide.md.
+#
+# The caller's job must grant: contents: read, pull-requests: write,
+# issues: write, actions: write, and id-token: write when using an OIDC role.
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: Path to the stack directory (the one holding backend.tf).
+        type: string
+        required: true
+      command:
+        description: plan or apply.
+        type: string
+        required: true
+      environment:
+        description: GitHub environment to run apply under. Ignored for plan.
+        type: string
+        default: ""
+      aws-role:
+        description: IAM role ARN to assume via OIDC. Leave empty to use the static key secrets.
+        type: string
+        default: ""
+      aws-region:
+        type: string
+        default: eu-west-1
+      terraform-version:
+        description: Overrides .terraform-version in the stack directory or repository root.
+        type: string
+        default: ""
+      plan-retention-days:
+        type: number
+        default: 7
+      runner:
+        type: string
+        default: linux-arm64
+    secrets:
+      aws-access-key-id:
+        required: false
+      aws-secret-access-key:
+        required: false
+      tf-vars-json:
+        description: JSON object of Terraform variables, written to the stack as ci.auto.tfvars.json.
+        required: false
+
+jobs:
+  terraform:
+    name: ${{ inputs.command }}
+    runs-on: ${{ inputs.runner }}
+    concurrency:
+      group: tf-${{ inputs.stack }}-${{ inputs.command == 'apply' && 'apply' || github.ref }}
+      cancel-in-progress: ${{ inputs.command == 'plan' }}
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.stack }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      STACK: ${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Slug the stack path
+        id: slug
+        working-directory: .
+        run: echo "value=$(printf '%s' "$STACK" | tr '/' '.')" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Terraform version
+        id: tfver
+        working-directory: .
+        env:
+          OVERRIDE: ${{ inputs.terraform-version }}
+        run: |
+          set -eu
+          if   [ -n "$OVERRIDE" ];                     then v="$OVERRIDE"
+          elif [ -f "$STACK/.terraform-version" ];     then v=$(cat "$STACK/.terraform-version")
+          elif [ -f ".terraform-version" ];            then v=$(cat .terraform-version)
+          else
+            echo "::error title=No Terraform version::Add .terraform-version to $STACK or the repository root."
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Terraform $v"
+
+      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials via OIDC
+        if: inputs.aws-role != ''
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          role-to-assume: ${{ inputs.aws-role }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Configure AWS credentials via static keys
+        if: inputs.aws-role == ''
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Write CI variables
+        env:
+          TF_VARS_JSON: ${{ secrets.tf-vars-json }}
+        run: |
+          set -eu
+          if [ -n "${TF_VARS_JSON:-}" ]; then
+            printf '%s' "$TF_VARS_JSON" > ci.auto.tfvars.json
+            echo "Wrote ci.auto.tfvars.json"
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false -lock-timeout=5m
+
+      - name: Terraform fmt
+        if: inputs.command == 'plan'
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        if: inputs.command == 'plan'
+        run: |
+          set -eu
+          terraform plan -no-color -input=false -lock-timeout=5m \
+            -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
+          tail -c 400000 plan.txt
+          case "$code" in
+            0) echo "changes=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changes=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "changes=false" >> "$GITHUB_OUTPUT"
+               echo "failed=true"   >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Upload plan
+        if: inputs.command == 'plan' && steps.plan.outputs.failed != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tfplan-${{ steps.slug.outputs.value }}-${{ github.sha }}
+          path: ${{ inputs.stack }}/tfplan
+          retention-days: ${{ inputs.plan-retention-days }}
+          if-no-files-found: error
+
+      - name: Comment plan on the pull request
+        if: inputs.command == 'plan' && github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          PLAN_FAILED: ${{ steps.plan.outputs.failed }}
+          HAS_CHANGES: ${{ steps.plan.outputs.changes }}
+        with:
+          script: |
+            const fs = require('fs')
+            const { owner, repo } = context.repo
+            const stack = process.env.STACK
+            const plan = fs.readFileSync(`${stack}/plan.txt`, 'utf8')
+
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'terraform-failed', per_page: 100,
+            })
+            const stuck = open.data.find(i => i.title === `terraform apply failed: ${stack}`)
+            const banner = stuck
+              ? `> [!WARNING]\n> This stack has an **unresolved failed apply** (#${stuck.number}). The plan below may include leftover changes from it — check before merging.\n\n`
+              : ''
+
+            const summary = process.env.PLAN_FAILED === 'true'
+              ? 'Plan failed'
+              : process.env.HAS_CHANGES === 'true'
+                ? (plan.match(/^Plan: .*$/m) || ['Changes planned'])[0]
+                : 'No changes'
+
+            const LIMIT = 60000
+            const body = [
+              `<!-- terraform-plan:${stack} -->`,
+              banner + `### Terraform plan — \`${stack}\``,
+              '', `**${summary}**`, '',
+              '<details><summary>Show plan</summary>', '', '```terraform',
+              plan.length > LIMIT
+                ? plan.slice(0, LIMIT) + `\n\n... truncated (${plan.length} chars); see the run log.`
+                : plan,
+              '```', '</details>',
+            ].join('\n')
+
+            const marker = `<!-- terraform-plan:${stack} -->`
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: context.issue.number, per_page: 100,
+            })
+            const existing = comments.find(c => c.body.includes(marker))
+            existing
+              ? await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body })
+              : await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body })
+
+      - name: Fail on plan error
+        if: steps.plan.outputs.failed == 'true'
+        run: exit 1
+
+      - name: Download the reviewed plan
+        id: fetch
+        if: inputs.command == 'apply'
+        working-directory: .
+        run: |
+          set -eu
+          slug='${{ steps.slug.outputs.value }}'
+          find_artifact() {
+            gh api "/repos/$REPO/actions/artifacts?per_page=100" \
+              --jq "[.artifacts[] | select(.name == \"tfplan-$slug-$1\" and .expired == false)] | sort_by(.created_at) | last // empty"
+          }
+          art=$(find_artifact "${{ github.sha }}")
+          if [ -z "$art" ]; then
+            head=$(gh api "/repos/$REPO/commits/${{ github.sha }}/pulls" --jq '.[0].head.sha // empty')
+            [ -n "$head" ] && art=$(find_artifact "$head")
+          fi
+          if [ -z "$art" ]; then
+            echo "::error title=No reviewed plan::No plan artifact for $STACK at ${{ github.sha }}. Re-run the plan, or use the manual apply path."
+            exit 1
+          fi
+          echo "name=$(printf '%s' "$art" | jq -r .name)"       >> "$GITHUB_OUTPUT"
+          echo "id=$(printf '%s' "$art" | jq -r .id)"           >> "$GITHUB_OUTPUT"
+          echo "run=$(printf '%s' "$art" | jq -r .workflow_run.id)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: inputs.command == 'apply'
+        with:
+          name: ${{ steps.fetch.outputs.name }}
+          run-id: ${{ steps.fetch.outputs.run }}
+          github-token: ${{ github.token }}
+          path: ${{ inputs.stack }}
+
+      - name: Terraform apply
+        id: apply
+        if: inputs.command == 'apply'
+        continue-on-error: true
+        run: terraform apply -input=false -lock-timeout=5m -no-color tfplan
+
+      - name: Re-plan after a failed apply
+        if: steps.apply.outcome == 'failure'
+        run: terraform plan -no-color -input=false -lock-timeout=5m > replan.txt 2>&1 || true
+
+      - name: Report the failed apply
+        if: steps.apply.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          MERGER: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('fs')
+            const { owner, repo } = context.repo
+            const stack = process.env.STACK
+            const { MERGER, RUN_URL } = process.env
+            let plan = '(re-plan produced no output)'
+            try { plan = fs.readFileSync(`${stack}/replan.txt`, 'utf8').slice(-40000) } catch (e) {}
+
+            const body = [
+              `@${MERGER} — \`terraform apply\` **failed** on \`${stack}\`.`,
+              '',
+              'The stack is **partially applied**. State is accurate for the resources that completed;',
+              'the plan below is exactly what is left over. This will not resolve itself.',
+              '',
+              `[Failed run](${RUN_URL}) · commit ${context.sha.slice(0, 8)}`,
+              '',
+              '<details><summary>Plan as of right now</summary>', '', '```terraform', plan, '```', '</details>',
+              '',
+              '**Next step — every option is a forward apply:**',
+              '- transient (rate limit, timeout, eventual consistency) → re-run the failed job',
+              '- config, IAM or quota problem → fix it in a PR, re-plan, apply',
+              '- the change was wrong → `git revert`, and apply that as a new reviewed plan',
+              '- `AlreadyExists` → the resource exists but is absent from state: add an `import` block in a PR',
+              '',
+              'Do not roll back by hand. This issue closes itself when the next apply of this stack succeeds.',
+            ].join('\n')
+
+            const title = `terraform apply failed: ${stack}`
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'terraform-failed', per_page: 100,
+            })
+            let issue = open.data.find(i => i.title === title)
+            if (issue) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body })
+            } else {
+              issue = (await github.rest.issues.create({
+                owner, repo, title, body, labels: ['terraform-failed'], assignees: [MERGER],
+              })).data
+            }
+
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner, repo, commit_sha: context.sha,
+            })
+            for (const pr of prs.data) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: `@${MERGER} the apply of \`${stack}\` from this PR **failed** and the stack is partially applied. Next steps: #${issue.number}`,
+              })
+            }
+
+      - name: Close the failure issue and drop the plan
+        if: inputs.command == 'apply' && steps.apply.outcome == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          ARTIFACT_ID: ${{ steps.fetch.outputs.id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const stack = process.env.STACK
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'terraform-failed', per_page: 100,
+            })
+            const issue = open.data.find(i => i.title === `terraform apply failed: ${stack}`)
+            if (issue) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `Apply of \`${stack}\` succeeded at ${context.sha.slice(0, 8)}. Closing.`,
+              })
+              await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed' })
+            }
+            try {
+              await github.rest.actions.deleteArtifact({
+                owner, repo, artifact_id: Number(process.env.ARTIFACT_ID),
+              })
+            } catch (e) {
+              core.warning(`Could not delete the plan artifact: ${e.message}`)
+            }
+
+      - name: Fail on apply error
+        if: steps.apply.outcome == 'failure'
+        run: exit 1
