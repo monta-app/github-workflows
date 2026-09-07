@@ -223,9 +223,10 @@ jobs:
             echo "::error title=No reviewed plan::No plan artifact for $STACK at ${{ github.sha }}. Re-run the plan, or use the manual apply path."
             exit 1
           fi
-          echo "name=$(printf '%s' "$art" | jq -r .name)"       >> "$GITHUB_OUTPUT"
-          echo "id=$(printf '%s' "$art" | jq -r .id)"           >> "$GITHUB_OUTPUT"
-          echo "run=$(printf '%s' "$art" | jq -r .workflow_run.id)" >> "$GITHUB_OUTPUT"
+          printf '%s' "$art" | jq -r '
+            "name=" + .name,
+            "id="   + (.id | tostring),
+            "run="  + (.workflow_run.id | tostring)' >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         if: inputs.command == 'apply'
