@@ -1378,6 +1378,8 @@ Recovery is always a forward apply — never a hand-rolled rollback. Create the 
 
 ### Caller
 
+Pin to a release tag (e.g. `@v1`), never `@main` — this workflow is under active migration across three repos, and an in-place change on `main` would land on every caller at once.
+
 ```yaml
 name: Terraform
 
@@ -1395,7 +1397,7 @@ jobs:
   discover:
     permissions:
       contents: read
-    uses: monta-app/github-workflows/.github/workflows/terraform-discover.yml@main
+    uses: monta-app/github-workflows/.github/workflows/terraform-discover.yml@v1
     with:
       all: ${{ github.event_name == 'schedule' }}
       accounts: |
@@ -1417,7 +1419,7 @@ jobs:
       issues: write
       actions: write
       id-token: write
-    uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@main
+    uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@v1
     with:
       stack: ${{ matrix.stack.dir }}
       command: ${{ github.event_name == 'push' && 'apply' || 'plan' }}
