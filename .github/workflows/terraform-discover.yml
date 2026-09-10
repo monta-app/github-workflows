@@ -1,0 +1,126 @@
+name: Terraform Discover
+
+# Emits the JSON matrix of Terraform stacks affected by this event.
+# A stack is any directory containing backend.tf. See docs/workflow-guide.md.
+
+on:
+  workflow_call:
+    inputs:
+      accounts:
+        description: >
+          JSON array mapping a path prefix to the credentials and GitHub environment for
+          stacks under it. First match wins, so list more specific prefixes first. Example:
+          [{"match":"accounts/staging/","role":"arn:aws:iam::974945904635:role/gha-terraform","environment":"staging"}]
+        type: string
+        required: true
+      all:
+        description: Select every stack regardless of the diff. Use for scheduled drift runs.
+        type: boolean
+        default: false
+      runner:
+        type: string
+        default: linux-arm64
+    outputs:
+      stacks:
+        description: JSON array of {dir, role, environment, region}. Empty array when nothing is affected.
+        value: ${{ jobs.discover.outputs.stacks }}
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover stacks
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      stacks: ${{ steps.find.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve affected stacks
+        id: find
+        env:
+          ACCOUNTS: ${{ inputs.accounts }}
+          FORCE_ALL: ${{ inputs.all }}
+          EVENT: ${{ github.event_name }}
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_MERGE_GROUP: ${{ github.event.merge_group.base_sha }}
+          BASE_PUSH: ${{ github.event.before }}
+        run: |
+          set -eu
+
+          all_stacks=$(find . -name backend.tf | sed 's|/backend\.tf$||; s|^\./||' | sort -u)
+          if [ -z "$all_stacks" ]; then
+            echo "::error title=No stacks found::No directory in this repository contains a backend.tf."
+            exit 1
+          fi
+
+          case "$EVENT" in
+            pull_request|pull_request_target) base="$BASE_PR" ;;
+            merge_group)                      base="$BASE_MERGE_GROUP" ;;
+            push)                             base="$BASE_PUSH" ;;
+            *)                                base="" ;;
+          esac
+
+          owner_of() {
+            d=$(dirname "$1")
+            while [ "$d" != "." ] && [ "$d" != "/" ]; do
+              if [ -f "$d/backend.tf" ]; then printf '%s\n' "$d"; return 0; fi
+              d=$(dirname "$d")
+            done
+            return 1
+          }
+
+          case "$base" in ''|*[!0]*) ;; *) base="" ;; esac
+
+          if [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
+            selected=$all_stacks
+            echo "Selecting every stack (event=$EVENT force-all=$FORCE_ALL base='$base')."
+          else
+            picked=""
+            fan_out=false
+            git diff --name-only "$base" HEAD -- | grep -Ev '\.md$' > /tmp/changed.txt || true
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              if s=$(owner_of "$f"); then
+                picked=$(printf '%s\n%s' "$picked" "$s")
+              else
+                echo "Change outside any stack: $f"
+                fan_out=true
+              fi
+            done < /tmp/changed.txt
+            if [ "$fan_out" = "true" ]; then
+              selected=$all_stacks
+              echo "A shared path changed - selecting every stack."
+            else
+              selected=$(printf '%s' "$picked" | sed '/^$/d' | sort -u)
+            fi
+          fi
+
+          if [ -z "$selected" ]; then
+            echo "stacks=[]" >> "$GITHUB_OUTPUT"
+            echo "No stacks affected."
+            exit 0
+          fi
+
+          stacks=$(printf '%s\n' "$selected" | jq -R . | jq -sc --argjson acc "$ACCOUNTS" '
+            [ .[]
+              | . as $dir
+              | ($acc | map(. as $e | select($dir | startswith($e.match))) | first) as $a
+              | { dir: $dir,
+                  role:        ($a.role        // ""),
+                  environment: ($a.environment // ""),
+                  region:      ($a.region      // "eu-west-1"),
+                  matched:     ($a != null) } ]')
+
+          unmatched=$(printf '%s' "$stacks" | jq -r '[.[] | select(.matched == false) | .dir] | join(", ")')
+          if [ -n "$unmatched" ]; then
+            echo "::error title=Stack has no account mapping::No accounts[] entry matches: $unmatched"
+            exit 1
+          fi
+
+          stacks=$(printf '%s' "$stacks" | jq -c 'map(del(.matched))')
+          echo "stacks=$stacks" >> "$GITHUB_OUTPUT"
+          printf '%s' "$stacks" | jq -r '"Selected: " + (map(.dir) | join(", "))'

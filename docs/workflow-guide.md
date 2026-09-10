@@ -21,6 +21,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 15. [SonarCloud Analysis](#sonarcloud-analysis)
 16. [Track Pending Release](#track-pending-release)
 17. [PR Digest](#pr-digest)
+18. [Terraform](#terraform)
 
 ---
 
@@ -1341,3 +1342,104 @@ gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
 ```
 
 The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
+
+---
+
+## Terraform
+
+Two reusable workflows replace the per-repo Terraform pipelines:
+
+- **`terraform-discover.yml`** — emits the JSON matrix of stacks affected by the event.
+- **`terraform-stack.yml`** — plans or applies exactly one stack.
+
+### The stack convention
+
+A **stack** is any directory containing `backend.tf`. That directory is simultaneously the unit of state, the CI job, the state lock and the blast radius. Discovery walks the diff and maps each changed file to the nearest ancestor directory holding a `backend.tf`, so adding a stack requires no workflow edits.
+
+A change to a path owned by no stack (`modules/**`, `.github/**`) fans out to **every** stack for plan. Changes to `*.md` are ignored.
+
+Each stack needs `.terraform-version` (its own, or one at the repository root) and a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
+
+```bash
+terraform providers lock -platform=linux_arm64 -platform=darwin_arm64
+```
+
+### Apply runs the reviewed plan
+
+Plan uploads `tfplan` as an artifact named `tfplan-<stack.path>-<sha>`. Apply downloads that artifact and runs `terraform apply tfplan` — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no artifact matches, which is the intended behaviour for a direct push to `main`.
+
+Combine with a **merge queue** and `merge_group` in the caller: the queue tests each PR against the queue head, so the plan attached to the landing commit already accounts for everything merging ahead of it.
+
+### When an apply fails
+
+The stack is left partially applied. The workflow re-plans in place, then opens one issue per stack labelled `terraform-failed`, assigns it to whoever merged, and comments the link on the originating PR. Subsequent plans of that stack carry a warning banner until it is resolved. The next successful apply of the stack closes the issue automatically.
+
+Recovery is always a forward apply — never a hand-rolled rollback. Create the `terraform-failed` label in the repository before first use.
+
+### Caller
+
+Pin to a release tag (e.g. `@v1`), never `@main` — this workflow is under active migration across three repos, and an in-place change on `main` would land on every caller at once.
+
+```yaml
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  discover:
+    permissions:
+      contents: read
+    uses: monta-app/github-workflows/.github/workflows/terraform-discover.yml@v1
+    with:
+      all: ${{ github.event_name == 'schedule' }}
+      accounts: |
+        [
+          {"match":"accounts/production/","role":"arn:aws:iam::077199819609:role/gha-terraform","environment":"production"},
+          {"match":"accounts/staging/","role":"arn:aws:iam::974945904635:role/gha-terraform","environment":"staging"}
+        ]
+
+  terraform:
+    needs: discover
+    if: needs.discover.outputs.stacks != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.discover.outputs.stacks) }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: write
+      id-token: write
+    uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@v1
+    with:
+      stack: ${{ matrix.stack.dir }}
+      command: ${{ github.event_name == 'push' && 'apply' || 'plan' }}
+      environment: ${{ github.event_name == 'push' && matrix.stack.environment || '' }}
+      aws-role: ${{ matrix.stack.role }}
+      aws-region: ${{ matrix.stack.region }}
+
+  terraform-ok:
+    needs: terraform
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: '[[ "${{ needs.terraform.result }}" != "failure" ]]'
+```
+
+### Notes
+
+- **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever.
+- **`fail-fast: false` is required**, otherwise one stack failing cancels sibling applies mid-apply.
+- Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies queue and are never cancelled.
+- `accounts[]` is matched by path prefix, first match wins — list more specific prefixes first. A stack matching no entry fails discovery rather than running without credentials.
+- Leave `aws-role` empty to fall back to the `aws-access-key-id` / `aws-secret-access-key` secrets during an OIDC migration.
+- `tf-vars-json` writes a `ci.auto.tfvars.json` into the stack. It is a migration bridge: prefer reading secrets inside Terraform via `data "aws_secretsmanager_secret_version"` so CI holds nothing but the AWS role.
