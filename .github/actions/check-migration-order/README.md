@@ -24,8 +24,10 @@ merges.
 
 ## Usage
 
-Most repos need no inputs. Include it in a job that has checked the repo out with
-full history:
+No inputs needed. The action discovers its own migration roots: every directory
+named `migration` under `src/main/resources` that holds a `.sql` somewhere
+beneath it, taken from both the working tree and the base branch. Include it in a
+job that has checked the repo out with full history:
 
 ```yaml
 jobs:
@@ -41,13 +43,36 @@ jobs:
 ```
 
 Kotlin repos calling `pull-request-kotlin.yml` get this automatically and need to
-add nothing — the job is part of that workflow and self-skips when
-`src/main/resources/db/migration` is absent.
+add nothing.
 
-### Multi-module repos
+### What discovery picks up
 
-Each line of `migration-paths` is an **independent Flyway version namespace**.
-Give one line per database:
+The root is the `migration` directory itself, not each directory containing a
+`.sql`. That distinction matters: Flyway pools a root's subdirectories
+(`common/`, `<env>/`, `stored/procedures/`) into **one** version namespace, so
+treating those subdirectories as separate roots would let a migration Flyway
+rejects as out of order pass the check. service-charges has exactly this shape —
+`db/migration/common` at 2026 and `db/migration/stored/procedures` at 2021 — and
+a new `stored/procedures` migration dated 2022 must be rejected against the
+pooled 2026 ceiling, not accepted against 2021.
+
+Verified against every Kotlin checkout; discovery finds the right number of
+independent namespaces in each:
+
+| shape | repos | roots |
+|---|---|---|
+| `src/main/resources/db/migration` | charges, ocpi, charge-points, grid, integrations, support, notifications, kafka-scheduler, internal-ocpi-tooling | 1 |
+| nested module | alerts, template-micronaut (`app/…`) | 1 |
+| two modules, two databases | ocpp (processor-common + gateway), api-gateways (partner-api + public-api), control (cloud-emulator + ocpp-proxy) | 2 |
+| MySQL + ClickHouse | energy (`db/` + `clickhouse/`), wallet (`persistence/db/` + `testing/clickhouse/`) | 2 |
+| `resources/migration`, no `db/` | data-fusion | 1 |
+| no migrations | vehicle, cpi-api | 0, passes trivially |
+
+### Overriding discovery
+
+Set `migration-paths` only when discovery is wrong — a root outside
+`src/main/resources`, or two discovered roots that genuinely share one Flyway
+instance. Each line is an **independent** version namespace:
 
 ```yaml
       - uses: monta-app/github-workflows/.github/actions/check-migration-order@main
@@ -59,25 +84,14 @@ Give one line per database:
 
 Do not collapse separate databases into a single root. In service-ocpp the
 processor's newest migration is from 2026 and the gateway's from 2022, so a
-pooled root would reject a perfectly valid new gateway migration for sorting
-behind the processor's — a different database entirely.
-
-### Non-standard roots
-
-Repos that keep migrations somewhere else pass their own paths, e.g. a ClickHouse
-root alongside the MySQL one:
-
-```yaml
-          migration-paths: |
-            src/main/resources/db/migration
-            src/main/resources/clickhouse/migration
-```
+pooled root rejects a perfectly valid new gateway migration for sorting behind
+the processor's — a different database entirely.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `migration-paths` | no | `src/main/resources/db/migration` | One migration root per line; each is an independent version namespace. Roots absent from both the base branch and the working tree are skipped. |
+| `migration-paths` | no | *(empty — auto-discover)* | One migration root per line; each is an independent version namespace. Empty discovers them. Roots absent from both the base branch and the working tree are skipped. |
 | `base-ref` | no | `${{ github.base_ref }}` | Branch name to compare against — a branch name, not a full ref. |
 | `naming-pattern` | no | `^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$` | ERE every newly added migration filename must match. |
 
@@ -91,6 +105,9 @@ are therefore left alone rather than reported.
   Flyway compares them. A lexicographic comparison gets real filenames wrong:
   service-charges has `V2025.08.05.8.51` (single-digit hour), which plain `sort`
   orders *before* `...18.51`, and service-ocpi has `V2026.02.04.1400`.
+- Roots are discovered from the base branch as well as the working tree, so
+  deleting an entire migration root cannot dodge the check by no longer existing
+  on disk.
 - The action deepens a shallow clone itself. `git merge-base` on a shallow clone
   silently returns the wrong answer rather than failing, so this is not left to
   the caller to remember.
@@ -109,7 +126,6 @@ it, treat this as a strong nudge rather than a guarantee.
 
 ```bash
 BASE_REF=main \
-MIGRATION_PATHS='src/main/resources/db/migration' \
 NAMING_PATTERN='^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$' \
-  .github/actions/check-migration-order/check-migration-order.sh
+  path/to/check-migration-order.sh   # add MIGRATION_PATHS=... to skip discovery
 ```

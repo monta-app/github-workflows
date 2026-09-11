@@ -111,9 +111,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           filter: blob:none
-      # Self-skips when the conventional path is absent. Repos that keep
-      # migrations elsewhere (ClickHouse roots, multi-module, non-standard
-      # layouts) call the action directly with their own migration-paths.
+      # Discovers its own migration roots, so multi-module, ClickHouse and
+      # non-db layouts are covered without per-repo configuration, and repos
+      # with no migrations pass trivially.
       - name: Check migration order
         uses: monta-app/github-workflows/.github/actions/check-migration-order@main
   lint:

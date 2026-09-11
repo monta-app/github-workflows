@@ -6,13 +6,13 @@
 # Env:
 #   BASE_REF         branch to compare against, e.g. "main" (not a full ref)
 #   MIGRATION_PATHS  newline-separated migration roots; each is an INDEPENDENT
-#                    Flyway version namespace
+#                    Flyway version namespace. Empty means auto-discover.
 #   NAMING_PATTERN   ERE every newly added migration filename must match
 set -euo pipefail
 
 : "${BASE_REF:?BASE_REF is required}"
-: "${MIGRATION_PATHS:?MIGRATION_PATHS is required}"
 : "${NAMING_PATTERN:?NAMING_PATTERN is required}"
+MIGRATION_PATHS="${MIGRATION_PATHS:-}"
 
 # merge-base needs real history; a shallow clone silently yields the wrong
 # answer rather than failing, so deepen instead of trusting the caller.
@@ -28,14 +28,58 @@ merge_base=$(git merge-base HEAD "$base")
 # Strip directory, the B/V prefix and the __description suffix.
 versions() { sed -E 's|.*/||; s|^[BV]||; s|__.*$||'; }
 
+# A root is a directory named "migration" under src/main/resources holding at
+# least one .sql somewhere beneath it -- NOT every directory that contains a
+# .sql. Flyway pools all of a root's subdirectories (common/, <env>/,
+# stored/procedures/) into one version namespace, so treating those
+# subdirectories as separate roots would let a migration that Flyway rejects as
+# out of order pass the check.
+discover_in_worktree() {
+    find . -type d -name migration \
+        -path '*/src/main/resources/*' \
+        -not -path '*/build/*' \
+        -not -path '*/.*/*' 2>/dev/null |
+        while read -r dir; do
+            if find "$dir" -type f -name '*.sql' -print -quit 2>/dev/null | grep -q .; then
+                printf '%s\n' "${dir#./}"
+            fi
+        done || true
+}
+
+# Also derive roots from the base branch, so deleting a whole root in this PR
+# cannot make it escape the check by simply no longer existing on disk.
+discover_in_base() {
+    git ls-tree -r --name-only "$base" |
+        grep -E '(^|/)src/main/resources/(.*/)?migration/.*\.sql$' |
+        while read -r file; do
+            printf '%s\n' "${file%%/migration/*}/migration"
+        done || true
+}
+
+if [ -z "${MIGRATION_PATHS//[[:space:]]/}" ]; then
+    MIGRATION_PATHS=$(
+        {
+            discover_in_worktree
+            discover_in_base
+        } | sort -u
+    )
+    echo "Auto-discovered migration roots:"
+    if [ -n "$MIGRATION_PATHS" ]; then
+        while IFS= read -r discovered; do echo "  $discovered"; done <<<"$MIGRATION_PATHS"
+    else
+        echo "  (none)"
+    fi
+    echo
+fi
+
 errors=0
 checked=0
 
 check_root() {
     local migrations="$1"
 
-    # The base branch is the authority on whether a root exists: a PR that adds
-    # the very first migration to a new root must still be checked.
+    # The base branch is the authority on whether a root exists: a PR adding the
+    # very first migration to a new root must still be checked.
     if [ -z "$(git ls-tree -r --name-only "$base" -- "$migrations")" ] &&
         [ ! -d "$migrations" ]; then
         echo "  no such path on $base or in the working tree — skipping"
@@ -43,9 +87,9 @@ check_root() {
     fi
     checked=$((checked + 1))
 
-    # Flyway pools every location under a root into one version namespace, so the
-    # ceiling is the highest version anywhere under it on the base branch TIP --
-    # not on the merge base, which is what lets a stale branch merge out of order.
+    # The ceiling is the highest version anywhere under this root on the base
+    # branch TIP -- not on the merge base, which is what lets a stale branch
+    # merge a migration behind one that is already applied.
     local base_max
     base_max=$(
         git ls-tree -r --name-only "$base" -- "$migrations" |

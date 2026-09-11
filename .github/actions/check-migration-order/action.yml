@@ -6,14 +6,17 @@ inputs:
   migration-paths:
     description: >-
       One migration root per line, repo-relative. Each line is an INDEPENDENT
-      Flyway version namespace — give several lines for a multi-module repo whose
-      modules own separate databases (e.g. service-ocpp's processor and gateway).
-      Do NOT collapse separate databases into one root: their newest versions are
-      years apart, and pooling them rejects perfectly valid migrations. Roots that
-      exist neither on the base branch nor in the working tree are skipped, so the
-      default is safe for repos with no migrations at all.
+      Flyway version namespace. Leave empty (the default) to auto-discover them:
+      every directory named "migration" under src/main/resources that holds a
+      .sql, taken from both the working tree and the base branch. That covers
+      nested modules and non-db roots (clickhouse/migration,
+      resources/migration) without configuration. Set it only to override
+      discovery — for example to check a root outside src/main/resources, or if
+      two discovered roots really share one Flyway instance. Do NOT collapse
+      separate databases into one root: their newest versions can be years
+      apart, and pooling them rejects perfectly valid migrations.
     required: false
-    default: 'src/main/resources/db/migration'
+    default: ''
   base-ref:
     description: 'Branch name to compare against (not a full ref). Defaults to the PR base branch.'
     required: false
