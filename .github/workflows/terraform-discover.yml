@@ -22,7 +22,10 @@ on:
         default: linux-arm64
     outputs:
       stacks:
-        description: JSON array of {dir, role, environment, region}. Empty array when nothing is affected.
+        description: >
+          JSON array of {dir, role, environment, region}. Any other key on the matched accounts[]
+          entry is passed through, so a caller can carry its own fields (a secret name, a runner
+          label) per stack. Empty array when nothing is affected.
         value: ${{ jobs.discover.outputs.stacks }}
 
 permissions:
@@ -109,11 +112,9 @@ jobs:
             [ .[]
               | . as $dir
               | ($acc | map(. as $e | select($dir | startswith($e.match))) | first) as $a
-              | { dir: $dir,
-                  role:        ($a.role        // ""),
-                  environment: ($a.environment // ""),
-                  region:      ($a.region      // "eu-west-1"),
-                  matched:     ($a != null) } ]')
+              | ({ role: "", environment: "", region: "eu-west-1" }
+                 + (($a // {}) | del(.match))
+                 + { dir: $dir, matched: ($a != null) }) ]')
 
           unmatched=$(printf '%s' "$stacks" | jq -r '[.[] | select(.matched == false) | .dir] | join(", ")')
           if [ -n "$unmatched" ]; then

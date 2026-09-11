@@ -1366,7 +1366,7 @@ terraform providers lock -platform=linux_arm64 -platform=darwin_arm64
 
 ### Apply runs the reviewed plan
 
-Plan uploads `tfplan` as an artifact named `tfplan-<stack.path>-<sha>`. Apply downloads that artifact and runs `terraform apply tfplan` — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no artifact matches, which is the intended behaviour for a direct push to `main`.
+Plan uploads `tfplan` as an artifact named `tfplan-<stack.path>-<sha>`, where `<sha>` is the **pull request head** commit — not `github.sha`, which on a `pull_request` event is the ephemeral merge commit and never matches anything that lands on `main`. Apply resolves the head SHA back from the commit it is running on, downloads that artifact and runs `terraform apply tfplan` — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no artifact matches, which is the intended behaviour for a direct push to `main`.
 
 Combine with a **merge queue** and `merge_group` in the caller: the queue tests each PR against the queue head, so the plan attached to the landing commit already accounts for everything merging ahead of it.
 
@@ -1428,18 +1428,22 @@ jobs:
       aws-region: ${{ matrix.stack.region }}
 
   terraform-ok:
-    needs: terraform
+    needs: [discover, terraform]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: '[[ "${{ needs.terraform.result }}" != "failure" ]]'
+      - run: |
+          [[ "${{ needs.discover.result }}" == "success" ]] || exit 1
+          [[ "${{ needs.terraform.result }}" != "failure" ]] || exit 1
+          [[ "${{ needs.terraform.result }}" != "cancelled" ]]
 ```
 
 ### Notes
 
-- **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever.
+- **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever. It must gate on `discover` as well: discovery hard-fails on an unmapped stack, which leaves `terraform` *skipped* rather than failed.
 - **`fail-fast: false` is required**, otherwise one stack failing cancels sibling applies mid-apply.
 - Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies queue and are never cancelled.
 - `accounts[]` is matched by path prefix, first match wins — list more specific prefixes first. A stack matching no entry fails discovery rather than running without credentials.
+- Any key on the matched `accounts[]` entry other than `match` is passed through to the matrix entry. A repo with one static key pair per account can carry the secret name that way and select it in the caller: `${{ secrets[format('TERRAFORM_CORE_{0}_AWS_ACCESS_KEY_ID', matrix.stack.secret_key)] }}`.
 - Leave `aws-role` empty to fall back to the `aws-access-key-id` / `aws-secret-access-key` secrets during an OIDC migration.
 - `tf-vars-json` writes a `ci.auto.tfvars.json` into the stack. It is a migration bridge: prefer reading secrets inside Terraform via `data "aws_secretsmanager_secret_version"` so CI holds nothing but the AWS role.
