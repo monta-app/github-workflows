@@ -1,0 +1,42 @@
+name: 'Check Migration Order'
+description: 'Fail a PR whose new Flyway migration sorts before one already applied on the base branch'
+author: 'Monta'
+
+inputs:
+  migration-paths:
+    description: >-
+      One migration root per line, repo-relative. Each line is an INDEPENDENT
+      Flyway version namespace. Leave empty (the default) to auto-discover them:
+      every directory named "migration" under src/main/resources that holds a
+      .sql, taken from both the working tree and the base branch. That covers
+      nested modules and non-db roots (clickhouse/migration,
+      resources/migration) without configuration. Set it only to override
+      discovery — for example to check a root outside src/main/resources, or if
+      two discovered roots really share one Flyway instance. Do NOT collapse
+      separate databases into one root: their newest versions can be years
+      apart, and pooling them rejects perfectly valid migrations.
+    required: false
+    default: ''
+  base-ref:
+    description: 'Branch name to compare against (not a full ref). Defaults to the PR base branch.'
+    required: false
+    default: ${{ github.base_ref }}
+  naming-pattern:
+    description: >-
+      Extended regular expression that every newly added migration filename must
+      match. Committed migrations are never checked against it — renaming one to
+      satisfy a stricter pattern would break its recorded checksum.
+    required: false
+    default: '^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check migration naming and ordering
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+        MIGRATION_PATHS: ${{ inputs.migration-paths }}
+        NAMING_PATTERN: ${{ inputs.naming-pattern }}
+      run: |
+        "${{ github.action_path }}/check-migration-order.sh"

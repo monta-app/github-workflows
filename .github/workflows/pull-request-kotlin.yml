@@ -99,6 +99,23 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+  check-migration-order:
+    name: Check Migration Order
+    runs-on: linux-arm64
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          # the actual pull request commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          filter: blob:none
+      # Discovers its own migration roots, so multi-module, ClickHouse and
+      # non-db layouts are covered without per-repo configuration, and repos
+      # with no migrations pass trivially.
+      - name: Check migration order
+        uses: monta-app/github-workflows/.github/actions/check-migration-order@main
   lint:
     name: Lint
     needs: setup
