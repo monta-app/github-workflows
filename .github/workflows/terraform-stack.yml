@@ -29,7 +29,10 @@ on:
         type: string
         default: eu-west-1
       terraform-version:
-        description: Overrides .terraform-version in the stack directory or repository root.
+        description: >
+          Overrides .terraform-version in the stack directory or repository root.
+          Resolution order: this input, the stack's .terraform-version, the repository
+          root's, then the org default below.
         type: string
         default: ""
       plan-retention-days:
@@ -75,17 +78,20 @@ jobs:
         working-directory: .
         env:
           OVERRIDE: ${{ inputs.terraform-version }}
+          # The version every Monta Terraform stack runs unless it says otherwise.
+          # Bumping this moves a repo only when that repo re-pins this workflow, so
+          # stacks still upgrade one at a time — the first apply on a new version
+          # rewrites the state format and cannot be rolled back.
+          DEFAULT_VERSION: "1.13.5"
         run: |
           set -eu
-          if   [ -n "$OVERRIDE" ];                     then v="$OVERRIDE"
-          elif [ -f "$STACK/.terraform-version" ];     then v=$(cat "$STACK/.terraform-version")
-          elif [ -f ".terraform-version" ];            then v=$(cat .terraform-version)
-          else
-            echo "::error title=No Terraform version::Add .terraform-version to $STACK or the repository root."
-            exit 1
+          if   [ -n "$OVERRIDE" ];                     then v="$OVERRIDE"; src="the caller's terraform-version input"
+          elif [ -f "$STACK/.terraform-version" ];     then v=$(cat "$STACK/.terraform-version"); src="$STACK/.terraform-version"
+          elif [ -f ".terraform-version" ];            then v=$(cat .terraform-version); src="the repository root .terraform-version"
+          else                                              v="$DEFAULT_VERSION"; src="the org default"
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Terraform $v"
+          echo "Terraform $v (from $src)"
 
       - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
         with:

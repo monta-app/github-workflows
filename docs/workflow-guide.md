@@ -1358,7 +1358,11 @@ A **stack** is any directory containing `backend.tf`. That directory is simultan
 
 A change to a path owned by no stack (`modules/**`, `.github/**`) fans out to **every** stack for plan. Changes to `*.md` are ignored.
 
-Each stack needs `.terraform-version` (its own, or one at the repository root) and a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
+Every stack runs the org default Terraform version — **1.13.5**, set as `DEFAULT_VERSION` in `terraform-stack.yml` — unless it says otherwise. Resolution order is: the caller's `terraform-version` input, then `.terraform-version` in the stack directory, then one at the repository root, then that default. Pin a stack below or above the default with its own `.terraform-version`; `tfenv` and `asdf` read the same file, so a local plan matches CI.
+
+Bumping the default does not move anything on its own: a repo picks it up only when it re-pins this workflow. Upgrade stack by stack — the first apply on a new version rewrites the state format, and older Terraform cannot read it back.
+
+Each stack also needs a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
 
 ```bash
 terraform providers lock -platform=linux_arm64 -platform=darwin_arm64
