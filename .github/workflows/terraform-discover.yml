@@ -42,6 +42,120 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Write the stack resolver
+        run: |
+          set -eu
+          cat > "$RUNNER_TEMP/resolve_stacks.py" <<'PY'
+          """Map changed files to the stacks that must run.
+
+          A stack is a directory holding backend.tf. A changed file inside one belongs
+          to that stack. A changed file inside a local module belongs to every stack
+          that calls that module, directly or through other modules - so a shared
+          module change plans its callers and nothing else. A file that is neither,
+          such as a repository root file or CI config, could affect anything and
+          selects every stack.
+
+          Reads changed paths on stdin. Prints the selected stacks, or __ALL__.
+          """
+
+          import collections
+          import os
+          import re
+          import sys
+
+          SOURCE = re.compile(r'source\s*=\s*"([^"]+)"')
+
+
+          def load(root="."):
+              tf = []
+              for base, dirs, files in os.walk(root):
+                  dirs[:] = [d for d in dirs if d not in (".git", ".terraform")]
+                  tf += [
+                      os.path.relpath(os.path.join(base, f), root)
+                      for f in files
+                      if f.endswith(".tf")
+                  ]
+              stacks = {os.path.dirname(p) for p in tf if os.path.basename(p) == "backend.tf"}
+              # Every directory holding Terraform code, so a module nobody calls is still
+              # recognised as a module and selects nothing, rather than selecting everything.
+              tf_dirs = {os.path.dirname(p) for p in tf}
+              # referenced[module dir] = the directories whose configuration calls it
+              referenced = collections.defaultdict(set)
+              for path in tf:
+                  here = os.path.dirname(path)
+                  try:
+                      body = open(os.path.join(root, path), encoding="utf-8").read()
+                  except OSError:
+                      continue
+                  for src in SOURCE.findall(body):
+                      if not src.startswith((".", "/")):
+                          continue  # a registry or git source, not a path in this repo
+                      target = os.path.normpath(os.path.join(here, src))
+                      if target.startswith(".."):
+                          continue  # outside the repository
+                      referenced[target].add(here)
+              return stacks, referenced, tf_dirs
+
+
+          def owner(path, stacks):
+              """The stack a directory belongs to, or None."""
+              while path and path != ".":
+                  if path in stacks:
+                      return path
+                  path = os.path.dirname(path)
+              return None
+
+
+          def dependents(module, referenced, stacks):
+              """Every stack that reaches this module, directly or transitively."""
+              out, seen, queue = set(), set(), [module]
+              while queue:
+                  for caller in referenced.get(queue.pop(), ()):
+                      if caller in seen:
+                          continue
+                      seen.add(caller)
+                      queue.append(caller)
+                      stack = owner(caller, stacks)
+                      if stack:
+                          out.add(stack)
+              return out
+
+
+          def resolve(changed, stacks, referenced, tf_dirs):
+              """(selected stacks, fan_out) for a list of changed paths."""
+              selected, fan_out = set(), False
+              for path in changed:
+                  here = os.path.dirname(path)
+                  stack = owner(here, stacks)
+                  if stack:
+                      selected.add(stack)
+                      continue
+                  # Not in a stack: the nearest ancestor directory holding Terraform code
+                  # is the module that changed. A repository root file has none.
+                  module = here
+                  while module and module not in referenced and module not in tf_dirs:
+                      module = os.path.dirname(module)
+                  if not module:
+                      print(f"Owned by no stack or module: {path}", file=sys.stderr)
+                      fan_out = True
+                      continue
+                  found = dependents(module, referenced, stacks)
+                  print(f"{path}: module {module} -> {len(found)} stack(s)", file=sys.stderr)
+                  selected |= found
+              return selected, fan_out
+
+
+          def main():
+              stacks, referenced, tf_dirs = load()
+              changed = [line.strip() for line in sys.stdin if line.strip()]
+              selected, fan_out = resolve(changed, stacks, referenced, tf_dirs)
+              print("__ALL__" if fan_out else "\n".join(sorted(selected)))
+
+
+          if __name__ == "__main__":
+              main()
+          PY
+
       - name: Resolve affected stacks
         id: find
         env:
@@ -67,38 +181,17 @@ jobs:
             *)                                base="" ;;
           esac
 
-          owner_of() {
-            d=$(dirname "$1")
-            while [ "$d" != "." ] && [ "$d" != "/" ]; do
-              if [ -f "$d/backend.tf" ]; then printf '%s\n' "$d"; return 0; fi
-              d=$(dirname "$d")
-            done
-            return 1
-          }
-
           case "$base" in ''|*[!0]*) ;; *) base="" ;; esac
 
           if [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
             selected=$all_stacks
             echo "Selecting every stack (event=$EVENT force-all=$FORCE_ALL base='$base')."
           else
-            picked=""
-            fan_out=false
-            git diff --name-only "$base" HEAD -- | grep -Ev '\.md$' > /tmp/changed.txt || true
-            while IFS= read -r f; do
-              [ -z "$f" ] && continue
-              if s=$(owner_of "$f"); then
-                picked=$(printf '%s\n%s' "$picked" "$s")
-              else
-                echo "Change outside any stack: $f"
-                fan_out=true
-              fi
-            done < /tmp/changed.txt
-            if [ "$fan_out" = "true" ]; then
+            git diff --name-only "$base" HEAD -- | grep -Ev '\.md$' > "$RUNNER_TEMP/changed.txt" || true
+            selected=$(python3 "$RUNNER_TEMP/resolve_stacks.py" < "$RUNNER_TEMP/changed.txt")
+            if [ "$selected" = "__ALL__" ]; then
               selected=$all_stacks
-              echo "A shared path changed - selecting every stack."
-            else
-              selected=$(printf '%s' "$picked" | sed '/^$/d' | sort -u)
+              echo "A path owned by no stack or module changed - selecting every stack."
             fi
           fi
 
