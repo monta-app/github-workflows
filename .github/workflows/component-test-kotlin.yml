@@ -71,7 +71,22 @@ jobs:
         with:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
+      # setup-java's own `cache: gradle` keys on a hash of the dependency files and skips saving on an
+      # exact hit, so the build-cache-1 inside it is a frozen snapshot: every deploy re-runs KSP and
+      # both Kotlin compiles from scratch. Key on the commit instead, like pull-request-kotlin.yml,
+      # and fall back to the previous deploy (and to any main-scoped Gradle cache) so task outputs
+      # accumulate and unchanged compilation comes back FROM-CACHE.
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-deploy-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-deploy-
+            ${{ runner.os }}-gradle-
       - name: Test project
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -93,3 +108,11 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
           overwrite: true
+      - name: Save Gradle cache
+        if: ${{ always() && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-deploy-${{ github.sha }}
