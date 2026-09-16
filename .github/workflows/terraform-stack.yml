@@ -240,7 +240,9 @@ jobs:
         id: apply
         if: inputs.command == 'apply'
         continue-on-error: true
-        run: terraform apply -input=false -lock-timeout=5m -no-color tfplan
+        run: |
+          set -o pipefail
+          terraform apply -input=false -lock-timeout=5m -no-color tfplan 2>&1 | tee apply.txt
 
       - name: Re-plan after a failed apply
         if: steps.apply.outcome == 'failure'
@@ -261,11 +263,24 @@ jobs:
             let plan = '(re-plan produced no output)'
             try { plan = fs.readFileSync(`${stack}/replan.txt`, 'utf8').slice(-40000) } catch (e) {}
 
+            // Terraform prints a "<address>: Creating..." line per resource it acts on.
+            // None of them means it rejected the plan up front and changed nothing.
+            let started = false
+            try {
+              started = /^\S+: (Creating|Modifying|Destroying|Still|Creation|Modifications|Destruction)/m
+                .test(fs.readFileSync(`${stack}/apply.txt`, 'utf8'))
+            } catch (e) { started = true }
+
+            const state = started
+              ? ['The stack is **partially applied**. State is accurate for the resources that completed;',
+                 'the plan below is exactly what is left over. This will not resolve itself.']
+              : ['Terraform **rejected the plan before making any change** — nothing was applied and the stack',
+                 'is exactly as it was. The plan below is what is still pending.']
+
             const body = [
               `@${MERGER} — \`terraform apply\` **failed** on \`${stack}\`.`,
               '',
-              'The stack is **partially applied**. State is accurate for the resources that completed;',
-              'the plan below is exactly what is left over. This will not resolve itself.',
+              ...state,
               '',
               `[Failed run](${RUN_URL}) · commit ${context.sha.slice(0, 8)}`,
               '',
@@ -276,6 +291,8 @@ jobs:
               '- config, IAM or quota problem → fix it in a PR, re-plan, apply',
               '- the change was wrong → `git revert`, and apply that as a new reviewed plan',
               '- `AlreadyExists` → the resource exists but is absent from state: add an `import` block in a PR',
+              '- `Inconsistent dependency lock file` → a provider floated between plan and apply: commit',
+              '  `.terraform.lock.hcl` for this stack, then re-plan',
               '',
               'Do not roll back by hand. This issue closes itself when the next apply of this stack succeeds.',
             ].join('\n')
