@@ -172,11 +172,27 @@ jobs:
               ? `> [!WARNING]\n> This stack has an **unresolved failed apply** (#${stuck.number}). The plan below may include leftover changes from it — check before merging.\n\n`
               : ''
 
-            const summary = process.env.PLAN_FAILED === 'true'
-              ? 'Plan failed'
-              : process.env.HAS_CHANGES === 'true'
-                ? (plan.match(/^Plan: .*$/m) || ['Changes planned'])[0]
-                : 'No changes'
+            // Mirrors "Plan: N to add, N to change, N to destroy." with a
+            // colored, at-a-glance version — easier to scan across a PR
+            // with several stacks than the plain sentence alone.
+            let summary
+            if (process.env.PLAN_FAILED === 'true') {
+              summary = '❌ Plan failed'
+            } else if (process.env.HAS_CHANGES !== 'true') {
+              summary = '🔵 No changes'
+            } else {
+              const counts = plan.match(/^Plan: (\d+) to add, (\d+) to change, (\d+) to destroy\.$/m)
+              if (counts) {
+                const [toAdd, toChange, toDestroy] = counts.slice(1).map(Number)
+                summary = [
+                  toAdd     > 0 && `🟢 **${toAdd} to add**`,
+                  toChange  > 0 && `🟡 **${toChange} to change**`,
+                  toDestroy > 0 && `🔴 **${toDestroy} to destroy**`,
+                ].filter(Boolean).join('  ·  ')
+              } else {
+                summary = 'Changes planned'
+              }
+            }
 
             const LIMIT = 60000
             const body = [
