@@ -113,13 +113,13 @@ jobs:
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
         run: |
-          # Check if autoSync is configured in config.yaml
-          if yq e '.autoSync' config.yaml | grep -q -v "null"; then
+          # Opt-out model: auto-sync is on unless disableAutoSync is true
+          if [ "$(yq e '.disableAutoSync // false' config.yaml)" = "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ ArgoCD auto-sync is disabled (disableAutoSync: true) for this application"
+          else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
             echo "✓ ArgoCD auto-sync is enabled for this application"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ ArgoCD auto-sync is not configured for this application"
           fi
       - name: Commit and push with automatic retry
         shell: bash

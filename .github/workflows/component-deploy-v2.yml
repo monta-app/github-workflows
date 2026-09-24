@@ -174,14 +174,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MANIFEST_REPO_PAT }}
         run: |
-          # Check if config.yaml exists locally and has autoSync configured
+          # Opt-out model: auto-sync is on unless disableAutoSync is true
           if [ -f "../cluster/config.yaml" ]; then
-            if yq e '.autoSync' ../cluster/config.yaml | grep -q -v "null"; then
+            if [ "$(yq e '.disableAutoSync // false' ../cluster/config.yaml)" = "true" ]; then
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "⏭️ ArgoCD auto-sync is disabled (disableAutoSync: true) for this application"
+            else
               echo "enabled=true" >> "$GITHUB_OUTPUT"
               echo "✓ ArgoCD auto-sync is enabled for this application (local config)"
-            else
-              echo "enabled=false" >> "$GITHUB_OUTPUT"
-              echo "⏭️ ArgoCD auto-sync is not configured for this application"
             fi
           else
             echo "⏭️ No local config.yaml found, checking kube-manifests repo..."
@@ -192,13 +192,13 @@ jobs:
 
             # Try fetching from kube-manifests repo
             if CONFIG_CONTENT=$(gh api repos/monta-app/kube-manifests/contents/$CONFIG_PATH --jq '.content' 2>/dev/null); then
-              # Decode base64 content and check for autoSync
-              if echo "$CONFIG_CONTENT" | base64 -d | yq e '.autoSync' - | grep -q -v "null"; then
+              # Opt-out model: auto-sync is on unless disableAutoSync is true
+              if [ "$(echo "$CONFIG_CONTENT" | base64 -d | yq e '.disableAutoSync // false' -)" = "true" ]; then
+                echo "enabled=false" >> "$GITHUB_OUTPUT"
+                echo "⏭️ ArgoCD auto-sync is disabled (disableAutoSync: true) for this application"
+              else
                 echo "enabled=true" >> "$GITHUB_OUTPUT"
                 echo "✓ ArgoCD auto-sync is enabled for this application (kube-manifests config)"
-              else
-                echo "enabled=false" >> "$GITHUB_OUTPUT"
-                echo "⏭️ ArgoCD auto-sync is not configured for this application"
               fi
             else
               echo "enabled=false" >> "$GITHUB_OUTPUT"
