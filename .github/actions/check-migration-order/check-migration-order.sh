@@ -93,7 +93,7 @@ check_root() {
     local base_max
     base_max=$(
         git ls-tree -r --name-only "$base" -- "$migrations" |
-            grep -E '\.sql$' | versions | sort -V | tail -1
+            { grep -E '\.sql$' || true; } | versions | sort -V | tail -1
     )
     echo "  newest migration on $base: ${base_max:-<none>}"
 
