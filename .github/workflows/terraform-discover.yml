@@ -14,7 +14,7 @@ on:
         type: string
         required: true
       only:
-        description: Select just this stack directory, e.g. for a manual recover. Must hold backend.tf.
+        description: Select just this stack directory, e.g. for a manual recover.
         type: string
         default: ""
       all:
@@ -189,10 +189,6 @@ jobs:
           case "$base" in ''|*[!0]*) ;; *) base="" ;; esac
 
           if [ -n "$ONLY" ]; then
-            if ! printf '%s\n' "$all_stacks" | grep -qxF "$ONLY"; then
-              echo "::error title=Unknown stack::$ONLY holds no backend.tf."
-              exit 1
-            fi
             selected=$ONLY
           elif [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
             selected=$all_stacks

@@ -14,9 +14,7 @@ on:
         type: string
         required: true
       command:
-        description: >
-          plan, apply, or recover. recover plans and applies in one run, for a stack a failed
-          apply left behind; its plan is not reviewed, so dispatch it deliberately.
+        description: plan, apply, or recover (plan + apply in one run; the plan is not reviewed).
         type: string
         required: true
       environment:
