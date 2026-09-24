@@ -91,10 +91,12 @@ jobs:
 
             if [ -s files_to_scan.txt ]; then
               echo "Scanning changed files..."
+              BASELINE=$(git merge-base origin/${{ github.base_ref }} HEAD)
               # Use xargs with null delimiter for safe filename handling
               set +e
               xargs -0 semgrep scan \
                 ${{ steps.configs.outputs.configs }} \
+                --baseline-commit "$BASELINE" \
                 --json \
                 --output=semgrep.json \
                 < files_to_scan.txt \
