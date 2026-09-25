@@ -13,6 +13,10 @@ on:
           [{"match":"accounts/staging/","role":"arn:aws:iam::974945904635:role/gha-terraform","environment":"staging"}]
         type: string
         required: true
+      only:
+        description: Select just this stack directory, e.g. for a manual recover.
+        type: string
+        default: ""
       all:
         description: Select every stack regardless of the diff. Use for scheduled drift runs.
         type: boolean
@@ -161,6 +165,7 @@ jobs:
         env:
           ACCOUNTS: ${{ inputs.accounts }}
           FORCE_ALL: ${{ inputs.all }}
+          ONLY: ${{ inputs.only }}
           EVENT: ${{ github.event_name }}
           BASE_PR: ${{ github.event.pull_request.base.sha }}
           BASE_MERGE_GROUP: ${{ github.event.merge_group.base_sha }}
@@ -183,7 +188,9 @@ jobs:
 
           case "$base" in ''|*[!0]*) ;; *) base="" ;; esac
 
-          if [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
+          if [ -n "$ONLY" ]; then
+            selected=$ONLY
+          elif [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
             selected=$all_stacks
             echo "Selecting every stack (event=$EVENT force-all=$FORCE_ALL base='$base')."
           else

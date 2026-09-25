@@ -14,7 +14,7 @@ on:
         type: string
         required: true
       command:
-        description: plan or apply.
+        description: plan, apply, or recover (plan + apply in one run; the plan is not reviewed).
         type: string
         required: true
       environment:
@@ -52,7 +52,7 @@ jobs:
     name: ${{ inputs.command }}
     runs-on: ${{ inputs.runner }}
     concurrency:
-      group: tf-${{ inputs.stack }}-${{ inputs.command == 'apply' && 'apply' || github.ref }}
+      group: tf-${{ inputs.stack }}-${{ inputs.command != 'plan' && 'apply' || github.ref }}
       cancel-in-progress: ${{ inputs.command == 'plan' }}
     environment: ${{ inputs.environment }}
     defaults:
@@ -129,7 +129,7 @@ jobs:
 
       - name: Terraform plan
         id: plan
-        if: inputs.command == 'plan'
+        if: inputs.command == 'plan' || inputs.command == 'recover'
         run: |
           set -eu
           terraform plan -no-color -input=false -lock-timeout=5m \
@@ -227,8 +227,8 @@ jobs:
           set -eu
           slug='${{ steps.slug.outputs.value }}'
           find_artifact() {
-            gh api "/repos/$REPO/actions/artifacts?per_page=100" \
-              --jq "[.artifacts[] | select(.name == \"tfplan-$slug-$1\" and .expired == false)] | sort_by(.created_at) | last // empty"
+            gh api "/repos/$REPO/actions/artifacts?name=tfplan-$slug-$1&per_page=100" \
+              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last // empty'
           }
           art=$(find_artifact "${{ github.sha }}")
           if [ -z "$art" ]; then
@@ -236,7 +236,7 @@ jobs:
             [ -n "$head" ] && art=$(find_artifact "$head")
           fi
           if [ -z "$art" ]; then
-            echo "::error title=No reviewed plan::No plan artifact for $STACK at ${{ github.sha }}. Re-run the plan, or use the manual apply path."
+            echo "::error title=No reviewed plan::No plan artifact for $STACK at ${{ github.sha }}. Dispatch the caller with command recover for this stack."
             exit 1
           fi
           printf '%s' "$art" | jq -r '
@@ -254,7 +254,7 @@ jobs:
 
       - name: Terraform apply
         id: apply
-        if: inputs.command == 'apply'
+        if: inputs.command == 'apply' || inputs.command == 'recover'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -294,7 +294,7 @@ jobs:
               '<details><summary>Plan as of right now</summary>', '', '```terraform', plan, '```', '</details>',
               '',
               '**Next step — every option is a forward apply:**',
-              '- transient (rate limit, timeout, eventual consistency) → re-run the failed job',
+              '- transient (rate limit, timeout, eventual consistency) → dispatch the caller with `command: recover` for this stack; re-running the failed job reuses the now-stale plan and fails again',
               '- config, IAM or quota problem → fix it in a PR, re-plan, apply',
               '- the change was wrong → `git revert`, and apply that as a new reviewed plan',
               '- `AlreadyExists` → the resource exists but is absent from state: add an `import` block in a PR',
@@ -316,7 +316,7 @@ jobs:
               })).data
             }
 
-            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+            const prs = context.eventName !== 'push' ? { data: [] } : await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner, repo, commit_sha: context.sha,
             })
             for (const pr of prs.data) {
@@ -327,7 +327,7 @@ jobs:
             }
 
       - name: Close the failure issue and drop the plan
-        if: inputs.command == 'apply' && steps.apply.outcome == 'success'
+        if: inputs.command != 'plan' && steps.apply.outcome == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           ARTIFACT_ID: ${{ steps.fetch.outputs.id }}
@@ -346,7 +346,7 @@ jobs:
               })
               await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed' })
             }
-            try {
+            if (process.env.ARTIFACT_ID) try {
               await github.rest.actions.deleteArtifact({
                 owner, repo, artifact_id: Number(process.env.ARTIFACT_ID),
               })

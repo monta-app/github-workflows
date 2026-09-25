@@ -1376,6 +1376,8 @@ The stack is left partially applied. The workflow re-plans in place, then opens 
 
 Recovery is always a forward apply — never a hand-rolled rollback. Create the `terraform-failed` label in the repository before first use.
 
+Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again. Recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no plan artifact (plan still running, failed, or expired) is recovered the same way.
+
 ### Caller
 
 Pin to a release tag (e.g. `@v1`), never `@main` — this workflow is under active migration across three repos, and an in-place change on `main` would land on every caller at once.
@@ -1392,6 +1394,11 @@ on:
   schedule:
     - cron: "0 6 * * 1-5"
   workflow_dispatch:
+    inputs:
+      stack:
+        description: Stack to recover (plan + apply). Empty plans every stack.
+        type: string
+        default: ""
 
 jobs:
   discover:
@@ -1400,6 +1407,7 @@ jobs:
     uses: monta-app/github-workflows/.github/workflows/terraform-discover.yml@v1
     with:
       all: ${{ github.event_name == 'schedule' }}
+      only: ${{ inputs.stack }}
       accounts: |
         [
           {"match":"accounts/production/","role":"arn:aws:iam::077199819609:role/gha-terraform","environment":"production"},
@@ -1422,8 +1430,8 @@ jobs:
     uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@v1
     with:
       stack: ${{ matrix.stack.dir }}
-      command: ${{ github.event_name == 'push' && 'apply' || 'plan' }}
-      environment: ${{ github.event_name == 'push' && matrix.stack.environment || '' }}
+      command: ${{ github.event_name == 'push' && 'apply' || inputs.stack != '' && 'recover' || 'plan' }}
+      environment: ${{ (github.event_name == 'push' || inputs.stack != '') && matrix.stack.environment || '' }}
       aws-role: ${{ matrix.stack.role }}
       aws-region: ${{ matrix.stack.region }}
 
@@ -1442,7 +1450,7 @@ jobs:
 
 - **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever. It must gate on `discover` as well: discovery hard-fails on an unmapped stack, which leaves `terraform` *skipped* rather than failed.
 - **`fail-fast: false` is required**, otherwise one stack failing cancels sibling applies mid-apply.
-- Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies queue and are never cancelled.
+- Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies and recovers share one group and are never cancelled.
 - `accounts[]` is matched by path prefix, first match wins — list more specific prefixes first. A stack matching no entry fails discovery rather than running without credentials.
 - Any key on the matched `accounts[]` entry other than `match` is passed through to the matrix entry. A repo with one static key pair per account can carry the secret name that way and select it in the caller: `${{ secrets[format('TERRAFORM_CORE_{0}_AWS_ACCESS_KEY_ID', matrix.stack.secret_key)] }}`.
 - Leave `aws-role` empty to fall back to the `aws-access-key-id` / `aws-secret-access-key` secrets during an OIDC migration.
