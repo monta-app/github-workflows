@@ -10,3 +10,6 @@ self-hosted-runner:
     - self-hosted-arm64-2xl
     - blacksmith-4vcpu-ubuntu-2404-arm
     - blacksmith-16vcpu-ubuntu-2404-arm
+    - arc-arm64-2cpu-4gb
+    - arc-arm64-4cpu-12gb
+    - arc-arm64-8cpu-24gb
