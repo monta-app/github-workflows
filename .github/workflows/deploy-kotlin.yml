@@ -49,7 +49,7 @@ on:
       gradle-args:
         required: false
         type: string
-        default: "--no-daemon --parallel"
+        default: "--parallel --build-cache"
         description: 'Additional Gradle arguments'
       region:
         required: false
