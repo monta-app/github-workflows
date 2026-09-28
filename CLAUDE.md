@@ -6,6 +6,7 @@
 - **Changes**: Added opt-in `resource-name`/`resource-kind`/`resource-namespace` inputs to `argocd-wait-sync`
 
 ## Recent Changes (2026-09-24)
+1. **Terraform `recover` command + name-filtered plan lookup**: `terraform-stack.yml` accepts `command: recover`, which plans and applies one stack in the same job — the way out of a failed apply, since re-running the failed job reuses a plan the partial apply made stale. It shares the apply concurrency group, closes the `terraform-failed` issue on success, and does not comment on PRs. `terraform-discover.yml` gains `only` to select a single stack for it. The reviewed-plan lookup now filters `/actions/artifacts` by `name=`, instead of scanning the newest 100 artifacts in the repo, which silently lost plans once a busy repo passed 100.
 1. **`semgrep-security-scan.yml` reports only findings the PR introduces** (IMP-1450): `semgrep scan` now runs with `--baseline-commit` set to the merge base with the base branch. Before, the changed-file list only chose which files to scan, and each one was scanned in full, so touching a file with an old finding failed the PR (service-api-gateways#4615 went red on a `secrets: inherit` already on main). The merge base is computed before `set +e`, so if it fails the step goes red. Inline, it would pass an empty sha, Semgrep would error, and the step's fallback would report zero findings. Trade-off: old findings in touched files no longer show on PRs.
 
 ## Recent Changes (2026-09-11)
