@@ -27,8 +27,10 @@ updated, so a comment someone posted by running the script locally is left alone
 
 ## Usage
 
-Add a workflow that runs after the PR workflow completes. `workflow_run` runs from
-the default branch, so the Grafana token is never exposed to code from the PR.
+Add a workflow that runs after the PR workflow completes. The report then sees
+every job finished and the run's final wall time, and it adds no job or check to
+the PR workflow itself. `workflow_run` workflows only run from the default branch,
+so the comments start once this workflow is on `main`.
 
 ```yaml
 name: ARC Job Report
