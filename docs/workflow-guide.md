@@ -367,7 +367,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default, and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -556,7 +556,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default, and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -807,7 +807,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) and SonarQube is reached in-cluster without Tailscale. Needs the `GH_ACTION_*` secrets. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default, and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
@@ -819,8 +819,8 @@ jobs:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
-| `GH_ACTION_ACCESS_KEY_ID` | With `use-arc-runners` | AWS access key for the S3 cache bucket |
-| `GH_ACTION_SECRET_ACCESS_KEY` | With `use-arc-runners` | AWS secret key for the S3 cache bucket |
+| `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
 | `SONAR_TOKEN` | Yes | SonarQube token |
@@ -1001,7 +1001,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) and SonarQube is reached in-cluster without Tailscale. Needs the `GH_ACTION_*` secrets. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default, and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
@@ -1010,8 +1010,8 @@ jobs:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
-| `GH_ACTION_ACCESS_KEY_ID` | With `use-arc-runners` | AWS access key for the S3 cache bucket |
-| `GH_ACTION_SECRET_ACCESS_KEY` | With `use-arc-runners` | AWS secret key for the S3 cache bucket |
+| `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
 | `SONAR_TOKEN` | Yes | SonarQube token |

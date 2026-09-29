@@ -15,8 +15,8 @@ on:
       use-arc-runners:
         required: false
         type: boolean
-        default: false
-        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners). Caches go to S3 and SonarQube is reached in-cluster without Tailscale. Requires the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets."
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default; takes precedence over use-blacksmith-runners). SonarQube is reached in-cluster without Tailscale, and caches go to S3 when the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets are passed (GitHub cache otherwise). Set to false to opt out."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -46,10 +46,10 @@ on:
     secrets:
       GH_ACTION_ACCESS_KEY_ID:
         required: false
-        description: "AWS access key for the S3 cache bucket. Required with use-arc-runners."
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC jobs use the GitHub cache."
       GH_ACTION_SECRET_ACCESS_KEY:
         required: false
-        description: "AWS secret key for the S3 cache bucket. Required with use-arc-runners."
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC jobs use the GitHub cache."
       TAILSCALE_AUTHKEY:
         required: false
         description: "Tailscale auth key. When set, the runner joins the tailnet so it can reach the self-hosted SonarQube. Leave unset to keep scanning SonarCloud."
@@ -65,6 +65,8 @@ on:
 env:
   # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
   LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
+  # On ARC the caches use S3 when the caller passes the bucket credentials, and the GitHub cache otherwise.
+  S3_CACHE: ${{ inputs.use-arc-runners && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
 jobs:
   setup:
     name: Setup
@@ -98,7 +100,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
       - name: Restore Gradle cache
         id: gradle-cache
-        if: ${{ !inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE != 'true' }}
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &gradle-cache-restore
           path: |
@@ -109,7 +111,7 @@ jobs:
             ${{ runner.os }}-gradle-main-
       - name: Restore Gradle cache (S3)
         id: gradle-cache-s3
-        if: ${{ inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE == 'true' }}
         uses: runs-on/cache/restore@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: &s3-cache-env
           RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
@@ -119,14 +121,14 @@ jobs:
           AWS_REGION: eu-west-1
         with: *gradle-cache-restore
       - name: Cache SonarQube packages
-        if: ${{ !inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE != 'true' }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &sonar-cache
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube packages (S3)
-        if: ${{ inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE == 'true' }}
         uses: runs-on/cache@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: *s3-cache-env
         with: *sonar-cache
@@ -221,7 +223,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Save Gradle cache
-        if: ${{ always() && !inputs.use-arc-runners && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        if: ${{ always() && env.S3_CACHE != 'true' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &gradle-cache-save
           path: |
@@ -229,7 +231,7 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-main-${{ github.sha }}
       - name: Save Gradle cache (S3)
-        if: ${{ always() && inputs.use-arc-runners && github.ref == 'refs/heads/main' && steps.gradle-cache-s3.outputs.cache-hit != 'true' }}
+        if: ${{ always() && env.S3_CACHE == 'true' && github.ref == 'refs/heads/main' && steps.gradle-cache-s3.outputs.cache-hit != 'true' }}
         uses: runs-on/cache/save@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: *s3-cache-env
         with: *gradle-cache-save
