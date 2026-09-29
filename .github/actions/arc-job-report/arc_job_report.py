@@ -62,11 +62,11 @@ def job_rows(results):
     groups = {}
     for r in results:
         shard = SHARD.match(name(r))
-        groups.setdefault(shard.group(1) if shard else name(r), []).append(r)
+        groups.setdefault((shard.group(1), True) if shard else (name(r), False), []).append(r)
     rows = []
-    for label, jobs in sorted(groups.items()):
+    for (label, sharded), jobs in sorted(groups.items()):
         slow = max(jobs, key=lambda r: r["duration_s"])
-        if not SHARD.match(name(slow)):
+        if not sharded:
             rows.append(f"| [{label}]({slow['dashboard']}) | {minutes(slow['duration_s'])} |")
             continue
         fast = min(jobs, key=lambda r: r["duration_s"])
