@@ -12,6 +12,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners). Builds with docker buildx and the ECR registry layer cache, like the self-hosted path."
       stage:
         required: true
         type: string
@@ -93,7 +98,7 @@ permissions:
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     timeout-minutes: 5
     outputs:
       runner: ${{ steps.runner.outputs.runner-name }}
@@ -109,12 +114,13 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ inputs.use-arc-runners }}
   # Blacksmith path: build on a Blacksmith arm64 cloud runner. Its sticky-disk builder
   # hydrates the layer cache from prior runs, so no registry cache directives are needed.
   build-blacksmith:
     name: Build (Blacksmith)
     needs: setup
-    if: ${{ inputs.use-blacksmith-runners }}
+    if: ${{ inputs.use-blacksmith-runners && !inputs.use-arc-runners }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
     steps:
@@ -172,12 +178,12 @@ jobs:
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
             NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
 
-  # Self-hosted path: build on a self-hosted linux-arm64 runner with docker buildx and
-  # a registry-backed BuildKit cache in the ECR repo.
+  # Self-hosted path: build on a self-hosted linux-arm64 or ARC runner with docker buildx
+  # and a registry-backed BuildKit cache in the ECR repo.
   build-self-hosted:
     name: Build (self-hosted)
     needs: setup
-    if: ${{ !inputs.use-blacksmith-runners }}
+    if: ${{ !inputs.use-blacksmith-runners || inputs.use-arc-runners }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
     steps:

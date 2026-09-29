@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-09-28
-- **Latest SHA**: 865e263 (check for newer commits)
-- **Changes**: Added opt-in `use-arc-runners` (self-hosted ARC runners, S3 cache, in-cluster SonarQube) to the Kotlin PR, Sonar and coverage workflows
+- **Date**: 2026-09-29
+- **Latest SHA**: a9d0c54 (check for newer commits)
+- **Changes**: Added `use-arc-runners` to `deploy-kotlin(-v2)`, `component-test-kotlin` and `component-build`
+
+## Recent Changes (2026-09-29)
+1. **`use-arc-runners` for the Kotlin deploy workflows**: `deploy-kotlin.yml` and `deploy-kotlin-v2.yml` accept `use-arc-runners` and pass it to `component-test-kotlin.yml` and `component-build.yml`, which both gained the input. Tests run on the converter's ARC runner, with Setup on `arc-arm64-2cpu-4gb` and `LC_ALL=C.UTF-8`, and keep `setup-java`'s GitHub-backed Gradle cache. The image build runs the existing `build-self-hosted` job (docker buildx + ECR registry layer cache, the ARC README's recommendation) instead of `build-blacksmith`. The deploy, service-profile, release-tag and changelog jobs never used Blacksmith and are unchanged. Callers that don't opt in are unaffected.
 
 ## Recent Changes (2026-09-28)
 1. **Opt-in self-hosted ARC runners (`use-arc-runners`)**: `pull-request-kotlin.yml`, `sonar-cloud.yml` and `code-coverage-kotlin.yml` accept `use-arc-runners` (boolean, default false), threaded to `runner-size-converter`, which then resolves `arc-arm64-4cpu-12gb` (normal) / `arc-arm64-8cpu-24gb` (large) and takes precedence over `use-blacksmith-runners`. Setup and migration-order jobs move to `arc-arm64-2cpu-4gb`. When on, the Gradle and Sonar caches use `runs-on/cache` against the S3 bucket `monta-github-ci-cache` (new optional secrets `GH_ACTION_ACCESS_KEY_ID`/`GH_ACTION_SECRET_ACCESS_KEY`), Tailscale and the tailnet probe are skipped and Sonar is pointed at `http://sonarqube.sonarqube.svc.cluster.local:9000` via `-Dsonar.host.url` (ARC shares the cluster with SonarQube), and `LC_ALL=C.UTF-8` is set (the ARC image defaults to POSIX, which breaks Gradle HTML reports for non-ASCII test names). The S3 cache steps are duplicated behind `if:` next to the `actions/cache` ones, sharing `with:` blocks via YAML anchors, rather than switching everyone to `runs-on/cache`: that fork tracks an older `actions/cache` and must not change behavior for repos that don't opt in. `runs-on/cache` already prefixes S3 objects with the repository, so the existing keys are safe in the shared bucket. `code-coverage-kotlin.yml` keeps `setup-java`'s GitHub-backed Gradle cache. Mirrors service-ocpi#2595.
