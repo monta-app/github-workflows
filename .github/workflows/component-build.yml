@@ -86,6 +86,12 @@ on:
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:
         required: false
         description: 'Encryption key for Next.js Server Actions, this value is injected into the secrets of a docker image'
+      GH_ACTION_ACCESS_KEY_ID:
+        required: false
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
+      GH_ACTION_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
     outputs:
       image-tag:
         description: 'The image tag that was built'
@@ -186,6 +192,9 @@ jobs:
     if: ${{ !inputs.use-blacksmith-runners || inputs.use-arc-runners }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
+    env:
+      # On ARC the cache mounts go to S3 when the caller passes the bucket credentials, and the GitHub cache otherwise.
+      S3_CACHE: ${{ inputs.use-arc-runners && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -212,6 +221,39 @@ jobs:
       # docker driver does not support cache-to).
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      # ARC builders start empty and the registry cache does not carry RUN --mount=type=cache
+      # contents (e.g. /root/.gradle), so persist them between builds.
+      - name: Restore Dockerfile cache mounts
+        id: cache-mounts
+        if: ${{ inputs.use-arc-runners && env.S3_CACHE != 'true' }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with: &cache-mounts
+          path: buildkit-cache-mounts
+          key: buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            buildkit-cache-mounts-${{ inputs.docker-file-name }}-
+      # The combined action, not restore/save: its post-step save must run after the
+      # cache-dance post step below has extracted the mounts from the builder.
+      - name: Restore Dockerfile cache mounts (S3)
+        id: cache-mounts-s3
+        if: ${{ env.S3_CACHE == 'true' }}
+        uses: runs-on/cache@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
+        env:
+          RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
+          RUNS_ON_RUNNER_NAME: ""
+          AWS_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
+          # Blank the ecr-put-image session exported by the credentials step above.
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: eu-west-1
+        with: *cache-mounts
+      - name: Inject Dockerfile cache mounts into the builder
+        if: ${{ inputs.use-arc-runners }}
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          dockerfile: ${{ inputs.docker-file-name }}
+          cache-dir: buildkit-cache-mounts
+          skip-extraction: ${{ steps.cache-mounts.outputs.cache-hit || steps.cache-mounts-s3.outputs.cache-hit }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
