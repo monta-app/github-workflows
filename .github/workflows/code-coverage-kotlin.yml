@@ -16,6 +16,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners)."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -85,10 +90,14 @@ on:
         required: false
         description: "SonarCloud authentication token (optional, for code quality analysis)"
 
+env:
+  # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
+  LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
+
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
@@ -98,6 +107,7 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ inputs.use-arc-runners }}
   generate-coverage-report:
     needs:
       - setup

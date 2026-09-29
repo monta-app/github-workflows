@@ -10,6 +10,10 @@ inputs:
     description: 'Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners'
     required: false
     default: 'true'
+  use-arc-runners:
+    description: 'Run on the self-hosted ARC arm64 runners. Takes precedence over use-blacksmith-runners'
+    required: false
+    default: 'false'
 
 outputs:
   runner-name:
@@ -25,6 +29,7 @@ runs:
       run: |
         SIZE="${{ inputs.runner-size }}"
         USE_BLACKSMITH="${{ inputs.use-blacksmith-runners }}"
+        USE_ARC="${{ inputs.use-arc-runners }}"
 
         # Validate size
         case "$SIZE" in
@@ -37,7 +42,14 @@ runs:
         esac
 
         # Resolve the runner name (arm64 only)
-        if [ "$USE_BLACKSMITH" = "true" ]; then
+        if [ "$USE_ARC" = "true" ]; then
+          # Self-hosted ARC runners on the internal EKS cluster
+          if [ "$SIZE" = "large" ]; then
+            RUNNER_NAME="arc-arm64-8cpu-24gb"
+          else
+            RUNNER_NAME="arc-arm64-4cpu-12gb"
+          fi
+        elif [ "$USE_BLACKSMITH" = "true" ]; then
           # Blacksmith managed arm64 cloud runners
           if [ "$SIZE" = "large" ]; then
             RUNNER_NAME="blacksmith-16vcpu-ubuntu-2404-arm"
