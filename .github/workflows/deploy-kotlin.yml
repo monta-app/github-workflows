@@ -183,6 +183,12 @@ on:
       LOKALISE_PROJECT_ID:
         required: false
         description: 'Lokalise project ID for Lokalise API'
+      GH_ACTION_ACCESS_KEY_ID:
+        required: false
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
+      GH_ACTION_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
       JIRA_EMAIL:
         required: false
         description: 'Email for JIRA API authentication (used for ticket operations in changelog)'
@@ -266,6 +272,8 @@ jobs:
       AWS_CDN_SECRET_ACCESS_KEY: ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
       LOKALISE_TOKEN: ${{ secrets.LOKALISE_TOKEN }}
       LOKALISE_PROJECT_ID: ${{ secrets.LOKALISE_PROJECT_ID }}
+      GH_ACTION_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+      GH_ACTION_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
   deploy:
     name: Deploy
     needs:

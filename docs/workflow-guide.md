@@ -162,7 +162,7 @@ jobs:
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds in the Actions cache. |
+| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
