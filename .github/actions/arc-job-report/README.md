@@ -15,8 +15,8 @@ Expanded, it has:
   Sharded jobs (`<name> - shard N`) are merged into one row with the time range
   and a link per shard number; the slowest shard is bold.
 - **Suggested runner changes:** only jobs where another catalog size would fit,
-  marked ⬇️ (smaller) or ⬆️ (bigger), with peak memory and CPU. Left out
-  entirely when every runner fits.
+  marked ⬇️ (smaller) or ⬆️ (bigger), with peak memory and CPU; the job name
+  links to its dashboard. Left out entirely when every runner fits.
 - **Run history:** one row per run (commit, ✅/❌, wall time, change vs the
   previous run, slowest job), so speed changes can be traced to commits. The
   history is stored as JSON in a hidden HTML comment and re-rendered on every

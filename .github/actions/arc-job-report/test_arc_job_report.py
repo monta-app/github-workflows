@@ -47,8 +47,8 @@ class RenderTest(unittest.TestCase):
 
         self.assertIn("| ❌ | 7m 46s (re-run) | – |", history_rows(body)[0])
         self.assertIn("| [Unit Tests](https://grafana/UnitTests(FastFeedback)) | 2m 30s |", body)
-        self.assertIn("| Compile | ⬇️ 8cpu-24gb → 4cpu-12gb | 2.0 | 3.0 GiB |", body)
-        self.assertNotIn("| Plan test shards | ⬇️", body)
+        self.assertIn("| [Compile](https://grafana/Compile) | ⬇️ 8cpu-24gb → 4cpu-12gb | 2.0 | 3.0 GiB |", body)
+        self.assertNotIn("[Plan test shards](https://grafana/Plantestshards) | ⬇️", body)
         self.assertIn("· 💡 1 runner change</summary>", body)
 
     def test_omits_the_suggestion_table_when_every_runner_fits(self):
