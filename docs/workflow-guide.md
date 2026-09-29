@@ -162,6 +162,7 @@ jobs:
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
@@ -303,6 +304,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `gradle-module` | No | - | Gradle module name |
@@ -417,6 +419,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | false | Run the test and image build jobs on the self-hosted ARC arm64 runners; takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -605,6 +608,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | false | Run the test and image build jobs on the self-hosted ARC arm64 runners; takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
