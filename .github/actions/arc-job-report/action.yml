@@ -1,0 +1,31 @@
+name: 'ARC Job Report'
+description: 'Keep one PR comment with the CPU/memory use of a workflow run''s ARC jobs, suggested runner sizes and run history'
+author: 'Monta'
+
+inputs:
+  github-token:
+    description: >-
+      Token for the GitHub API: reads the run's jobs and creates or updates the PR comment.
+      Needs `actions: read` and `pull-requests: write`; the calling job's `github.token` works.
+    required: true
+  grafana-token:
+    description: >-
+      Grafana service-account token with read access to the `grafanacloud-prom` datasource,
+      for example `secrets.GRAFANA_CLOUD_TOKEN`.
+    required: true
+  run-url:
+    description: >-
+      Workflow run to report on. Defaults to the run that triggered a `workflow_run` event.
+    required: false
+    default: ${{ github.event.workflow_run.html_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Post ARC job report
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GRAFANA_TOKEN: ${{ inputs.grafana-token }}
+        RUN_URL: ${{ inputs.run-url }}
+      run: python3 "${{ github.action_path }}/arc_job_report.py" "$RUN_URL"
