@@ -88,7 +88,7 @@ def change(r):
 def suggestion_row(r):
     runner, suggested = change(r)
     arrow = "⬇️" if rank(suggested) < rank(runner) else "⬆️"
-    return (f"| {name(r)} | {arrow} {runner} → {suggested} | {r['cpu_cores']['max']:.1f} | "
+    return (f"| [{name(r)}]({r['dashboard']}) | {arrow} {runner} → {suggested} | {r['cpu_cores']['max']:.1f} | "
             f"{r['memory_gib']['peak']:.1f} GiB |")
 
 
