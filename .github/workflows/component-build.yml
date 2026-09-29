@@ -212,6 +212,24 @@ jobs:
       # docker driver does not support cache-to).
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      # ARC builders start empty and the registry cache does not carry RUN --mount=type=cache
+      # contents (e.g. /root/.gradle), so persist them in the Actions cache between builds.
+      - name: Restore Dockerfile cache mounts
+        id: cache-mounts
+        if: ${{ inputs.use-arc-runners }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: buildkit-cache-mounts
+          key: buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            buildkit-cache-mounts-${{ inputs.docker-file-name }}-
+      - name: Inject Dockerfile cache mounts into the builder
+        if: ${{ inputs.use-arc-runners }}
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          dockerfile: ${{ inputs.docker-file-name }}
+          cache-dir: buildkit-cache-mounts
+          skip-extraction: ${{ steps.cache-mounts.outputs.cache-hit }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
