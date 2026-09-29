@@ -198,6 +198,9 @@ on:
       CHANGELOG_GITHUB_TOKEN:
         required: false
         description: 'GitHub token for changelog generation'
+      TAILSCALE_AUTHKEY:
+        required: false
+        description: 'Tailscale auth key. Lets the changelog job join the tailnet to reach the internal identity service (repo/org variable CHANGELOG_IDENTITY_RESOLVE_URL) used to tag release notification contributors; leave unset to skip'
       ARGOCD_TOKEN:
         required: false
         description: 'ArgoCD authentication token for API access'
@@ -321,7 +324,45 @@ jobs:
     if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
     runs-on: linux-arm64
     timeout-minutes: 5
+    env:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
     steps:
+      # The identity service that maps GitHub logins to Slack users is VPN-only, so the
+      # runner joins the tailnet first. Only needed when a release notification is enabled
+      # and an identity URL is configured. Best-effort: a failure here must never fail the
+      # changelog job, the CLI falls back to less reliable email lookups instead.
+      - name: Tailscale
+        id: tailscale
+        if: ${{ inputs.changelog-release-notify-channel != '' && vars.CHANGELOG_IDENTITY_RESOLVE_URL != '' && env.TAILSCALE_AUTHKEY != '' }}
+        continue-on-error: true
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          authkey: ${{ env.TAILSCALE_AUTHKEY }}
+          hostname: "github-changelog-${{ github.run_id }}"
+          # v4 passes --accept-routes itself; repeating it in args fails `tailscale up`
+          args: "--login-server https://headscale.monta.com"
+      # `tailscale up` returns before routes are usable, so the first request can hit a
+      # half-open path. Poll the identity service until it answers, otherwise the CLI's
+      # single best-effort lookup could silently fall back to GitHub profile emails.
+      # Output stays quiet on purpose: the URL is an internal hostname.
+      - name: Wait for the identity service to be reachable over the tailnet
+        if: ${{ steps.tailscale.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          IDENTITY_RESOLVE_URL: ${{ vars.CHANGELOG_IDENTITY_RESOLVE_URL }}
+        run: |
+          MAX_ATTEMPTS=8
+          for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
+            if curl --silent --fail --connect-timeout 3 --max-time 5 \
+                    --output /dev/null "${IDENTITY_RESOLVE_URL}?github=probe" 2>/dev/null; then
+              echo "✅ Identity service reachable (attempt ${attempt}/${MAX_ATTEMPTS})"
+              exit 0
+            fi
+            echo "… attempt ${attempt}/${MAX_ATTEMPTS} missed; retrying in 3s"
+            sleep 3
+          done
+          echo "⚠️ Identity service not reachable; contributors may fall back to GitHub profile emails"
       - name: Run changelog cli action
         uses: monta-app/changelog-cli-action@main
         with:
@@ -349,3 +390,4 @@ jobs:
           jira-project-blacklist: ${{ vars.CHANGELOG_JIRA_PROJECT_BLACKLIST }}
           monitoring-urls: ${{ inputs.changelog-monitoring-urls }}
           release-notify-channel: ${{ inputs.changelog-release-notify-channel }}
+          identity-resolve-url: ${{ vars.CHANGELOG_IDENTITY_RESOLVE_URL }}

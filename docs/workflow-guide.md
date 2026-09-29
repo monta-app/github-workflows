@@ -448,8 +448,11 @@ This conditional logic ensures the workflow continues properly even when optiona
 | `SLACK_APP_TOKEN` | Yes | Slack token for notifications |
 | `MANIFEST_REPO_PAT` | Yes | GitHub PAT for updating kube-manifests |
 | `SENTRY_AUTH_TOKEN` | No | Sentry authentication token |
+| `TAILSCALE_AUTHKEY` | No | Tailscale auth key. With `changelog-release-notify-channel` and the `CHANGELOG_IDENTITY_RESOLVE_URL` variable set, the changelog job joins the tailnet to resolve contributors' Slack accounts (see below) |
 | `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key for S3 access |
 | `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key for S3 access |
+
+**Tagging contributors in the release notification:** the notification tags PR authors, co-authors and approvers with real Slack mentions. Resolving a GitHub login to a Slack user goes through an internal, VPN-only identity service, so the URL is *not* in the workflow - set it as a repo/org **variable** `CHANGELOG_IDENTITY_RESOLVE_URL` (full endpoint URL) and pass the `TAILSCALE_AUTHKEY` secret (`secrets: inherit` covers it). When all three of `changelog-release-notify-channel`, the variable and the secret are set, the changelog job joins the tailnet and waits for the service to answer before running the CLI. Without them, or if joining fails, the job still succeeds and the CLI falls back to less reliable GitHub-profile-email lookups.
 
 ### Example Usage:
 
@@ -647,6 +650,7 @@ jobs:
 | `SLACK_APP_TOKEN` | Yes | Slack token for notifications |
 | `MANIFEST_REPO_PAT` | Yes | GitHub PAT for updating service repository |
 | `SENTRY_AUTH_TOKEN` | No | Sentry authentication token |
+| `TAILSCALE_AUTHKEY` | No | Tailscale auth key. With `changelog-release-notify-channel` and the `CHANGELOG_IDENTITY_RESOLVE_URL` variable set, the changelog job joins the tailnet to resolve contributors' Slack accounts (see below) |
 | `AWS_CDN_ACCESS_KEY_ID` | No | CDN access key for S3 access |
 | `AWS_CDN_SECRET_ACCESS_KEY` | No | CDN secret key for S3 access |
 | `LOKALISE_TOKEN` | No | Lokalise API token |
@@ -655,6 +659,8 @@ jobs:
 | `JIRA_TOKEN` | No | JIRA API token |
 | `CHANGELOG_GITHUB_TOKEN` | No | GitHub token for changelog generation |
 | `ARGOCD_TOKEN` | No | ArgoCD authentication token |
+
+**Tagging contributors in the release notification:** the notification tags PR authors, co-authors and approvers with real Slack mentions. Resolving a GitHub login to a Slack user goes through an internal, VPN-only identity service, so the URL is *not* in the workflow - set it as a repo/org **variable** `CHANGELOG_IDENTITY_RESOLVE_URL` (full endpoint URL) and pass the `TAILSCALE_AUTHKEY` secret (`secrets: inherit` covers it). When all three of `changelog-release-notify-channel`, the variable and the secret are set, the changelog job joins the tailnet and waits for the service to answer before running the CLI. Without them, or if joining fails, the job still succeeds and the CLI falls back to less reliable GitHub-profile-email lookups.
 
 ### Outputs:
 - `slack-message-id`: Slack message ID for notifications
