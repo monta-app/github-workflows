@@ -419,7 +419,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run the test and image build jobs on the self-hosted ARC arm64 runners; takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | false | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -608,7 +608,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run the test and image build jobs on the self-hosted ARC arm64 runners; takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | false | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |

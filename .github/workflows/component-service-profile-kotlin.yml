@@ -34,6 +34,11 @@ on:
           default parallelism (Runtime.availableProcessors()) can OOM the
           runner. Set to e.g. "2" to cap concurrent kapt JVMs. Empty
           string keeps the default behavior unchanged.
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: false
+        description: "Run on the self-hosted ARC arm64 runners."
     secrets:
       GHL_USERNAME:
         required: false
@@ -45,10 +50,14 @@ on:
         required: true
         description: 'GitHub personal access token'
 
+env:
+  # The ARC runner image defaults to a POSIX locale.
+  LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
+
 jobs:
   update-service-profile:
     name: Update service profile
-    runs-on: linux-arm64
+    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-4cpu-12gb' || 'linux-arm64' }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -63,6 +72,12 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
           echo "/home/runner/.linkerd2/bin" >> "$GITHUB_PATH"
+      - name: Install yq
+        if: inputs.use-arc-runners
+        shell: bash
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_arm64
+          sudo chmod +x /usr/local/bin/yq
       - name: Discover annotation processor
         shell: bash
         env:
