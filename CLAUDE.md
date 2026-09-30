@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-09-29
-- **Latest SHA**: a9d0c54 (check for newer commits)
-- **Changes**: Added `use-arc-runners` to `deploy-kotlin(-v2)`, `component-test-kotlin` and `component-build`; added the `arc-job-report` composite action
+- **Date**: 2026-09-30
+- **Latest SHA**: a455757 (check for newer commits)
+- **Changes**: Removed the `code-coverage-kotlin.yml` workflow (and with it `monta-app/push-kover-prometheus-action`)
+
+## Recent Changes (2026-09-30)
+1. **Removed `code-coverage-kotlin.yml`**: its only job beyond running tests was pushing Kover coverage + cloc line counts to Dev Lens via `monta-app/push-kover-prometheus-action`, which is retired. Coverage is covered by `sonar-cloud.yml`, which runs `test koverXmlReport` itself and which every former caller already ran alongside it (their Gradle builds point `sonar.coverage.jacoco.xmlReportPaths` at the Kover report). The 33 callers (a `code-coverage-report` job in each repo's `code-analysis.yml`) had that job removed in separate PRs, which must merge before this removal because they called it at `@main`.
 
 ## Recent Changes (2026-09-30)
 1. **`use-arc-runners` for the service profile job**: `component-service-profile-kotlin.yml` accepts `use-arc-runners`, forwarded from `deploy-kotlin(-v2)`. It runs on `arc-arm64-4cpu-12gb` directly (no setup job for the converter) with `LC_ALL=C.UTF-8`, and installs `yq` (pinned), which the ARC image lacks. Nearly all of the job's time is the CPU-bound `kspKotlin`/`kaptKotlin` task, so the runner's CPU count is what matters. Callers that don't opt in stay on `linux-arm64`.
