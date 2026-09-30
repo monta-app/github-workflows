@@ -6,22 +6,21 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 
 1. [Allow Deploys](#allow-deploys)
 2. [Block Deploys](#block-deploys)
-3. [Code Coverage (Kotlin)](#code-coverage-kotlin)
-4. [Component Build](#component-build)
-5. [Component Deploy](#component-deploy)
-6. [Component Initialize](#component-initialize)
-7. [Component Test (Kotlin)](#component-test-kotlin)
-8. [Deploy Kotlin](#deploy-kotlin)
-9. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
-10. [Publish Tech Docs](#publish-tech-docs)
-11. [Pull Request Kotlin](#pull-request-kotlin)
-12. [Pull Request React (Bun)](#pull-request-react-bun)
-13. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-14. [Rollback](#rollback)
-15. [SonarCloud Analysis](#sonarcloud-analysis)
-16. [Track Pending Release](#track-pending-release)
-17. [PR Digest](#pr-digest)
-18. [Terraform](#terraform)
+3. [Component Build](#component-build)
+4. [Component Deploy](#component-deploy)
+5. [Component Initialize](#component-initialize)
+6. [Component Test (Kotlin)](#component-test-kotlin)
+7. [Deploy Kotlin](#deploy-kotlin)
+8. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
+9. [Publish Tech Docs](#publish-tech-docs)
+10. [Pull Request Kotlin](#pull-request-kotlin)
+11. [Pull Request React (Bun)](#pull-request-react-bun)
+12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+13. [Rollback](#rollback)
+14. [SonarCloud Analysis](#sonarcloud-analysis)
+15. [Track Pending Release](#track-pending-release)
+16. [PR Digest](#pr-digest)
+17. [Terraform](#terraform)
 
 ---
 
@@ -87,57 +86,6 @@ jobs:
       workflow: "deploy-production.yml"
     secrets:
       ADMIN_PAT: ${{ secrets.PAT }}
-```
-
----
-
-## Code Coverage (Kotlin)
-
-**File:** `code-coverage-kotlin.yml`  
-**Purpose:** Runs tests with code coverage reporting for Kotlin projects and pushes metrics to Prometheus.
-
-### What it does:
-1. Validates service name format (must be kebab-case)
-2. Connects to Tailscale VPN
-3. Sets up Java environment
-4. Runs tests with Kover coverage reporting
-5. Counts lines of code with `cloc`
-6. Pushes coverage metrics to Prometheus
-
-### Inputs:
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `service-name` | Yes | - | Project name in kebab-case format (e.g., "my-service") |
-| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners` |
-| `java-version` | No | "21" | Java version to use |
-| `gradle-module` | No | - | Gradle module name for multi-module projects |
-| `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
-| `catalog-info-path` | No | "catalog-info.yaml" | Path to Backstage catalog file |
-| `cloc-source-path` | No | "." | Path to analyze for lines of code |
-| `cloc-exclude-dirs` | No | "build,target,dist,node_modules,.gradle,.idea,out" | Directories to exclude from LOC count |
-| `test-timeout-minutes` | No | 30 | Test timeout in minutes |
-
-### Secrets:
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `TAILSCALE_AUTHKEY` | Yes | Tailscale authentication key |
-| `GHL_USERNAME` | Yes | GitHub username for Gradle dependencies |
-| `GHL_PASSWORD` | Yes | GitHub token for Gradle dependencies |
-
-### Example Usage:
-```yaml
-jobs:
-  code-coverage:
-    uses: monta-app/github-workflows/.github/workflows/code-coverage-kotlin.yml@main
-    with:
-      service-name: "my-kotlin-service"
-      java-version: "21"
-    secrets:
-      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
 ```
 
 ---

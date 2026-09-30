@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-09-29
-- **Latest SHA**: a9d0c54 (check for newer commits)
-- **Changes**: Added `use-arc-runners` to `deploy-kotlin(-v2)`, `component-test-kotlin` and `component-build`; added the `arc-job-report` composite action
+- **Date**: 2026-09-30
+- **Latest SHA**: a455757 (check for newer commits)
+- **Changes**: Removed the `code-coverage-kotlin.yml` workflow (and with it `monta-app/push-kover-prometheus-action`)
+
+## Recent Changes (2026-09-30)
+1. **Removed `code-coverage-kotlin.yml`**: its only job beyond running tests was pushing Kover coverage + cloc line counts to Dev Lens via `monta-app/push-kover-prometheus-action`, which is retired. Coverage is covered by `sonar-cloud.yml`, which runs `test koverXmlReport` itself and which every former caller already ran alongside it (their Gradle builds point `sonar.coverage.jacoco.xmlReportPaths` at the Kover report). The 33 callers (a `code-coverage-report` job in each repo's `code-analysis.yml`) had that job removed in separate PRs, which must merge before this removal because they called it at `@main`.
 
 ## Recent Changes (2026-09-29)
 1. **Dockerfile cache mounts persisted on ARC image builds**: when `use-arc-runners` is set, `component-build.yml`'s buildx job restores and saves `RUN --mount=type=cache` contents (all Kotlin service Dockerfiles mount `/root/.gradle` around `./gradlew buildLayers`) via `reproducible-containers/buildkit-cache-dance`, which finds the mounts by parsing the Dockerfile. ARC builders start empty and the ECR registry cache (`cache-to ... mode=max`) does not carry cache mounts, so without this every deploy re-downloads all Gradle dependencies straight from Maven Central (the in-Docker Gradle has neither the runner's CodeArtifact init script nor AWS credentials). Storage follows the PR workflows: `runs-on/cache` on S3 when the caller passes the `GH_ACTION_*` secrets (new optional secrets on `component-build` and `deploy-kotlin(-v2)`), `actions/cache` otherwise. It must be the combined `runs-on/cache`, not `restore`/`save`: cache-dance extracts in its post step, and only a post-step save runs after that. The S3 step blanks `AWS_SESSION_TOKEN`, because the job's `ecr-put-image` credentials are exported into the environment before it. Key: Dockerfile path + hash of the Gradle build files, with a prefix restore-key.
