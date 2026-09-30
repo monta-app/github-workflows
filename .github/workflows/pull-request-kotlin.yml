@@ -16,7 +16,7 @@ on:
         required: false
         type: boolean
         default: true
-        description: "Run on the self-hosted ARC arm64 runners (default; takes precedence over use-blacksmith-runners). SonarQube is reached in-cluster without Tailscale, and caches go to S3 when the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets are passed (GitHub cache otherwise). Set to false to opt out."
+        description: "Run on the self-hosted ARC arm64 runners (default; takes precedence over use-blacksmith-runners). Never used in public repositories: the ARC runner group rejects them, so they keep the Blacksmith/GitHub-hosted runners. SonarQube is reached in-cluster without Tailscale, and caches go to S3 when the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets are passed (GitHub cache otherwise). Set to false to opt out."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -94,13 +94,13 @@ on:
         description: "SonarQube token"
 env:
   # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
-  LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
+  LC_ALL: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'C.UTF-8' || '' }}
   # On ARC the caches use S3 when the caller passes the bucket credentials, and the GitHub cache otherwise.
-  S3_CACHE: ${{ inputs.use-arc-runners && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
+  S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
 jobs:
   setup:
     name: Setup
-    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     timeout-minutes: 5
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
@@ -115,10 +115,10 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
-          use-arc-runners: ${{ inputs.use-arc-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   check-migration-order:
     name: Check Migration Order
-    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -259,7 +259,7 @@ jobs:
       # automatically for repos still on SonarCloud (no TAILSCALE_AUTHKEY passed).
       - name: Tailscale
         id: tailscale
-        if: ${{ !inputs.skip-sonar && !inputs.use-arc-runners && env.TAILSCALE_AUTHKEY != '' }}
+        if: ${{ !inputs.skip-sonar && !(inputs.use-arc-runners && github.event.repository.private) && env.TAILSCALE_AUTHKEY != '' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
@@ -277,7 +277,7 @@ jobs:
       # Same reason as the upload step below: an expression here does not survive the step failing. An unreachable
       # tailnet then fails the scan itself, which the blocking check below re-raises.
       - name: Wait for SonarQube to be reachable over the tailnet
-        if: ${{ !inputs.skip-sonar && !inputs.use-arc-runners && steps.tailscale.outcome != 'failure' }}
+        if: ${{ !inputs.skip-sonar && !(inputs.use-arc-runners && github.event.repository.private) && steps.tailscale.outcome != 'failure' }}
         continue-on-error: true
         shell: bash
         env:
@@ -331,7 +331,7 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
           # ARC runs in the same cluster as SonarQube, whose vpn.internal hostname is only reachable over Tailscale.
-          gradle-args: ${{ inputs.gradle-args }}${{ inputs.use-arc-runners && ' -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000' || '' }}
+          gradle-args: ${{ inputs.gradle-args }}${{ (inputs.use-arc-runners && github.event.repository.private) && ' -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000' || '' }}
       # Restores what continue-on-error was meant to express, in an `if` where `inputs` does evaluate.
       - name: Fail when a blocking Sonar scan failed
         if: ${{ steps.sonar.outcome == 'failure' && !inputs.sonar-non-blocking }}
