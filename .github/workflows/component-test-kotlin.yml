@@ -51,7 +51,6 @@ permissions:
   actions: read
 
 env:
-  # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
   LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
 
 jobs:

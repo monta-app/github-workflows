@@ -93,9 +93,7 @@ on:
         required: true
         description: "SonarQube token"
 env:
-  # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
   LC_ALL: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'C.UTF-8' || '' }}
-  # On ARC the caches use S3 when the caller passes the bucket credentials, and the GitHub cache otherwise.
   S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
 jobs:
   setup:
@@ -330,7 +328,6 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
-          # ARC runs in the same cluster as SonarQube, whose vpn.internal hostname is only reachable over Tailscale.
           gradle-args: ${{ inputs.gradle-args }}${{ (inputs.use-arc-runners && github.event.repository.private) && ' -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000' || '' }}
       # Restores what continue-on-error was meant to express, in an `if` where `inputs` does evaluate.
       - name: Fail when a blocking Sonar scan failed
