@@ -6,6 +6,7 @@
 - **Changes**: Removed the `code-coverage-kotlin.yml` workflow (and with it `monta-app/push-kover-prometheus-action`)
 
 ## Recent Changes (2026-10-01)
+1. **`migration-naming-pattern` on `pull-request-kotlin.yml`**: forwarded to `check-migration-order`'s `naming-pattern`. Its default duplicates the action's, because a composite action receives an empty `with:` value as `''` rather than falling back to its own default, and the script requires a non-empty pattern; keep the two defaults in sync.
 1. **ARC is the default for every shared workflow; public repos use GitHub's standard runner**: `deploy-generic(-v2)`, `deploy-python`, `pull-request-bun`, `pull-request-react` and `component-test-python` gain `use-arc-runners` (default `true`), and `component-build`'s default flips to `true` (its direct callers move too). Every read is `(inputs.use-arc-runners && github.event.repository.private)`, as in the Kotlin workflows. `runner-size-converter` returns `ubuntu-24.04-arm` whenever `github.event.repository.private` is `false`, so public repos never land on ARC or Blacksmith (library-ocpp and ocpp-emulator were on Blacksmith through the Kotlin workflows' fallback). `component-build`'s Blacksmith builder job is skipped in public repos, since `useblacksmith/*` needs a Blacksmith runner. Events without a repository in the payload (`schedule`) keep the previous behaviour. Repos pinned to an older github-workflows SHA are unaffected.
 
 ## Recent Changes (2026-09-30)

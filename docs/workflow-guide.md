@@ -816,6 +816,7 @@ jobs:
 | `test-timeout-minutes` | No | 30 | Test timeout |
 | `skip-sonar` | No | false | Skip SonarCloud analysis |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube upload does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
+| `migration-naming-pattern` | No | `^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$` | ERE every newly added Flyway migration filename must match (Check Migration Order job). Committed migrations are not checked against it. |
 
 ### Secrets:
 | Secret | Required | Description |

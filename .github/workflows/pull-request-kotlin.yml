@@ -73,6 +73,11 @@ on:
         type: boolean
         default: false
         description: 'Skip PR title check'
+      migration-naming-pattern:
+        required: false
+        type: string
+        default: '^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$'
+        description: 'Extended regular expression every newly added Flyway migration filename must match. Committed migrations are not checked against it.'
     secrets:
       GH_ACTION_ACCESS_KEY_ID:
         required: false
@@ -131,6 +136,8 @@ jobs:
       # with no migrations pass trivially.
       - name: Check migration order
         uses: monta-app/github-workflows/.github/actions/check-migration-order@main
+        with:
+          naming-pattern: ${{ inputs.migration-naming-pattern }}
   lint:
     name: Lint
     needs: setup
