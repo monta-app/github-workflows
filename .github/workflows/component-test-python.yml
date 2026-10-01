@@ -11,6 +11,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones; takes precedence over use-blacksmith-runners). Set to false to opt out."
       service-name:
         required: false
         type: string
@@ -50,7 +55,7 @@ permissions:
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
@@ -60,6 +65,7 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   test:
     name: Test
     needs: setup

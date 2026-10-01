@@ -15,8 +15,8 @@ on:
       use-arc-runners:
         required: false
         type: boolean
-        default: false
-        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners). Builds with docker buildx and the ECR registry layer cache, like the self-hosted path."
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones; takes precedence over use-blacksmith-runners). Builds with docker buildx and the ECR registry layer cache, like the self-hosted path."
       stage:
         required: true
         type: string
@@ -104,7 +104,7 @@ permissions:
 jobs:
   setup:
     name: Setup
-    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     timeout-minutes: 5
     outputs:
       runner: ${{ steps.runner.outputs.runner-name }}
@@ -120,13 +120,13 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
-          use-arc-runners: ${{ inputs.use-arc-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   # Blacksmith path: build on a Blacksmith arm64 cloud runner. Its sticky-disk builder
   # hydrates the layer cache from prior runs, so no registry cache directives are needed.
   build-blacksmith:
     name: Build (Blacksmith)
     needs: setup
-    if: ${{ inputs.use-blacksmith-runners && !inputs.use-arc-runners }}
+    if: ${{ inputs.use-blacksmith-runners && !(inputs.use-arc-runners && github.event.repository.private) && github.event.repository.private != false }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
     steps:
@@ -189,11 +189,11 @@ jobs:
   build-self-hosted:
     name: Build (self-hosted)
     needs: setup
-    if: ${{ !inputs.use-blacksmith-runners || inputs.use-arc-runners }}
+    if: ${{ !inputs.use-blacksmith-runners || (inputs.use-arc-runners && github.event.repository.private) || github.event.repository.private == false }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
     env:
-      S3_CACHE: ${{ inputs.use-arc-runners && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
+      S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -222,7 +222,7 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
       - name: Restore Dockerfile cache mounts
         id: cache-mounts
-        if: ${{ inputs.use-arc-runners && env.S3_CACHE != 'true' }}
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) && env.S3_CACHE != 'true' }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &cache-mounts
           path: buildkit-cache-mounts
@@ -242,7 +242,7 @@ jobs:
           AWS_REGION: eu-west-1
         with: *cache-mounts
       - name: Inject Dockerfile cache mounts into the builder
-        if: ${{ inputs.use-arc-runners }}
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
         uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
         with:
           dockerfile: ${{ inputs.docker-file-name }}

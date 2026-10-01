@@ -47,3 +47,5 @@ instead, or `use-arc-runners: true` to resolve the self-hosted ARC runners
 | `large` | `false` | `true` | `blacksmith-16vcpu-ubuntu-2404-arm` |
 | `normal` | `true` | any | `arc-arm64-4cpu-12gb` |
 | `large` | `true` | any | `arc-arm64-8cpu-24gb` |
+
+In a public repository (`github.event.repository.private == false`) the output is always `ubuntu-24.04-arm`, GitHub's standard arm64 runner, whatever the inputs. ARC is only used in private repositories; when the event has no repository (e.g. `schedule`), the table above applies without ARC.
