@@ -13,6 +13,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones; takes precedence over use-blacksmith-runners). Set to false to opt out."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -110,6 +115,7 @@ jobs:
     with:
       runner-size: ${{ inputs.runner-size }}
       use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+      use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       docker-compose-path: ${{ inputs.docker-compose-path }}
@@ -121,6 +127,7 @@ jobs:
     with:
       runner-size: ${{ inputs.runner-size }}
       use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+      use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
       stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}

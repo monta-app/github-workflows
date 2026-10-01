@@ -110,7 +110,7 @@ jobs:
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos, never used in public repos. Takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
@@ -304,6 +304,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `python-version` | No | "3.13" | Python version |
@@ -480,6 +481,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size ("normal" or "large") |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `stage` | **Yes** | - | Deployment stage (dev/staging/production) |
 | `service-name` | **Yes** | - | Service display name |
 | `service-emoji` | **Yes** | - | Service emoji |
@@ -865,6 +867,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `bun-version` | No | "latest" | Bun version |
 | `working-directory` | No | "." | Frontend code directory |
 | `build-timeout-minutes` | No | 15 | Build timeout |
@@ -911,6 +914,7 @@ The workflow automatically reports code coverage if your project generates LCOV 
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `node-version` | No | "lts/jod" | Node.js version |
 | `pnpm-version` | No | "10" | pnpm version |
 | `working-directory` | No | "." | Frontend code directory |
