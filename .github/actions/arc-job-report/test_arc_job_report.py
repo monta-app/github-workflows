@@ -40,6 +40,14 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| Tests · shards **[0](https://grafana/Tests-shard0)** [1](https://grafana/Tests-shard1) "
                       "[2](https://grafana/Tests-shard2) | 1m 30s – 2m 10s |", body)
 
+    def test_keeps_a_job_named_like_the_shards_out_of_the_shard_row(self):
+        body = render(run(1), [job("Unit Tests (Fast Feedback)", 4), job("Unit Tests - shard 0", 100),
+                               job("Unit Tests - shard 1", 110)], None)
+
+        self.assertIn("| [Unit Tests](https://grafana/UnitTests(FastFeedback)) | 4s |", body)
+        self.assertIn("| Unit Tests · shards [0](https://grafana/UnitTests-shard0) "
+                      "**[1](https://grafana/UnitTests-shard1)** | 1m 40s – 1m 50s |", body)
+
     def test_marks_re_runs_and_lists_only_jobs_over_two_minutes_with_a_change(self):
         fits = job("Unit Tests (Fast Feedback)", 150, suggested="arc-arm64-8cpu-24gb")
         body = render(run(12, attempt=2, conclusion="failure"),
