@@ -1,0 +1,227 @@
+name: Terraform Discover
+
+# Emits the JSON matrix of Terraform stacks affected by this event.
+# A stack is any directory containing backend.tf. See docs/workflow-guide.md.
+
+on:
+  workflow_call:
+    inputs:
+      accounts:
+        description: >
+          JSON array mapping a path prefix to the credentials and GitHub environment for
+          stacks under it. First match wins, so list more specific prefixes first. Example:
+          [{"match":"accounts/staging/","role":"arn:aws:iam::974945904635:role/gha-terraform","environment":"staging"}]
+        type: string
+        required: true
+      only:
+        description: Select just this stack directory, e.g. for a manual recover.
+        type: string
+        default: ""
+      all:
+        description: Select every stack regardless of the diff. Use for scheduled drift runs.
+        type: boolean
+        default: false
+      runner:
+        type: string
+        default: linux-arm64
+    outputs:
+      stacks:
+        description: >
+          JSON array of {dir, role, environment, region}. Any other key on the matched accounts[]
+          entry is passed through, so a caller can carry its own fields (a secret name, a runner
+          label) per stack. Empty array when nothing is affected.
+        value: ${{ jobs.discover.outputs.stacks }}
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover stacks
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      stacks: ${{ steps.find.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Write the stack resolver
+        run: |
+          set -eu
+          cat > "$RUNNER_TEMP/resolve_stacks.py" <<'PY'
+          """Map changed files to the stacks that must run.
+
+          A stack is a directory holding backend.tf. A changed file inside one belongs
+          to that stack. A changed file inside a local module belongs to every stack
+          that calls that module, directly or through other modules - so a shared
+          module change plans its callers and nothing else. A file that is neither,
+          such as a repository root file or CI config, could affect anything and
+          selects every stack.
+
+          Reads changed paths on stdin. Prints the selected stacks, or __ALL__.
+          """
+
+          import collections
+          import os
+          import re
+          import sys
+
+          SOURCE = re.compile(r'source\s*=\s*"([^"]+)"')
+
+
+          def load(root="."):
+              tf = []
+              for base, dirs, files in os.walk(root):
+                  dirs[:] = [d for d in dirs if d not in (".git", ".terraform")]
+                  tf += [
+                      os.path.relpath(os.path.join(base, f), root)
+                      for f in files
+                      if f.endswith(".tf")
+                  ]
+              stacks = {os.path.dirname(p) for p in tf if os.path.basename(p) == "backend.tf"}
+              # Every directory holding Terraform code, so a module nobody calls is still
+              # recognised as a module and selects nothing, rather than selecting everything.
+              tf_dirs = {os.path.dirname(p) for p in tf}
+              # referenced[module dir] = the directories whose configuration calls it
+              referenced = collections.defaultdict(set)
+              for path in tf:
+                  here = os.path.dirname(path)
+                  try:
+                      body = open(os.path.join(root, path), encoding="utf-8").read()
+                  except OSError:
+                      continue
+                  for src in SOURCE.findall(body):
+                      if not src.startswith((".", "/")):
+                          continue  # a registry or git source, not a path in this repo
+                      target = os.path.normpath(os.path.join(here, src))
+                      if target.startswith(".."):
+                          continue  # outside the repository
+                      referenced[target].add(here)
+              return stacks, referenced, tf_dirs
+
+
+          def owner(path, stacks):
+              """The stack a directory belongs to, or None."""
+              while path and path != ".":
+                  if path in stacks:
+                      return path
+                  path = os.path.dirname(path)
+              return None
+
+
+          def dependents(module, referenced, stacks):
+              """Every stack that reaches this module, directly or transitively."""
+              out, seen, queue = set(), set(), [module]
+              while queue:
+                  for caller in referenced.get(queue.pop(), ()):
+                      if caller in seen:
+                          continue
+                      seen.add(caller)
+                      queue.append(caller)
+                      stack = owner(caller, stacks)
+                      if stack:
+                          out.add(stack)
+              return out
+
+
+          def resolve(changed, stacks, referenced, tf_dirs):
+              """(selected stacks, fan_out) for a list of changed paths."""
+              selected, fan_out = set(), False
+              for path in changed:
+                  here = os.path.dirname(path)
+                  stack = owner(here, stacks)
+                  if stack:
+                      selected.add(stack)
+                      continue
+                  # Not in a stack: the nearest ancestor directory holding Terraform code
+                  # is the module that changed. A repository root file has none.
+                  module = here
+                  while module and module not in referenced and module not in tf_dirs:
+                      module = os.path.dirname(module)
+                  if not module:
+                      print(f"Owned by no stack or module: {path}", file=sys.stderr)
+                      fan_out = True
+                      continue
+                  found = dependents(module, referenced, stacks)
+                  print(f"{path}: module {module} -> {len(found)} stack(s)", file=sys.stderr)
+                  selected |= found
+              return selected, fan_out
+
+
+          def main():
+              stacks, referenced, tf_dirs = load()
+              changed = [line.strip() for line in sys.stdin if line.strip()]
+              selected, fan_out = resolve(changed, stacks, referenced, tf_dirs)
+              print("__ALL__" if fan_out else "\n".join(sorted(selected)))
+
+
+          if __name__ == "__main__":
+              main()
+          PY
+
+      - name: Resolve affected stacks
+        id: find
+        env:
+          ACCOUNTS: ${{ inputs.accounts }}
+          FORCE_ALL: ${{ inputs.all }}
+          ONLY: ${{ inputs.only }}
+          EVENT: ${{ github.event_name }}
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_MERGE_GROUP: ${{ github.event.merge_group.base_sha }}
+          BASE_PUSH: ${{ github.event.before }}
+        run: |
+          set -eu
+
+          all_stacks=$(find . -name backend.tf | sed 's|/backend\.tf$||; s|^\./||' | sort -u)
+          if [ -z "$all_stacks" ]; then
+            echo "::error title=No stacks found::No directory in this repository contains a backend.tf."
+            exit 1
+          fi
+
+          case "$EVENT" in
+            pull_request|pull_request_target) base="$BASE_PR" ;;
+            merge_group)                      base="$BASE_MERGE_GROUP" ;;
+            push)                             base="$BASE_PUSH" ;;
+            *)                                base="" ;;
+          esac
+
+          case "$base" in ''|*[!0]*) ;; *) base="" ;; esac
+
+          if [ -n "$ONLY" ]; then
+            selected=$ONLY
+          elif [ "$FORCE_ALL" = "true" ] || [ -z "$base" ]; then
+            selected=$all_stacks
+            echo "Selecting every stack (event=$EVENT force-all=$FORCE_ALL base='$base')."
+          else
+            git diff --name-only "$base" HEAD -- | grep -Ev '\.md$' > "$RUNNER_TEMP/changed.txt" || true
+            selected=$(python3 "$RUNNER_TEMP/resolve_stacks.py" < "$RUNNER_TEMP/changed.txt")
+            if [ "$selected" = "__ALL__" ]; then
+              selected=$all_stacks
+              echo "A path owned by no stack or module changed - selecting every stack."
+            fi
+          fi
+
+          if [ -z "$selected" ]; then
+            echo "stacks=[]" >> "$GITHUB_OUTPUT"
+            echo "No stacks affected."
+            exit 0
+          fi
+
+          stacks=$(printf '%s\n' "$selected" | jq -R . | jq -sc --argjson acc "$ACCOUNTS" '
+            [ .[]
+              | . as $dir
+              | ($acc | map(. as $e | select($dir | startswith($e.match))) | first) as $a
+              | ({ role: "", environment: "", region: "eu-west-1" }
+                 + (($a // {}) | del(.match))
+                 + { dir: $dir, matched: ($a != null) }) ]')
+
+          unmatched=$(printf '%s' "$stacks" | jq -r '[.[] | select(.matched == false) | .dir] | join(", ")')
+          if [ -n "$unmatched" ]; then
+            echo "::error title=Stack has no account mapping::No accounts[] entry matches: $unmatched"
+            exit 1
+          fi
+
+          stacks=$(printf '%s' "$stacks" | jq -c 'map(del(.matched))')
+          echo "stacks=$stacks" >> "$GITHUB_OUTPUT"
+          printf '%s' "$stacks" | jq -r '"Selected: " + (map(.dir) | join(", "))'

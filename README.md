@@ -268,7 +268,7 @@ jobs:
 | `extra-configs` | No | `""` | Additional Semgrep config flags |
 | `timeout-minutes` | No | `15` | Timeout for the scan job |
 
-> **Note:** High-severity findings always block merge. Similar to SonarCloud, teams decide how to act on findings.
+> **Note:** High-severity findings introduced by the PR block merge. Findings already on the base branch are not reported (Semgrep `--baseline-commit` against the merge base). Similar to SonarCloud, teams decide how to act on findings.
 
 **Language-specific rulesets:**
 - **Kotlin**: `p/kotlin`, `p/java`, `r/kotlin.lang.security`, `r/java.lang.security`

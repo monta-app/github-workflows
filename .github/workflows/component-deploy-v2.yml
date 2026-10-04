@@ -96,7 +96,7 @@ jobs:
       deployment-url: ${{ steps.deployment-url.outputs.url }}
     steps:
       - name: Check out service repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
@@ -174,14 +174,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MANIFEST_REPO_PAT }}
         run: |
-          # Check if config.yaml exists locally and has autoSync configured
+          # Opt-out model: auto-sync is on unless disableAutoSync is true
           if [ -f "../cluster/config.yaml" ]; then
-            if yq e '.autoSync' ../cluster/config.yaml | grep -q -v "null"; then
+            if [ "$(yq e '.disableAutoSync // false' ../cluster/config.yaml)" = "true" ]; then
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "⏭️ ArgoCD auto-sync is disabled (disableAutoSync: true) for this application"
+            else
               echo "enabled=true" >> "$GITHUB_OUTPUT"
               echo "✓ ArgoCD auto-sync is enabled for this application (local config)"
-            else
-              echo "enabled=false" >> "$GITHUB_OUTPUT"
-              echo "⏭️ ArgoCD auto-sync is not configured for this application"
             fi
           else
             echo "⏭️ No local config.yaml found, checking kube-manifests repo..."
@@ -192,13 +192,13 @@ jobs:
 
             # Try fetching from kube-manifests repo
             if CONFIG_CONTENT=$(gh api repos/monta-app/kube-manifests/contents/$CONFIG_PATH --jq '.content' 2>/dev/null); then
-              # Decode base64 content and check for autoSync
-              if echo "$CONFIG_CONTENT" | base64 -d | yq e '.autoSync' - | grep -q -v "null"; then
+              # Opt-out model: auto-sync is on unless disableAutoSync is true
+              if [ "$(echo "$CONFIG_CONTENT" | base64 -d | yq e '.disableAutoSync // false' -)" = "true" ]; then
+                echo "enabled=false" >> "$GITHUB_OUTPUT"
+                echo "⏭️ ArgoCD auto-sync is disabled (disableAutoSync: true) for this application"
+              else
                 echo "enabled=true" >> "$GITHUB_OUTPUT"
                 echo "✓ ArgoCD auto-sync is enabled for this application (kube-manifests config)"
-              else
-                echo "enabled=false" >> "$GITHUB_OUTPUT"
-                echo "⏭️ ArgoCD auto-sync is not configured for this application"
               fi
             else
               echo "enabled=false" >> "$GITHUB_OUTPUT"

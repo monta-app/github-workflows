@@ -6,21 +6,21 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 
 1. [Allow Deploys](#allow-deploys)
 2. [Block Deploys](#block-deploys)
-3. [Code Coverage (Kotlin)](#code-coverage-kotlin)
-4. [Component Build](#component-build)
-5. [Component Deploy](#component-deploy)
-6. [Component Initialize](#component-initialize)
-7. [Component Test (Kotlin)](#component-test-kotlin)
-8. [Deploy Kotlin](#deploy-kotlin)
-9. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
-10. [Publish Tech Docs](#publish-tech-docs)
-11. [Pull Request Kotlin](#pull-request-kotlin)
-12. [Pull Request React (Bun)](#pull-request-react-bun)
-13. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-14. [Rollback](#rollback)
-15. [SonarCloud Analysis](#sonarcloud-analysis)
-16. [Track Pending Release](#track-pending-release)
-17. [PR Digest](#pr-digest)
+3. [Component Build](#component-build)
+4. [Component Deploy](#component-deploy)
+5. [Component Initialize](#component-initialize)
+6. [Component Test (Kotlin)](#component-test-kotlin)
+7. [Deploy Kotlin](#deploy-kotlin)
+8. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
+9. [Publish Tech Docs](#publish-tech-docs)
+10. [Pull Request Kotlin](#pull-request-kotlin)
+11. [Pull Request React (Bun)](#pull-request-react-bun)
+12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+13. [Rollback](#rollback)
+14. [SonarCloud Analysis](#sonarcloud-analysis)
+15. [Track Pending Release](#track-pending-release)
+16. [PR Digest](#pr-digest)
+17. [Terraform](#terraform)
 
 ---
 
@@ -90,56 +90,6 @@ jobs:
 
 ---
 
-## Code Coverage (Kotlin)
-
-**File:** `code-coverage-kotlin.yml`  
-**Purpose:** Runs tests with code coverage reporting for Kotlin projects and pushes metrics to Prometheus.
-
-### What it does:
-1. Validates service name format (must be kebab-case)
-2. Connects to Tailscale VPN
-3. Sets up Java environment
-4. Runs tests with Kover coverage reporting
-5. Counts lines of code with `cloc`
-6. Pushes coverage metrics to Prometheus
-
-### Inputs:
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `service-name` | Yes | - | Project name in kebab-case format (e.g., "my-service") |
-| `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `java-version` | No | "21" | Java version to use |
-| `gradle-module` | No | - | Gradle module name for multi-module projects |
-| `kover-report-path` | No | "build/reports/kover/report.xml" | Path to Kover XML report |
-| `catalog-info-path` | No | "catalog-info.yaml" | Path to Backstage catalog file |
-| `cloc-source-path` | No | "." | Path to analyze for lines of code |
-| `cloc-exclude-dirs` | No | "build,target,dist,node_modules,.gradle,.idea,out" | Directories to exclude from LOC count |
-| `test-timeout-minutes` | No | 30 | Test timeout in minutes |
-
-### Secrets:
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `TAILSCALE_AUTHKEY` | Yes | Tailscale authentication key |
-| `GHL_USERNAME` | Yes | GitHub username for Gradle dependencies |
-| `GHL_PASSWORD` | Yes | GitHub token for Gradle dependencies |
-
-### Example Usage:
-```yaml
-jobs:
-  code-coverage:
-    uses: monta-app/github-workflows/.github/workflows/code-coverage-kotlin.yml@main
-    with:
-      service-name: "my-kotlin-service"
-      java-version: "21"
-    secrets:
-      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-```
-
----
-
 ## Component Build
 
 **File:** `component-build.yml`  
@@ -160,6 +110,7 @@ jobs:
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos, never used in public repos. Takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
@@ -301,6 +252,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `gradle-module` | No | - | Gradle module name |
@@ -352,6 +304,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `python-version` | No | "3.13" | Python version |
@@ -415,6 +368,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -527,6 +481,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size ("normal" or "large") |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `stage` | **Yes** | - | Deployment stage (dev/staging/production) |
 | `service-name` | **Yes** | - | Service display name |
 | `service-emoji` | **Yes** | - | Service emoji |
@@ -603,6 +558,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -853,17 +809,21 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
 | `test-timeout-minutes` | No | 30 | Test timeout |
 | `skip-sonar` | No | false | Skip SonarCloud analysis |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube upload does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
+| `migration-naming-pattern` | No | `^[BV][0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[0-9]{2})?__.+\.sql$` | ERE every newly added Flyway migration filename must match (Check Migration Order job). Committed migrations are not checked against it. |
 
 ### Secrets:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
+| `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
 | `SONAR_TOKEN` | Yes | SonarQube token |
@@ -908,6 +868,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `bun-version` | No | "latest" | Bun version |
 | `working-directory` | No | "." | Frontend code directory |
 | `build-timeout-minutes` | No | 15 | Build timeout |
@@ -954,6 +915,7 @@ The workflow automatically reports code coverage if your project generates LCOV 
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
 | `node-version` | No | "lts/jod" | Node.js version |
 | `pnpm-version` | No | "10" | pnpm version |
 | `working-directory` | No | "." | Frontend code directory |
@@ -1044,6 +1006,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
 | `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
@@ -1052,6 +1015,8 @@ jobs:
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `TAILSCALE_AUTHKEY` | No | Tailscale auth key. When set, the runner joins the tailnet to reach the self-hosted SonarQube; leave unset to scan SonarCloud. |
+| `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
 | `GHL_USERNAME` | Yes | GitHub username |
 | `GHL_PASSWORD` | Yes | GitHub token |
 | `SONAR_TOKEN` | Yes | SonarQube token |
@@ -1341,3 +1306,116 @@ gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
 ```
 
 The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
+
+---
+
+## Terraform
+
+Two reusable workflows replace the per-repo Terraform pipelines:
+
+- **`terraform-discover.yml`** — emits the JSON matrix of stacks affected by the event.
+- **`terraform-stack.yml`** — plans or applies exactly one stack.
+
+### The stack convention
+
+A **stack** is any directory containing `backend.tf`. That directory is simultaneously the unit of state, the CI job, the state lock and the blast radius. Discovery walks the diff and maps each changed file to the nearest ancestor directory holding a `backend.tf`, so adding a stack requires no workflow edits.
+
+A change inside a local module selects every stack that calls that module, directly or through other modules — discovery reads the `source = "../../modules/x"` paths out of the configuration, so nothing has to be declared or maintained. A module no stack calls selects nothing. Only a path that is neither a stack nor Terraform code — a repository root file, `.github/**` — fans out to **every** stack, because it could affect any of them. Changes to `*.md` are ignored.
+
+Each stack needs `.terraform-version` (its own, or one at the repository root) and a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
+
+```bash
+terraform providers lock -platform=linux_arm64 -platform=darwin_arm64
+```
+
+### Apply runs the reviewed plan
+
+Plan uploads `tfplan` as an artifact named `tfplan-<stack.path>-<sha>`, where `<sha>` is the **pull request head** commit — not `github.sha`, which on a `pull_request` event is the ephemeral merge commit and never matches anything that lands on `main`. Apply resolves the head SHA back from the commit it is running on, downloads that artifact and runs `terraform apply tfplan` — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no artifact matches, which is the intended behaviour for a direct push to `main`.
+
+Combine with a **merge queue** and `merge_group` in the caller: the queue tests each PR against the queue head, so the plan attached to the landing commit already accounts for everything merging ahead of it.
+
+### When an apply fails
+
+The stack is left partially applied. The workflow re-plans in place, then opens one issue per stack labelled `terraform-failed`, assigns it to whoever merged, and comments the link on the originating PR. Subsequent plans of that stack carry a warning banner until it is resolved. The next successful apply of the stack closes the issue automatically.
+
+Recovery is always a forward apply — never a hand-rolled rollback. Create the `terraform-failed` label in the repository before first use.
+
+Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again. Recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no plan artifact (plan still running, failed, or expired) is recovered the same way.
+
+### Caller
+
+Pin to a release tag (e.g. `@v1`), never `@main` — this workflow is under active migration across three repos, and an in-place change on `main` would land on every caller at once.
+
+```yaml
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Stack to recover (plan + apply). Empty plans every stack.
+        type: string
+        default: ""
+
+jobs:
+  discover:
+    permissions:
+      contents: read
+    uses: monta-app/github-workflows/.github/workflows/terraform-discover.yml@v1
+    with:
+      all: ${{ github.event_name == 'schedule' }}
+      only: ${{ inputs.stack }}
+      accounts: |
+        [
+          {"match":"accounts/production/","role":"arn:aws:iam::077199819609:role/gha-terraform","environment":"production"},
+          {"match":"accounts/staging/","role":"arn:aws:iam::974945904635:role/gha-terraform","environment":"staging"}
+        ]
+
+  terraform:
+    needs: discover
+    if: needs.discover.outputs.stacks != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.discover.outputs.stacks) }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: write
+      id-token: write
+    uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@v1
+    with:
+      stack: ${{ matrix.stack.dir }}
+      command: ${{ github.event_name == 'push' && 'apply' || inputs.stack != '' && 'recover' || 'plan' }}
+      environment: ${{ (github.event_name == 'push' || inputs.stack != '') && matrix.stack.environment || '' }}
+      aws-role: ${{ matrix.stack.role }}
+      aws-region: ${{ matrix.stack.region }}
+
+  terraform-ok:
+    needs: [discover, terraform]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          [[ "${{ needs.discover.result }}" == "success" ]] || exit 1
+          [[ "${{ needs.terraform.result }}" != "failure" ]] || exit 1
+          [[ "${{ needs.terraform.result }}" != "cancelled" ]]
+```
+
+### Notes
+
+- **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever. It must gate on `discover` as well: discovery hard-fails on an unmapped stack, which leaves `terraform` *skipped* rather than failed.
+- **`fail-fast: false` is required**, otherwise one stack failing cancels sibling applies mid-apply.
+- Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies and recovers share one group and are never cancelled.
+- `accounts[]` is matched by path prefix, first match wins — list more specific prefixes first. A stack matching no entry fails discovery rather than running without credentials.
+- Any key on the matched `accounts[]` entry other than `match` is passed through to the matrix entry. A repo with one static key pair per account can carry the secret name that way and select it in the caller: `${{ secrets[format('TERRAFORM_CORE_{0}_AWS_ACCESS_KEY_ID', matrix.stack.secret_key)] }}`.
+- Leave `aws-role` empty to fall back to the `aws-access-key-id` / `aws-secret-access-key` secrets during an OIDC migration.
+- `tf-vars-json` writes a `ci.auto.tfvars.json` into the stack. It is a migration bridge: prefer reading secrets inside Terraform via `data "aws_secretsmanager_secret_version"` so CI holds nothing but the AWS role.

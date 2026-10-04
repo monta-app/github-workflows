@@ -11,6 +11,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones; takes precedence over use-blacksmith-runners). Set to false to opt out."
       service-name:
         required: false
         type: string
@@ -50,7 +55,7 @@ permissions:
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
@@ -60,6 +65,7 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   test:
     name: Test
     needs: setup
@@ -67,7 +73,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Docker Compose
         if: ${{ inputs.docker-compose-path }}
         uses: monta-app/github-workflows/.github/actions/docker-compose-setup@main
@@ -82,7 +88,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
           cache-dependency-glob: |

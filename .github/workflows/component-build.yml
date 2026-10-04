@@ -12,6 +12,11 @@ on:
         type: boolean
         default: true
         description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+      use-arc-runners:
+        required: false
+        type: boolean
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones; takes precedence over use-blacksmith-runners). Builds with docker buildx and the ECR registry layer cache, like the self-hosted path."
       stage:
         required: true
         type: string
@@ -81,6 +86,12 @@ on:
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:
         required: false
         description: 'Encryption key for Next.js Server Actions, this value is injected into the secrets of a docker image'
+      GH_ACTION_ACCESS_KEY_ID:
+        required: false
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
+      GH_ACTION_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC builds use the GitHub cache."
     outputs:
       image-tag:
         description: 'The image tag that was built'
@@ -93,14 +104,14 @@ permissions:
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
     timeout-minutes: 5
     outputs:
       runner: ${{ steps.runner.outputs.runner-name }}
       image-tag: ${{ inputs.git-sha || github.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Get runner name
@@ -109,17 +120,18 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   # Blacksmith path: build on a Blacksmith arm64 cloud runner. Its sticky-disk builder
   # hydrates the layer cache from prior runs, so no registry cache directives are needed.
   build-blacksmith:
     name: Build (Blacksmith)
     needs: setup
-    if: ${{ inputs.use-blacksmith-runners }}
+    if: ${{ inputs.use-blacksmith-runners && !(inputs.use-arc-runners && github.event.repository.private) && github.event.repository.private != false }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
@@ -172,17 +184,19 @@ jobs:
             LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
             NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
 
-  # Self-hosted path: build on a self-hosted linux-arm64 runner with docker buildx and
-  # a registry-backed BuildKit cache in the ECR repo.
+  # Self-hosted path: build on a self-hosted linux-arm64 or ARC runner with docker buildx
+  # and a registry-backed BuildKit cache in the ECR repo.
   build-self-hosted:
     name: Build (self-hosted)
     needs: setup
-    if: ${{ !inputs.use-blacksmith-runners }}
+    if: ${{ !inputs.use-blacksmith-runners || (inputs.use-arc-runners && github.event.repository.private) || github.event.repository.private == false }}
     runs-on: ${{ needs.setup.outputs.runner }}
     timeout-minutes: 30
+    env:
+      S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Configure AWS credentials via assumed role
@@ -206,6 +220,34 @@ jobs:
       # docker driver does not support cache-to).
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      - name: Restore Dockerfile cache mounts
+        id: cache-mounts
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) && env.S3_CACHE != 'true' }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with: &cache-mounts
+          path: buildkit-cache-mounts
+          key: buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', '**/package-lock.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/bun.lock', '**/bun.lockb', '**/requirements*.txt', '**/poetry.lock', '**/uv.lock', '**/go.sum', '**/Cargo.lock') }}
+          restore-keys: |
+            buildkit-cache-mounts-${{ inputs.docker-file-name }}-
+      - name: Restore Dockerfile cache mounts (S3)
+        id: cache-mounts-s3
+        if: ${{ env.S3_CACHE == 'true' }}
+        uses: runs-on/cache@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
+        env:
+          RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
+          RUNS_ON_RUNNER_NAME: ""
+          AWS_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: eu-west-1
+        with: *cache-mounts
+      - name: Inject Dockerfile cache mounts into the builder
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+        with:
+          dockerfile: ${{ inputs.docker-file-name }}
+          cache-dir: buildkit-cache-mounts
+          skip-extraction: ${{ steps.cache-mounts.outputs.cache-hit || steps.cache-mounts-s3.outputs.cache-hit }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
