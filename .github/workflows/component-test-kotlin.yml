@@ -38,6 +38,11 @@ on:
         type: string
         default: "--parallel --build-cache"
         description: 'Additional Gradle arguments'
+      cache-gradle-build-outputs:
+        required: false
+        type: boolean
+        default: false
+        description: "Cache Gradle task outputs per commit so a production deploy can reuse the test run of the same SHA from staging. Uses a ~1 GB cache archive per deploy."
     secrets:
       GHL_USERNAME:
         required: true
@@ -80,10 +85,12 @@ jobs:
         with:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
+          cache: ${{ !inputs.cache-gradle-build-outputs && 'gradle' || '' }}
       # Keyed on the commit so a production deploy restores the cache saved by the staging deploy of the same SHA.
       # Falls back to the previous deploy so dependencies are still warm.
       - name: Restore Gradle cache
         id: gradle-cache
+        if: ${{ inputs.cache-gradle-build-outputs }}
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
@@ -115,7 +122,7 @@ jobs:
           retention-days: 2
           overwrite: true
       - name: Save Gradle cache
-        if: ${{ always() && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        if: ${{ always() && inputs.cache-gradle-build-outputs && steps.gradle-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |

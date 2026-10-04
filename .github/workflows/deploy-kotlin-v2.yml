@@ -56,6 +56,11 @@ on:
         type: string
         default: "--parallel --build-cache"
         description: 'Additional Gradle arguments'
+      cache-gradle-build-outputs:
+        required: false
+        type: boolean
+        default: false
+        description: "Cache Gradle task outputs per commit so the production deploy of a SHA can reuse the staging test run (~1 GB cache archive per deploy)."
       region:
         required: false
         type: string
@@ -256,6 +261,7 @@ jobs:
       gradle-module: ${{ inputs.gradle-module }}
       java-version: ${{ inputs.java-version }}
       gradle-args: ${{ inputs.gradle-args }}
+      cache-gradle-build-outputs: ${{ inputs.cache-gradle-build-outputs }}
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
