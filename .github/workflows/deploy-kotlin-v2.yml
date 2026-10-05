@@ -265,6 +265,8 @@ jobs:
     secrets:
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+      GH_ACTION_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+      GH_ACTION_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
   build:
     name: Build
     uses: ./.github/workflows/component-build.yml
