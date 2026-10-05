@@ -8,16 +8,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
-      use-blacksmith-runners:
-        required: false
-        type: boolean
-        default: true
-        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
       use-arc-runners:
         required: false
         type: boolean
         default: true
-        description: "Run on the self-hosted ARC arm64 runners (default; takes precedence over use-blacksmith-runners). Never used in public repositories: the ARC runner group rejects them, so they keep the Blacksmith/GitHub-hosted runners. Applies to the test, image build and service profile jobs."
+        description: "Run on the self-hosted ARC arm64 runners (default). Never used in public repositories: the ARC runner group rejects them, so they keep the GitHub-hosted runners. Applies to the test, image build and service profile jobs."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -237,7 +232,6 @@ jobs:
     uses: ./.github/workflows/component-test-kotlin.yml
     with:
       runner-size: ${{ inputs.runner-size }}
-      use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
       use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
@@ -252,7 +246,6 @@ jobs:
     uses: ./.github/workflows/component-build.yml
     with:
       runner-size: ${{ inputs.runner-size }}
-      use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
       use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
       stage: ${{ inputs.stage }}
       service-name: ${{ inputs.service-name }}

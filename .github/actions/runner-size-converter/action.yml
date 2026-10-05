@@ -6,12 +6,8 @@ inputs:
   runner-size:
     description: 'Runner size (normal or large)'
     required: true
-  use-blacksmith-runners:
-    description: 'Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners'
-    required: false
-    default: 'true'
   use-arc-runners:
-    description: 'Run on the self-hosted ARC arm64 runners. Takes precedence over use-blacksmith-runners'
+    description: 'Run on the self-hosted ARC arm64 runners (private repositories only). Otherwise the GitHub-hosted linux-arm64 runners are used'
     required: false
     default: 'false'
 
@@ -28,7 +24,6 @@ runs:
       shell: bash
       run: |
         SIZE="${{ inputs.runner-size }}"
-        USE_BLACKSMITH="${{ inputs.use-blacksmith-runners }}"
         USE_ARC="${{ inputs.use-arc-runners }}"
         PRIVATE="${{ github.event.repository.private }}"
 
@@ -52,15 +47,8 @@ runs:
           else
             RUNNER_NAME="arc-arm64-4cpu-12gb"
           fi
-        elif [ "$USE_BLACKSMITH" = "true" ]; then
-          # Blacksmith managed arm64 cloud runners
-          if [ "$SIZE" = "large" ]; then
-            RUNNER_NAME="blacksmith-16vcpu-ubuntu-2404-arm"
-          else
-            RUNNER_NAME="blacksmith-4vcpu-ubuntu-2404-arm"
-          fi
         else
-          # Self-hosted arm64 runners
+          # GitHub-hosted arm64 larger runners
           RUNNER_NAME="linux-arm64"
           if [ "$SIZE" = "large" ]; then
             RUNNER_NAME="$RUNNER_NAME-xl"

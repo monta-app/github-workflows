@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-10-01
-- **Latest SHA**: a455757 (check for newer commits)
-- **Changes**: Removed the `code-coverage-kotlin.yml` workflow (and with it `monta-app/push-kover-prometheus-action`)
+- **Date**: 2026-10-05
+- **Latest SHA**: 4491679 (check for newer commits)
+- **Changes**: Removed Blacksmith runner support
+
+## Recent Changes (2026-10-05)
+1. **Blacksmith runner support removed**: the `use-blacksmith-runners` input is gone from every workflow and from `runner-size-converter`, `component-build` no longer has the `build-blacksmith` job (`build-self-hosted` always runs), and the Blacksmith labels are out of `actionlint.yaml`. The converter now resolves ARC (`use-arc-runners: true` in a private repo), `ubuntu-24.04-arm` (public repo), or else the GitHub-hosted `linux-arm64` / `linux-arm64-xl`; that last case covers callers that opt out of ARC and events without a repository in the payload (`schedule`), which previously fell back to Blacksmith. Callers that still pass `use-blacksmith-runners` fail at startup; changelog-monorepo and service-productops dropped it first. Repos pinned to an older github-workflows SHA keep that SHA's behaviour, and the seven pinned to `f0866ab` (Blacksmith by default) were bumped to `4491679`.
 
 ## Recent Changes (2026-10-01)
 1. **`migration-naming-pattern` on `pull-request-kotlin.yml`**: forwarded to `check-migration-order`'s `naming-pattern`. Its default duplicates the action's, because a composite action receives an empty `with:` value as `''` rather than falling back to its own default, and the script requires a non-empty pattern; keep the two defaults in sync.

@@ -109,8 +109,7 @@ jobs:
 | `service-emoji` | Yes | - | Emoji for Slack notifications |
 | `service-identifier` | Yes | - | Service identifier (e.g., "ocpp", "vehicle") |
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos, never used in public repos. Takes precedence over `use-blacksmith-runners`. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos, never used in public repos. Builds with docker buildx and the ECR registry layer cache. Dockerfile `RUN --mount=type=cache` contents (e.g. `/root/.gradle`) are kept between builds: in S3 when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `region` | No | "eu-west-1" | AWS region |
 | `docker-file-name` | No | "Dockerfile" | Dockerfile name |
 | `additional-build-args` | No | - | Additional Docker build arguments |
@@ -251,8 +250,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); takes precedence over `use-blacksmith-runners`. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | false | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`). Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `gradle-module` | No | - | Gradle module name |
@@ -303,8 +301,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | - | Runner size for the job |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Set to `false` to use the GitHub-hosted `linux-arm64` runners. |
 | `service-name` | No | - | Display name for Slack |
 | `service-emoji` | No | - | Emoji for Slack |
 | `python-version` | No | "3.13" | Python version |
@@ -367,8 +364,7 @@ This conditional logic ensures the workflow continues properly even when optiona
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos); set to `false` to use the GitHub-hosted `linux-arm64` runners. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -480,8 +476,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size ("normal" or "large") |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Set to `false` to use the GitHub-hosted `linux-arm64` runners. |
 | `stage` | **Yes** | - | Deployment stage (dev/staging/production) |
 | `service-name` | **Yes** | - | Service display name |
 | `service-emoji` | **Yes** | - | Service emoji |
@@ -557,8 +552,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size: "normal" or "large" |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
+| `use-arc-runners` | No | true | Run the test, image build and service profile jobs on the self-hosted ARC arm64 runners (the service profile job always uses `arc-arm64-4cpu-12gb`); the default in private repos (never used in public repos); set to `false` to use the GitHub-hosted `linux-arm64` runners. Set `java-version` to the Gradle toolchain: the ARC image has no preinstalled JDK. |
 | `stage` | Yes | - | Deployment stage: "dev", "staging", or "production" |
 | `service-name` | Yes | - | Human-readable service name (e.g., "Charging Service") |
 | `service-emoji` | Yes | - | Emoji to identify the service in Slack notifications |
@@ -808,8 +802,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos); set to `false` to use the GitHub-hosted `linux-arm64` runners. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `kover-report-path` | No | "build/reports/kover/report.xml" | Kover report path |
@@ -867,8 +860,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Set to `false` to use the GitHub-hosted `linux-arm64` runners. |
 | `bun-version` | No | "latest" | Bun version |
 | `working-directory` | No | "." | Frontend code directory |
 | `build-timeout-minutes` | No | 15 | Build timeout |
@@ -914,8 +906,7 @@ The workflow automatically reports code coverage if your project generates LCOV 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Takes precedence over `use-blacksmith-runners`; set to `false` to opt out. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos and never used in public repos, which run on `ubuntu-24.04-arm`. Set to `false` to use the GitHub-hosted `linux-arm64` runners. |
 | `node-version` | No | "lts/jod" | Node.js version |
 | `pnpm-version` | No | "10" | pnpm version |
 | `working-directory` | No | "." | Frontend code directory |
@@ -1005,8 +996,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `runner-size` | No | "normal" | Runner size |
-| `use-blacksmith-runners` | No | true | Run on Blacksmith arm64 cloud runners (default). Set to false to run on self-hosted linux-arm64 |
-| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos), and takes precedence over `use-blacksmith-runners`; set to `false` to opt out. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (`normal` → `arc-arm64-4cpu-12gb`, `large` → `arc-arm64-8cpu-24gb`); the default in private repos (never used in public repos); set to `false` to use the GitHub-hosted `linux-arm64` runners. SonarQube is reached in-cluster without Tailscale, and the Gradle and Sonar caches go to S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
