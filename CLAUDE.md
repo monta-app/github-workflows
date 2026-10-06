@@ -3,9 +3,10 @@
 ## Last Documentation Update
 - **Date**: 2026-10-06
 - **Latest SHA**: 340af8f (check for newer commits)
-- **Changes**: The shared workflows' own jobs run on ARC in private repositories
+- **Changes**: Small shared-workflow jobs run on the Docker-less ARC runner
 
 ## Recent Changes (2026-10-06)
+1. **Small jobs on `arc-arm64-1cpu-2gb-nodocker`**: the shared workflows' small jobs that need no Docker moved there from `arc-arm64-2cpu-4gb` (kube-manifests#7784 added the set: 0.5 CPU guaranteed, 2 GiB, no dind, ~14 per node): the Setup/converter jobs (`component-build`, `component-test-kotlin`, `component-test-python`, `pull-request-{bun,kotlin,react}`, `sonar-cloud`), `check-migration-order`, the `component-deploy(-v2)` deploy job, `create-release-tag`, the changelog and Slack-token deprecation jobs, `track-pending-release`, `pr-digest`, `allow-/block-deploys` and rollback's `push-manifest`. Jobs that need Docker stay on `arc-arm64-2cpu-4gb`: rollback's `slackNotification` (`rtCamp/action-slack-notify` runs a `docker://` image), this repo's `lint-workflows` (`reviewdog/action-actionlint` is a Docker action), and `publish-tech-docs` (a docs build). Anything added to these jobs must not use `container:`, `services:` or a Docker-based action.
 1. **The shared workflows' own jobs run on ARC**: the 17 jobs that named a GitHub-hosted label (`component-deploy(-v2)` deploy, `create-release-tag`, the deploy workflows' changelog and Slack-token deprecation jobs, `rollback`, `track-pending-release`, `pr-digest`, `publish-tech-docs`, `allow-/block-deploys`, `semgrep-security-scan`, and this repo's own `pull-request.yml`) use `${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}`; semgrep gets `arc-arm64-4cpu-12gb`. Public callers, and events without a repository in the payload (`schedule`), get GitHub's standard arm64 runner. The deploy and rollback jobs rely on `yq` v4 and `jq` from the runner, both in the ARC image; `argocd` is downloaded by `argocd-wait-sync`, and nothing calls the `helm` CLI.
 
 ## Recent Changes (2026-10-05)

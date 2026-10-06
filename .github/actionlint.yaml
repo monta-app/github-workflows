@@ -8,6 +8,7 @@ self-hosted-runner:
     - linux-arm64-xl
     - self-hosted-arm64
     - self-hosted-arm64-2xl
+    - arc-arm64-1cpu-2gb-nodocker
     - arc-arm64-2cpu-4gb
     - arc-arm64-4cpu-12gb
     - arc-arm64-8cpu-24gb

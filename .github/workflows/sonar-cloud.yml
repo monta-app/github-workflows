@@ -63,7 +63,7 @@ env:
 jobs:
   setup:
     name: Setup
-    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-1cpu-2gb-nodocker' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:

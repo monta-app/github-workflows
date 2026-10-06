@@ -69,7 +69,7 @@ permissions:
 jobs:
   digest:
     name: Build and post PR digest
-    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}

@@ -313,7 +313,7 @@ jobs:
     name: Create and Publish Changelog
     needs: [create-release-tag, deploy]
     if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
-    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 5
     steps:
       - name: Run changelog cli action
