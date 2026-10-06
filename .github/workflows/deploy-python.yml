@@ -100,7 +100,7 @@ permissions:
 jobs:
   slack-token-deprecation:
     name: Deprecation check
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
     steps:
       - name: Warn if deprecated SLACK_APP_TOKEN is provided
         env:
