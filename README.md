@@ -295,7 +295,7 @@ on:
 
 jobs:
   schedule-guard:
-    runs-on: ubuntu-latest
+    runs-on: arc-arm64-2cpu-4gb
     outputs:
       proceed: ${{ steps.check.outputs.proceed }}
     steps:
