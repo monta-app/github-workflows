@@ -75,7 +75,7 @@ jobs:
           MAIN="${{ steps.get-main.outputs.main-sha }}"
 
           # Get commits between deployed and main
-          COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.commits[] | "- [`\(.sha[0:7])`](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
+          COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.commits[] | "- [\u0060\(.sha[0:7])\u0060](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
 
           # Count commits
           COMMIT_COUNT=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.total_commits')
