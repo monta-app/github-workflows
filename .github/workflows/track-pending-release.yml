@@ -17,7 +17,7 @@ on:
 jobs:
   update-pending-release:
     name: Update Pending Release Changelog
-    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 5
     steps:
       - name: Checkout
