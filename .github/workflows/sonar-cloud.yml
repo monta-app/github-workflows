@@ -7,16 +7,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
-      use-blacksmith-runners:
-        required: false
-        type: boolean
-        default: true
-        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
       use-arc-runners:
         required: false
         type: boolean
-        default: false
-        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners). Caches go to S3 and SonarQube is reached in-cluster without Tailscale. Requires the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets."
+        default: true
+        description: "Run on the self-hosted ARC arm64 runners (default). Never used in public repositories: the ARC runner group rejects them, so they keep the GitHub-hosted runners. SonarQube is reached in-cluster without Tailscale, and caches go to S3 when the GH_ACTION_ACCESS_KEY_ID and GH_ACTION_SECRET_ACCESS_KEY secrets are passed (GitHub cache otherwise). Set to false to run on the GitHub-hosted linux-arm64 runners."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -46,10 +41,10 @@ on:
     secrets:
       GH_ACTION_ACCESS_KEY_ID:
         required: false
-        description: "AWS access key for the S3 cache bucket. Required with use-arc-runners."
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC jobs use the GitHub cache."
       GH_ACTION_SECRET_ACCESS_KEY:
         required: false
-        description: "AWS secret key for the S3 cache bucket. Required with use-arc-runners."
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC jobs use the GitHub cache."
       TAILSCALE_AUTHKEY:
         required: false
         description: "Tailscale auth key. When set, the runner joins the tailnet so it can reach the self-hosted SonarQube. Leave unset to keep scanning SonarCloud."
@@ -63,12 +58,12 @@ on:
         required: true
         description: "Sonar token (Optional, won't publish to sonar if not present)"
 env:
-  # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
-  LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
+  LC_ALL: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'C.UTF-8' || '' }}
+  S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
 jobs:
   setup:
     name: Setup
-    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-1cpu-2gb-nodocker' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
@@ -77,8 +72,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
-          use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
-          use-arc-runners: ${{ inputs.use-arc-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   sonar-cloud:
     name: SonarQube Analysis
     needs: setup
@@ -98,7 +92,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
       - name: Restore Gradle cache
         id: gradle-cache
-        if: ${{ !inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE != 'true' }}
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &gradle-cache-restore
           path: |
@@ -109,7 +103,7 @@ jobs:
             ${{ runner.os }}-gradle-main-
       - name: Restore Gradle cache (S3)
         id: gradle-cache-s3
-        if: ${{ inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE == 'true' }}
         uses: runs-on/cache/restore@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: &s3-cache-env
           RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
@@ -119,14 +113,14 @@ jobs:
           AWS_REGION: eu-west-1
         with: *gradle-cache-restore
       - name: Cache SonarQube packages
-        if: ${{ !inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE != 'true' }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &sonar-cache
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube packages (S3)
-        if: ${{ inputs.use-arc-runners }}
+        if: ${{ env.S3_CACHE == 'true' }}
         uses: runs-on/cache@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: *s3-cache-env
         with: *sonar-cache
@@ -135,7 +129,7 @@ jobs:
       # automatically for repos still on SonarCloud (no TAILSCALE_AUTHKEY passed).
       - name: Tailscale
         id: tailscale
-        if: ${{ !inputs.use-arc-runners && env.TAILSCALE_AUTHKEY != '' }}
+        if: ${{ !(inputs.use-arc-runners && github.event.repository.private) && env.TAILSCALE_AUTHKEY != '' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
@@ -160,7 +154,7 @@ jobs:
       # endpoint until it answers both waits out the race AND warms the
       # relay path, so the scan starts on a connection we know works.
       - name: Wait for SonarQube to be reachable over the tailnet
-        if: ${{ !inputs.use-arc-runners && steps.tailscale.outcome != 'failure' && env.TAILSCALE_AUTHKEY != '' }}
+        if: ${{ !(inputs.use-arc-runners && github.event.repository.private) && steps.tailscale.outcome != 'failure' && env.TAILSCALE_AUTHKEY != '' }}
         continue-on-error: ${{ inputs.sonar-non-blocking }}
         shell: bash
         env:
@@ -208,8 +202,7 @@ jobs:
         with:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'sonar'
-          # ARC runs in the same cluster as SonarQube, whose vpn.internal hostname is only reachable over Tailscale.
-          gradle-args: ${{ inputs.gradle-args }}${{ inputs.use-arc-runners && ' -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000' || '' }}
+          gradle-args: ${{ inputs.gradle-args }}${{ (inputs.use-arc-runners && github.event.repository.private) && ' -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000' || '' }}
       - name: Upload build reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -221,7 +214,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       - name: Save Gradle cache
-        if: ${{ always() && !inputs.use-arc-runners && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        if: ${{ always() && env.S3_CACHE != 'true' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &gradle-cache-save
           path: |
@@ -229,7 +222,7 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-main-${{ github.sha }}
       - name: Save Gradle cache (S3)
-        if: ${{ always() && inputs.use-arc-runners && github.ref == 'refs/heads/main' && steps.gradle-cache-s3.outputs.cache-hit != 'true' }}
+        if: ${{ always() && env.S3_CACHE == 'true' && github.ref == 'refs/heads/main' && steps.gradle-cache-s3.outputs.cache-hit != 'true' }}
         uses: runs-on/cache/save@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env: *s3-cache-env
         with: *gradle-cache-save

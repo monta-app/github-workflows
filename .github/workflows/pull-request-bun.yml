@@ -7,11 +7,11 @@ on:
         type: string
         description: "Runner to use for the job (normal, or large)"
         default: "normal"
-      use-blacksmith-runners:
+      use-arc-runners:
         required: false
         type: boolean
         default: true
-        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
+        description: "Run on the self-hosted ARC arm64 runners (default in private repositories, never used in public ones). Set to false to run on the GitHub-hosted linux-arm64 runners."
       # DEPRECATED (no-op): all builds and CI run on arm64. Retained for backwards
       # compatibility with callers still passing it; the value is ignored and this
       # input will be removed in a future release.
@@ -57,7 +57,7 @@ on:
 jobs:
   setup:
     name: Setup
-    runs-on: linux-arm64
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-1cpu-2gb-nodocker' || 'linux-arm64' }}
     timeout-minutes: 5
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
@@ -69,7 +69,7 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
-          use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
+          use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
   lint-build-test:
     name: Lint & Build & Test
     needs: setup

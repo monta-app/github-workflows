@@ -6,16 +6,11 @@ on:
         required: false
         type: string
         description: 'Runner size for the component-runner-size-converter'
-      use-blacksmith-runners:
-        required: false
-        type: boolean
-        default: true
-        description: "Run on Blacksmith arm64 cloud runners (default). Set to false to run on the self-hosted linux-arm64 runners."
       use-arc-runners:
         required: false
         type: boolean
         default: false
-        description: "Run on the self-hosted ARC arm64 runners (takes precedence over use-blacksmith-runners)."
+        description: "Run on the self-hosted ARC arm64 runners."
       service-name:
         required: false
         type: string
@@ -51,13 +46,12 @@ permissions:
   actions: read
 
 env:
-  # Test names with non-ASCII characters become report file names; the ARC runner image defaults to a POSIX locale.
   LC_ALL: ${{ inputs.use-arc-runners && 'C.UTF-8' || '' }}
 
 jobs:
   setup:
     name: Setup
-    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-2cpu-4gb' || 'linux-arm64' }}
+    runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-1cpu-2gb-nodocker' || 'linux-arm64' }}
     outputs:
       runner-name: ${{ steps.runner.outputs.runner-name }}
     steps:
@@ -66,7 +60,6 @@ jobs:
         uses: monta-app/github-workflows/.github/actions/runner-size-converter@main
         with:
           runner-size: ${{ inputs.runner-size }}
-          use-blacksmith-runners: ${{ inputs.use-blacksmith-runners }}
           use-arc-runners: ${{ inputs.use-arc-runners }}
   test:
     name: Test

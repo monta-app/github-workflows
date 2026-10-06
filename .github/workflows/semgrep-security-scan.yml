@@ -20,7 +20,7 @@ on:
 jobs:
   semgrep:
     name: Security Scan
-    runs-on: linux-arm64
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-4cpu-12gb' || 'ubuntu-24.04-arm' }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     permissions:
       contents: read

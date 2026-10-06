@@ -13,7 +13,7 @@ permissions:
 jobs:
   lint-workflows:
     name: Lint GitHub Workflows
-    runs-on: linux-arm64
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
