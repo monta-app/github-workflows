@@ -33,6 +33,11 @@ on:
         type: string
         default: "--parallel --build-cache"
         description: 'Additional Gradle arguments'
+      cache-gradle-build-outputs:
+        required: false
+        type: boolean
+        default: false
+        description: "Cache Gradle task outputs per commit so a production deploy can reuse the test run of the same SHA from staging. Uses a ~1 GB cache archive per deploy."
     secrets:
       GHL_USERNAME:
         required: true
@@ -40,6 +45,12 @@ on:
       GHL_PASSWORD:
         required: true
         description: 'Github Password (Gradle plugin)'
+      GH_ACTION_ACCESS_KEY_ID:
+        required: false
+        description: "AWS access key for the S3 cache bucket, used on ARC. Without it ARC runs use the GitHub cache."
+      GH_ACTION_SECRET_ACCESS_KEY:
+        required: false
+        description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC runs use the GitHub cache."
 
 permissions:
   contents: read
@@ -66,6 +77,8 @@ jobs:
     needs: setup
     runs-on: ${{ needs.setup.outputs.runner-name }}
     timeout-minutes: 30
+    env:
+      S3_CACHE: ${{ inputs.use-arc-runners && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -74,7 +87,33 @@ jobs:
         with:
           distribution: "corretto"
           java-version: ${{ inputs.java-version }}
-          cache: 'gradle'
+          cache: ${{ !inputs.cache-gradle-build-outputs && 'gradle' || '' }}
+      # Keyed on the commit so a production deploy restores the cache saved by the staging deploy of the same SHA.
+      # Falls back to the previous deploy so dependencies are still warm.
+      - name: Restore Gradle cache
+        id: gradle-cache
+        if: ${{ inputs.cache-gradle-build-outputs && env.S3_CACHE != 'true' }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with: &gradle-cache-restore
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-deploy-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-deploy-
+            ${{ runner.os }}-gradle-
+      - name: Restore Gradle cache (S3)
+        id: gradle-cache-s3
+        if: ${{ inputs.cache-gradle-build-outputs && env.S3_CACHE == 'true' }}
+        uses: runs-on/cache/restore@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
+        env: &s3-cache-env
+          RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
+          RUNS_ON_RUNNER_NAME: ""
+          AWS_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_REGION: eu-west-1
+        with: *gradle-cache-restore
       - name: Test project
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -96,3 +135,16 @@ jobs:
             /home/runner/.gradle/daemon/**/daemon-*.out.log
           retention-days: 2
           overwrite: true
+      - name: Save Gradle cache
+        if: ${{ always() && inputs.cache-gradle-build-outputs && env.S3_CACHE != 'true' && steps.gradle-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with: &gradle-cache-save
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-deploy-${{ github.sha }}
+      - name: Save Gradle cache (S3)
+        if: ${{ always() && inputs.cache-gradle-build-outputs && env.S3_CACHE == 'true' && steps.gradle-cache-s3.outputs.cache-hit != 'true' }}
+        uses: runs-on/cache/save@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
+        env: *s3-cache-env
+        with: *gradle-cache-save
