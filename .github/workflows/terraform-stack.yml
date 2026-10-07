@@ -5,8 +5,8 @@ name: Terraform Stack
 #
 # The caller's job must grant: contents: read, pull-requests: write,
 # issues: write, and id-token: write when using an OIDC role. The stack's
-# credentials must be able to read, write and delete objects under its state
-# key, since the saved plan is stored next to the state (see below).
+# credentials must be able to read, write and delete objects under
+# tfplans/<state key>/ in the state bucket (see below).
 
 on:
   workflow_call:
@@ -115,9 +115,10 @@ jobs:
         run: terraform init -input=false -lock-timeout=5m
 
       # The saved plan embeds the full prior state and every variable value, so it is
-      # as secret as the state. It is kept beside the state, under the same key, where
-      # only the state's readers can get it - never as an Actions artifact, which
-      # anyone with read access to the repository can download.
+      # as secret as the state. It is kept in the state bucket, where only the state's
+      # readers can get it - never as an Actions artifact, which anyone with read access
+      # to the repository can download. One shared tfplans/ prefix lets a single bucket
+      # lifecycle rule expire plans that are never applied.
       - name: Locate the plan store
         id: store
         if: inputs.command == 'plan' || inputs.command == 'apply'
@@ -129,7 +130,7 @@ jobs:
             exit 1
           fi
           printf '%s' "$backend" | jq -r '
-            "prefix=s3://" + .config.bucket + "/" + .config.key + ".plans",
+            "prefix=s3://" + .config.bucket + "/tfplans/" + .config.key,
             "region=" + (.config.region // "")' >> "$GITHUB_OUTPUT"
 
       - name: Terraform fmt
