@@ -1326,7 +1326,9 @@ terraform providers lock -platform=linux_arm64 -platform=darwin_arm64
 
 ### Apply runs the reviewed plan
 
-Plan uploads `tfplan` as an artifact named `tfplan-<stack.path>-<sha>`, where `<sha>` is the **pull request head** commit — not `github.sha`, which on a `pull_request` event is the ephemeral merge commit and never matches anything that lands on `main`. Apply resolves the head SHA back from the commit it is running on, downloads that artifact and runs `terraform apply tfplan` — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no artifact matches, which is the intended behaviour for a direct push to `main`.
+Plan stores `tfplan` in the stack's own state bucket, at `s3://<bucket>/tfplans/<state key>/<sha>.tfplan`, where `<sha>` is the **pull request head** commit — not `github.sha`, which on a `pull_request` event is the ephemeral merge commit and never matches anything that lands on `main`. Apply resolves the head SHA back from the commit it is running on, downloads that plan, runs `terraform apply tfplan` and deletes it — it never re-plans, so what merges is what was reviewed. Apply fails loudly when no plan matches, which is the intended behaviour for a direct push to `main`.
+
+The plan is not an Actions artifact because a saved plan is a zip of the full prior state plus every variable value, `sensitive` or not (`terraform show -json tfplan` prints them), and anyone with read access to the repository can download artifacts. Beside the state it is readable by exactly the principals that can already read the state. This needs the `s3` backend, and the stack's credentials must be allowed `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject` on `tfplans/<state key>/*` — a role scoped to its own key prefix needs that path added. Plans of pull requests that never merge, and the old versions an apply's delete leaves in a versioned bucket, stay until a lifecycle rule on `tfplans/` expires them; add one to every state bucket.
 
 Combine with a **merge queue** and `merge_group` in the caller: the queue tests each PR against the queue head, so the plan attached to the landing commit already accounts for everything merging ahead of it.
 
@@ -1336,7 +1338,7 @@ The stack is left partially applied. The workflow re-plans in place, then opens 
 
 Recovery is always a forward apply — never a hand-rolled rollback. Create the `terraform-failed` label in the repository before first use.
 
-Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again. Recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no plan artifact (plan still running, failed, or expired) is recovered the same way.
+Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again. Recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no saved plan (plan still running, failed, or deleted) is recovered the same way.
 
 ### Caller
 
@@ -1385,7 +1387,6 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-      actions: write
       id-token: write
     uses: monta-app/github-workflows/.github/workflows/terraform-stack.yml@v1
     with:

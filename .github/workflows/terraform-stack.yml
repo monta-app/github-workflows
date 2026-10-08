@@ -4,7 +4,9 @@ name: Terraform Stack
 # emitted by terraform-discover.yml. See docs/workflow-guide.md.
 #
 # The caller's job must grant: contents: read, pull-requests: write,
-# issues: write, actions: write, and id-token: write when using an OIDC role.
+# issues: write, and id-token: write when using an OIDC role. The stack's
+# credentials must be able to read, write and delete objects under
+# tfplans/<state key>/ in the state bucket (see below).
 
 on:
   workflow_call:
@@ -32,9 +34,6 @@ on:
         description: Overrides .terraform-version in the stack directory or repository root.
         type: string
         default: ""
-      plan-retention-days:
-        type: number
-        default: 7
       runner:
         type: string
         default: linux-arm64
@@ -64,11 +63,6 @@ jobs:
       STACK: ${{ inputs.stack }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Slug the stack path
-        id: slug
-        working-directory: .
-        run: echo "value=$(printf '%s' "$STACK" | tr '/' '.')" >> "$GITHUB_OUTPUT"
 
       - name: Resolve Terraform version
         id: tfver
@@ -120,6 +114,25 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false -lock-timeout=5m
 
+      # The saved plan embeds the full prior state and every variable value, so it is
+      # as secret as the state. It is kept in the state bucket, where only the state's
+      # readers can get it - never as an Actions artifact, which anyone with read access
+      # to the repository can download. One shared tfplans/ prefix lets a single bucket
+      # lifecycle rule expire plans that are never applied.
+      - name: Locate the plan store
+        id: store
+        if: inputs.command == 'plan' || inputs.command == 'apply'
+        run: |
+          set -eu
+          backend=$(jq -c '.backend // empty' .terraform/terraform.tfstate)
+          if [ "$(printf '%s' "$backend" | jq -r '.type // empty')" != "s3" ]; then
+            echo "::error title=Unsupported backend::$STACK must use the s3 backend; the saved plan is stored beside the state."
+            exit 1
+          fi
+          printf '%s' "$backend" | jq -r '
+            "prefix=s3://" + .config.bucket + "/tfplans/" + .config.key,
+            "region=" + (.config.region // "")' >> "$GITHUB_OUTPUT"
+
       - name: Terraform fmt
         if: inputs.command == 'plan'
         run: terraform fmt -check -recursive
@@ -144,12 +157,10 @@ jobs:
 
       - name: Upload plan
         if: inputs.command == 'plan' && steps.plan.outputs.failed != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: tfplan-${{ steps.slug.outputs.value }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ inputs.stack }}/tfplan
-          retention-days: ${{ inputs.plan-retention-days }}
-          if-no-files-found: error
+        env:
+          URI: ${{ steps.store.outputs.prefix }}/${{ github.event.pull_request.head.sha || github.sha }}.tfplan
+          AWS_REGION: ${{ steps.store.outputs.region || inputs.aws-region }}
+        run: aws s3 cp --only-show-errors tfplan "$URI"
 
       - name: Comment plan on the pull request
         if: inputs.command == 'plan' && github.event_name == 'pull_request'
@@ -222,35 +233,21 @@ jobs:
       - name: Download the reviewed plan
         id: fetch
         if: inputs.command == 'apply'
-        working-directory: .
+        env:
+          PREFIX: ${{ steps.store.outputs.prefix }}
+          AWS_REGION: ${{ steps.store.outputs.region || inputs.aws-region }}
         run: |
           set -eu
-          slug='${{ steps.slug.outputs.value }}'
-          find_artifact() {
-            gh api "/repos/$REPO/actions/artifacts?name=tfplan-$slug-$1&per_page=100" \
-              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last // empty'
-          }
-          art=$(find_artifact "${{ github.sha }}")
-          if [ -z "$art" ]; then
+          uri="$PREFIX/${{ github.sha }}.tfplan"
+          if ! aws s3 cp --only-show-errors "$uri" tfplan 2>/dev/null; then
             head=$(gh api "/repos/$REPO/commits/${{ github.sha }}/pulls" --jq '.[0].head.sha // empty')
-            [ -n "$head" ] && art=$(find_artifact "$head")
+            uri="$PREFIX/$head.tfplan"
+            if [ -z "$head" ] || ! aws s3 cp --only-show-errors "$uri" tfplan; then
+              echo "::error title=No reviewed plan::No saved plan for $STACK at ${{ github.sha }}. Dispatch the caller with command recover for this stack."
+              exit 1
+            fi
           fi
-          if [ -z "$art" ]; then
-            echo "::error title=No reviewed plan::No plan artifact for $STACK at ${{ github.sha }}. Dispatch the caller with command recover for this stack."
-            exit 1
-          fi
-          printf '%s' "$art" | jq -r '
-            "name=" + .name,
-            "id="   + (.id | tostring),
-            "run="  + (.workflow_run.id | tostring)' >> "$GITHUB_OUTPUT"
-
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        if: inputs.command == 'apply'
-        with:
-          name: ${{ steps.fetch.outputs.name }}
-          run-id: ${{ steps.fetch.outputs.run }}
-          github-token: ${{ github.token }}
-          path: ${{ inputs.stack }}
+          echo "uri=$uri" >> "$GITHUB_OUTPUT"
 
       - name: Terraform apply
         id: apply
@@ -326,11 +323,16 @@ jobs:
               })
             }
 
-      - name: Close the failure issue and drop the plan
+      - name: Drop the applied plan
+        if: inputs.command == 'apply' && steps.apply.outcome == 'success'
+        env:
+          URI: ${{ steps.fetch.outputs.uri }}
+          AWS_REGION: ${{ steps.store.outputs.region || inputs.aws-region }}
+        run: aws s3 rm --only-show-errors "$URI" || echo "::warning::Could not delete $URI"
+
+      - name: Close the failure issue
         if: inputs.command != 'plan' && steps.apply.outcome == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        env:
-          ARTIFACT_ID: ${{ steps.fetch.outputs.id }}
         with:
           script: |
             const { owner, repo } = context.repo
@@ -345,13 +347,6 @@ jobs:
                 body: `Apply of \`${stack}\` succeeded at ${context.sha.slice(0, 8)}. Closing.`,
               })
               await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed' })
-            }
-            if (process.env.ARTIFACT_ID) try {
-              await github.rest.actions.deleteArtifact({
-                owner, repo, artifact_id: Number(process.env.ARTIFACT_ID),
-              })
-            } catch (e) {
-              core.warning(`Could not delete the plan artifact: ${e.message}`)
             }
 
       - name: Fail on apply error
