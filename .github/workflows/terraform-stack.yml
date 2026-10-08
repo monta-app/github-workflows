@@ -238,11 +238,17 @@ jobs:
           AWS_REGION: ${{ steps.store.outputs.region || inputs.aws-region }}
         run: |
           set -eu
+          fetch() {
+            err=$(aws s3 cp --only-show-errors "$1" tfplan 2>&1) && return 0
+            case $err in *"(404)"*) return 1 ;; esac
+            echo "::error title=Could not read the plan::$err"
+            exit 1
+          }
           uri="$PREFIX/${{ github.sha }}.tfplan"
-          if ! aws s3 cp --only-show-errors "$uri" tfplan 2>/dev/null; then
+          if ! fetch "$uri"; then
             head=$(gh api "/repos/$REPO/commits/${{ github.sha }}/pulls" --jq '.[0].head.sha // empty')
             uri="$PREFIX/$head.tfplan"
-            if [ -z "$head" ] || ! aws s3 cp --only-show-errors "$uri" tfplan; then
+            if [ -z "$head" ] || ! fetch "$uri"; then
               echo "::error title=No reviewed plan::No saved plan for $STACK at ${{ github.sha }}. Dispatch the caller with command recover for this stack."
               exit 1
             fi
