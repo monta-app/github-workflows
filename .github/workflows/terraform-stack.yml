@@ -123,7 +123,6 @@ jobs:
         with:
           authkey: ${{ secrets.tailscale-authkey }}
           hostname: github-${{ github.run_id }}
-          # v4 passes --accept-routes itself; repeating it in args fails `tailscale up`
           args: "--login-server https://headscale.monta.com"
 
       - name: Write CI variables
