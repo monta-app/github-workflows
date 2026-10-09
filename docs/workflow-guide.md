@@ -1316,7 +1316,7 @@ Two reusable workflows replace the per-repo Terraform pipelines:
 
 A **stack** is any directory containing `backend.tf`. That directory is simultaneously the unit of state, the CI job, the state lock and the blast radius. Discovery walks the diff and maps each changed file to the nearest ancestor directory holding a `backend.tf`, so adding a stack requires no workflow edits.
 
-A change inside a local module selects every stack that calls that module, directly or through other modules — discovery reads the `source = "../../modules/x"` paths out of the configuration, so nothing has to be declared or maintained. A module no stack calls selects nothing. Only a path that is neither a stack nor Terraform code — a repository root file, `.github/**` — fans out to **every** stack, because it could affect any of them. Changes to `*.md` are ignored.
+A change inside a local module selects every stack that calls that module, directly or through other modules — discovery reads the `source = "../../modules/x"` paths out of the configuration, so nothing has to be declared or maintained. A `.tf` file symlinked into stacks (e.g. one shared `users.tf` linked into every stack beside it) works the same way: changing the target selects every stack holding a link to it. A module no stack calls selects nothing. Only a path that is neither a stack nor Terraform code — a repository root file, `.github/**` — fans out to **every** stack, because it could affect any of them. Changes to `*.md` are ignored.
 
 Each stack needs `.terraform-version` (its own, or one at the repository root) and a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
 

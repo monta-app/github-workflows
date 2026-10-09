@@ -55,7 +55,8 @@ jobs:
           A stack is a directory holding backend.tf. A changed file inside one belongs
           to that stack. A changed file inside a local module belongs to every stack
           that calls that module, directly or through other modules - so a shared
-          module change plans its callers and nothing else. A file that is neither,
+          module change plans its callers and nothing else. A .tf symlinked into a
+          stack counts as that stack calling the directory the link points into. A file that is neither,
           such as a repository root file or CI config, could affect anything and
           selects every stack.
 
@@ -87,6 +88,11 @@ jobs:
               referenced = collections.defaultdict(set)
               for path in tf:
                   here = os.path.dirname(path)
+                  full = os.path.join(root, path)
+                  if os.path.islink(full):
+                      target = os.path.relpath(os.path.dirname(os.path.realpath(full)), os.path.realpath(root))
+                      if not target.startswith(".."):
+                          referenced[target].add(here)
                   try:
                       body = open(os.path.join(root, path), encoding="utf-8").read()
                   except OSError:
