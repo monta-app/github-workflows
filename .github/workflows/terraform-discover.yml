@@ -21,6 +21,10 @@ on:
         description: Select every stack regardless of the diff. Use for scheduled drift runs.
         type: boolean
         default: false
+      ignore:
+        description: Extended regex of changed paths that select nothing, on top of *.md. Example '^scripts/'
+        type: string
+        default: ""
       runner:
         type: string
         default: linux-arm64
@@ -172,6 +176,7 @@ jobs:
           ACCOUNTS: ${{ inputs.accounts }}
           FORCE_ALL: ${{ inputs.all }}
           ONLY: ${{ inputs.only }}
+          IGNORE: ${{ inputs.ignore }}
           EVENT: ${{ github.event_name }}
           BASE_PR: ${{ github.event.pull_request.base.sha }}
           BASE_MERGE_GROUP: ${{ github.event.merge_group.base_sha }}
@@ -200,7 +205,7 @@ jobs:
             selected=$all_stacks
             echo "Selecting every stack (event=$EVENT force-all=$FORCE_ALL base='$base')."
           else
-            git diff --name-only "$base" HEAD -- | grep -Ev '\.md$' > "$RUNNER_TEMP/changed.txt" || true
+            git diff --name-only "$base" HEAD -- | grep -Ev "\.md\$${IGNORE:+|$IGNORE}" > "$RUNNER_TEMP/changed.txt" || true
             selected=$(python3 "$RUNNER_TEMP/resolve_stacks.py" < "$RUNNER_TEMP/changed.txt")
             if [ "$selected" = "__ALL__" ]; then
               selected=$all_stacks
