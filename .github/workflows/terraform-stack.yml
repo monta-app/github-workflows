@@ -30,6 +30,18 @@ on:
       aws-region:
         type: string
         default: eu-west-1
+      aws-session-duration:
+        description: Seconds the OIDC session lasts. Raise it for applies that run past an hour; the role's MaxSessionDuration must allow it.
+        type: number
+        default: 3600
+      parallelism:
+        description: Terraform -parallelism for plan and apply.
+        type: number
+        default: 10
+      tailscale:
+        description: Join the tailnet before init, for providers that reach private endpoints.
+        type: boolean
+        default: false
       terraform-version:
         description: Overrides .terraform-version in the stack directory or repository root.
         type: string
@@ -44,6 +56,9 @@ on:
         required: false
       tf-vars-json:
         description: JSON object of Terraform variables, written to the stack as ci.auto.tfvars.json.
+        required: false
+      tailscale-authkey:
+        description: Required when tailscale is true.
         required: false
 
 jobs:
@@ -92,6 +107,7 @@ jobs:
         with:
           role-to-assume: ${{ inputs.aws-role }}
           aws-region: ${{ inputs.aws-region }}
+          role-duration-seconds: ${{ inputs.aws-session-duration }}
 
       - name: Configure AWS credentials via static keys
         if: inputs.aws-role == ''
@@ -100,6 +116,14 @@ jobs:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
           aws-region: ${{ inputs.aws-region }}
+
+      - name: Join the tailnet
+        if: inputs.tailscale
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          authkey: ${{ secrets.tailscale-authkey }}
+          hostname: github-${{ github.run_id }}
+          args: "--login-server https://headscale.monta.com"
 
       - name: Write CI variables
         env:
@@ -145,7 +169,7 @@ jobs:
         if: inputs.command == 'plan' || inputs.command == 'recover'
         run: |
           set -eu
-          terraform plan -no-color -input=false -lock-timeout=5m \
+          terraform plan -no-color -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} \
             -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
           tail -c 400000 plan.txt
           case "$code" in
@@ -261,11 +285,11 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          terraform apply -input=false -lock-timeout=5m -no-color tfplan 2>&1 | tee apply.txt
+          terraform apply -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} -no-color tfplan 2>&1 | tee apply.txt
 
       - name: Re-plan after a failed apply
         if: steps.apply.outcome == 'failure'
-        run: terraform plan -no-color -input=false -lock-timeout=5m > replan.txt 2>&1 || true
+        run: terraform plan -no-color -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} > replan.txt 2>&1 || true
 
       - name: Report the failed apply
         if: steps.apply.outcome == 'failure'
