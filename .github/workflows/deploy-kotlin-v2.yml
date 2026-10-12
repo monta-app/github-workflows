@@ -124,6 +124,11 @@ on:
         type: boolean
         default: true
         description: 'Use generated openapi spec to generate linkerd service profile and update the service helm chart'
+      service-profile-name:
+        required: false
+        type: string
+        default: ''
+        description: 'ServiceProfile metadata.name (<service>.<namespace>.svc.cluster.local). Set when the Kubernetes Service is not named <service-identifier>-<stage>; empty keeps that default.'
       openapi-max-workers:
         required: false
         type: string
@@ -323,6 +328,7 @@ jobs:
       gradle-module: ${{ inputs.gradle-module }}
       java-version: ${{ inputs.java-version }}
       openapi-max-workers: ${{ inputs.openapi-max-workers }}
+      service-profile-name: ${{ inputs.service-profile-name }}
       use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
     secrets:
         GHL_USERNAME: ${{ secrets.GHL_USERNAME }}

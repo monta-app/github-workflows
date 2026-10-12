@@ -569,6 +569,7 @@ jobs:
 | `ecr-repository-name` | No | - | Override ECR repository name |
 | `run-tests` | No | true | Run tests before deployment |
 | `update-service-profile` | No | true | Generate linkerd service profile from OpenAPI spec |
+| `service-profile-name` | No | `{service-identifier}-{stage}.{service-identifier}-{stage}.svc.cluster.local` | ServiceProfile name; set when the Service is named differently |
 | `helm-values-path` | No | `helm/{service-identifier}/{stage}/app` | Path to helm values directory in service repo |
 | `repository-name` | No | `service-{service-identifier}` | Service repository name override |
 | `argocd-server` | No | - | ArgoCD server URL (e.g., argocd.monta.app) |
