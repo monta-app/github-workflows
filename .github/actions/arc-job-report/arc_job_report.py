@@ -16,12 +16,13 @@ import subprocess
 import sys
 from datetime import datetime
 
-from job_resources import ARC_RUNNER, analyse, jobs_for, sh
+from job_resources import MEMORY_HEADROOM, MIN_RUNS, WINDOW, analyse_run, sh
 
 MARKER = "<!-- arc-job-report -->"
 HISTORY = re.compile(r"<!-- history (\[.*?\]) -->", re.S)
 SHARD = re.compile(r"^(.*) - shard (\d+)$")
 RESULT = {"success": "✅", "failure": "❌"}
+WHY = {"memory": "needs memory", "faster": "CPU-bound, faster", "fits": "fits", "trial": "trial: may be slower"}
 # ponytail: keeps the last 50 runs so the comment stays far below GitHub's 65,536-character limit
 MAX_HISTORY = 50
 
@@ -79,17 +80,15 @@ def job_rows(results):
 
 
 def change(r):
-    if r["duration_s"] < 120:
-        return None
-    runner, suggested = size(r["runner"]), size(r.get("suggested_runner") or r["runner"])
-    return None if suggested == runner else (runner, suggested)
+    return r.get("suggested_runner") and (size(r["runner"]), size(r["suggested_runner"]))
 
 
 def suggestion_row(r):
     runner, suggested = change(r)
     arrow = "⬇️" if rank(suggested) < rank(runner) else "⬆️"
-    return (f"| [{name(r)}]({r['dashboard']}) | {arrow} {runner} → {suggested} | {r['cpu_cores']['max']:.1f} | "
-            f"{r['memory_gib']['peak']:.1f} GiB |")
+    h = r["history"]
+    return (f"| [{name(r)}]({r['dashboard']}) | {arrow} {runner} → {suggested} | {WHY[r['reason']]} | "
+            f"{h['peak_mem_gib']:.1f} GiB | {h['cpu_p50']:.1f} / {h['cpu_peak']:.1f} | {h['runs']} |")
 
 
 def history_row(h, previous):
@@ -127,11 +126,13 @@ def render(run, results, previous_body):
         "|---|---|",
         *job_rows(results),
         "",
-        *(["💡 **Suggested runner changes.** Memory is the exact peak; CPU is the max of 1 min averages, so "
-           "trial before downsizing on it. Jobs under 2 min have too few samples and are left out.",
+        *([f"💡 **Suggested runner changes.** Memory is a hard limit: a size must hold {MEMORY_HEADROOM} × the "
+           f"job's peak over the last {WINDOW}, or the job is OOM-killed. CPU only costs time: a smaller size "
+           "must cover the job's median CPU, and is a *trial* when its peak would not fit. "
+           f"Smaller sizes are only suggested after {MIN_RUNS} runs in the window.",
            "",
-           "| Job | Change | CPU | Memory |",
-           "|---|---|---|---|",
+           f"| Job | Change | Why | Peak memory ({WINDOW}) | CPU median / peak | Runs ({WINDOW}) |",
+           "|---|---|---|---|---|---|",
            *map(suggestion_row, changed),
            ""] if changed else []),
         f"<!-- history {json.dumps(runs)} -->",
@@ -156,8 +157,7 @@ def main():
     if not prs:
         sys.exit(f"no pull request found for run {run_id}")
     pr = prs[0]["number"]
-    results = [analyse(j) for j in jobs_for(args[0])
-               if j.get("runner_name") and ARC_RUNNER.match(j["runner_name"]) and j.get("completed_at")]
+    results = analyse_run(args[0])
     comments = json.loads(sh("gh", "api", "--paginate", "--slurp", f"repos/{repo}/issues/{pr}/comments"))
     existing = next((c for page in reversed(comments) for c in reversed(page)
                      if MARKER in c["body"] and c["user"]["type"] == "Bot"), None)

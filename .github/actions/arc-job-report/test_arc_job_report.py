@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from arc_job_report import render  # noqa: E402
+from job_resources import history, suggest  # noqa: E402
 
 
 def run(number, attempt=1, ended="2026-09-28T11:07:46Z", conclusion="success"):
@@ -13,10 +14,14 @@ def run(number, attempt=1, ended="2026-09-28T11:07:46Z", conclusion="success"):
             "run_started_at": "2026-09-28T11:00:00Z", "updated_at": ended}
 
 
-def job(name, duration, suggested="arc-arm64-4cpu-12gb"):
-    return {"job": name, "duration_s": duration, "runner": "arc-arm64-8cpu-24gb-bwt29-runner-2t8gj",
+POD = "arc-arm64-8cpu-24gb-bwt29-runner-2t8gj"
+
+
+def job(name, duration, suggested=None, reason=None):
+    return {"job": name, "duration_s": duration, "runner": POD,
             "dashboard": f"https://grafana/{name.replace(' ', '')}", "cpu_cores": {"avg": 1.0, "max": 2.0},
-            "memory_gib": {"peak": 3.0, "limit": 24.0}, "suggested_runner": suggested}
+            "memory_gib": {"peak": 3.0, "limit": 24.0}, "suggested_runner": suggested, "reason": reason,
+            "history": {"runs": 40, "peak_mem_gib": 6.5, "cpu_p50": 1.2, "cpu_peak": 5.1}}
 
 
 def history_rows(body):
@@ -48,22 +53,72 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| Unit Tests · shards [0](https://grafana/UnitTests-shard0) "
                       "**[1](https://grafana/UnitTests-shard1)** | 1m 40s – 1m 50s |", body)
 
-    def test_marks_re_runs_and_lists_only_jobs_over_two_minutes_with_a_change(self):
-        fits = job("Unit Tests (Fast Feedback)", 150, suggested="arc-arm64-8cpu-24gb")
+    def test_marks_re_runs_and_lists_only_jobs_with_a_change_and_why(self):
         body = render(run(12, attempt=2, conclusion="failure"),
-                      [job("Compile", 150), job("Plan test shards", 15), fits], None)
+                      [job("Compile", 150, "arc-arm64-4cpu-12gb", "trial"), job("Plan test shards", 15)], None)
 
         self.assertIn("| ❌ | 7m 46s (re-run) | – |", history_rows(body)[0])
-        self.assertIn("| [Unit Tests](https://grafana/UnitTests(FastFeedback)) | 2m 30s |", body)
-        self.assertIn("| [Compile](https://grafana/Compile) | ⬇️ 8cpu-24gb → 4cpu-12gb | 2.0 | 3.0 GiB |", body)
+        self.assertIn("1.3 × the job's peak over the last 7d", body)
+        self.assertIn("| Job | Change | Why | Peak memory (7d) | CPU median / peak | Runs (7d) |", body)
+        self.assertIn("| [Compile](https://grafana/Compile) | ⬇️ 8cpu-24gb → 4cpu-12gb | trial: may be slower | "
+                      "6.5 GiB | 1.2 / 5.1 | 40 |", body)
         self.assertNotIn("[Plan test shards](https://grafana/Plantestshards) | ⬇️", body)
         self.assertIn("· 💡 1 runner change</summary>", body)
 
     def test_omits_the_suggestion_table_when_every_runner_fits(self):
-        body = render(run(12), [job("Compile", 150, suggested="arc-arm64-8cpu-24gb")], None)
+        body = render(run(12), [job("Compile", 150)], None)
 
         self.assertNotIn("Suggested runner changes", body)
         self.assertNotIn("💡", body)
+
+
+def sized(peak_mem_gib=3.0, cpu_p50=1.0, cpu_peak=2.0, runs=40, oom=0, runner=POD):
+    return suggest(runner, "arm64", peak_mem_gib, cpu_p50, cpu_peak, runs, oom)
+
+
+class SuggestTest(unittest.TestCase):
+    def test_memory_is_a_hard_floor_with_headroom(self):
+        self.assertEqual(sized(peak_mem_gib=19.0), ("arc-arm64-16cpu-48gb", "memory"))
+        self.assertIsNone(sized(peak_mem_gib=18.0, cpu_p50=5.0))
+
+    def test_an_oom_kill_always_moves_up_a_size(self):
+        self.assertEqual(sized(peak_mem_gib=10.0, oom=1), ("arc-arm64-16cpu-48gb", "memory"))
+
+    def test_cpu_bound_most_of_the_job_suggests_a_bigger_size_as_faster(self):
+        self.assertEqual(sized(peak_mem_gib=5.0, cpu_p50=7.0, cpu_peak=8.0), ("arc-arm64-16cpu-48gb", "faster"))
+
+    def test_downsizes_to_the_smallest_size_holding_memory_and_median_cpu(self):
+        self.assertEqual(sized(peak_mem_gib=2.0, cpu_p50=0.8, cpu_peak=1.5), ("arc-arm64-2cpu-4gb", "fits"))
+        self.assertEqual(sized(peak_mem_gib=2.0, cpu_p50=1.5, cpu_peak=5.0), ("arc-arm64-2cpu-4gb", "trial"))
+        self.assertEqual(sized(peak_mem_gib=2.0, cpu_p50=3.0, cpu_peak=5.0), ("arc-arm64-4cpu-12gb", "trial"))
+
+    def test_never_downsizes_on_fewer_runs_than_the_minimum(self):
+        self.assertIsNone(sized(peak_mem_gib=2.0, runs=4))
+        self.assertEqual(sized(peak_mem_gib=30.0, runs=0), ("arc-arm64-16cpu-48gb", "memory"))
+
+    def test_leaves_runners_outside_the_catalog_alone(self):
+        self.assertIsNone(sized(peak_mem_gib=40.0, runner="self-hosted-arm64-2xl-f968t-runner-878jv"))
+
+
+class HistoryTest(unittest.TestCase):
+    def test_selects_the_jobs_by_escaped_name_and_reads_every_series_per_job(self):
+        import job_resources
+        queries = []
+
+        def fake_get(api, query):
+            queries.append(query)
+            value = {"max by (job_name) (max_over_time(arc:job_memory": 2 * 2**30}
+            v = next((v for k, v in value.items() if query.startswith(k)), 3)
+            return [{"metric": {"job_name": "Build (staging)"}, "value": [0, str(v)]}]
+
+        job_resources.get, real = fake_get, job_resources.get
+        try:
+            h = history("monta-app/repo", ["Build (staging)", "Build (staging)", 'Lint "x"'])
+        finally:
+            job_resources.get = real
+
+        self.assertEqual(h, {"Build (staging)": {"runs": 3, "peak_mem_gib": 2.0, "cpu_p50": 3.0, "cpu_peak": 3.0}})
+        self.assertIn('job_name=~"Build \\\\(staging\\\\)|Lint \\"x\\""', queries[0])
 
 
 if __name__ == "__main__":
