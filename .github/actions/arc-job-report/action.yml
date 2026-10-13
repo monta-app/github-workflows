@@ -10,7 +10,7 @@ inputs:
     required: true
   grafana-token:
     description: >-
-      Grafana service-account token with read access to the `grafanacloud-prom` datasource,
+      Grafana service-account token with read access to the `mimir-internal` Prometheus datasource,
       for example `secrets.GRAFANA_CLOUD_TOKEN`.
     required: true
   run-url:

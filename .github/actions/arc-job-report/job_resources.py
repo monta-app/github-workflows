@@ -6,8 +6,7 @@ Usage:
 
 Needs `gh` (authenticated) and either GRAFANA_TOKEN (a Grafana service-account token with read
 access to the Prometheus datasource) or `gcx` (a context with that datasource).
-A job's runner name (GitHub API `runner_name`) is its ARC pod name; metrics are scraped every 60 s,
-so jobs shorter than ~2 minutes get only a sample or two.
+A job's runner name (GitHub API `runner_name`) is its ARC pod name; metrics are scraped every 15 s.
 
 Copied from monta-app/kube-manifests infra/arc/scripts/job-resources.py @ dd43b0172; the only
 change is the GRAFANA_TOKEN query path in prom().
@@ -22,7 +21,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-DATASOURCE = "grafanacloud-prom"
+DATASOURCE = "ffzoywkuhm5tsd"  # mimir-internal
 GRAFANA = "https://montaapp.grafana.net"
 ARC_RUNNER = re.compile(r"^(self-hosted|arc)-")
 # (name, arch, vCPU, memory GiB) -- keep in sync with infra/arc/README.md
@@ -40,7 +39,7 @@ def sh(*args):
     return subprocess.run(args, capture_output=True, text=True, check=True).stdout
 
 
-def prom(expr, start, end, step=60):
+def prom(expr, start, end, step=15):
     token = os.environ.get("GRAFANA_TOKEN")
     if token:
         query = urllib.parse.urlencode({"query": expr, "start": start, "end": end, "step": step})
@@ -88,7 +87,7 @@ def analyse(job):
     pod, start, end = job["runner_name"], ts(job["started_at"]), ts(job["completed_at"])
     sel = f'cluster="internal", namespace="arc", pod="{pod}"'
     lo, hi = start - 60, end + 60
-    cpu = values(prom(f'sum(rate(container_cpu_usage_seconds_total{{{sel}, container=~"runner|dind"}}[2m]))', lo, hi))
+    cpu = values(prom(f'sum(rate(container_cpu_usage_seconds_total{{{sel}, container=~"runner|dind"}}[1m]))', lo, hi))
     mem = values(prom(f'sum(container_memory_working_set_bytes{{{sel}, container=~"runner|dind"}})', lo, hi))
     req = values(prom(f'max(kube_pod_container_resource_requests{{{sel}, container="runner", resource="cpu"}})', lo, hi))
     lim = values(prom(f'max(kube_pod_container_resource_limits{{{sel}, container="runner", resource="memory"}})', lo, hi))
@@ -120,7 +119,7 @@ def analyse(job):
     })
     notes = []
     if duration < 120:
-        notes.append("short job: only a few 60 s samples, low confidence")
+        notes.append("short job: few samples, low confidence")
     if res["node"]["vcpu"] and p95 >= 0.85 * res["node"]["vcpu"]:
         notes.append("CPU-bound on this node: a larger size may make it faster")
     if res["oom_kills"]:

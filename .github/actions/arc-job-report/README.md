@@ -62,21 +62,20 @@ an ARC runner (`arc-*` / `self-hosted-*`) are skipped.
 | Input | Required | Description |
 |---|---|---|
 | `github-token` | yes | Reads the run's jobs and writes the comment. Needs `actions: read` and `pull-requests: write`. |
-| `grafana-token` | yes | Grafana service-account token that can read the `grafanacloud-prom` datasource. |
+| `grafana-token` | yes | Grafana service-account token that can read the `mimir-internal` Prometheus datasource. |
 | `run-url` | no | Run to report on. Defaults to the run that triggered the `workflow_run` event. |
 
 ## How to read the numbers
 
-Metrics come from cAdvisor and kube-state-metrics, scraped every **60 s**.
+Metrics come from cAdvisor and kube-state-metrics in `mimir-internal`, scraped every **15 s**.
 
 - **Peak memory is reliable.** It is the highest working-set sample over the job.
-- **CPU is not, for short jobs.** It is the highest 60 s average, so short bursts
+- **CPU is not, for short jobs.** It is the highest 1 min average, so short bursts
   are averaged away. In service-ocpi, the CPU-based rule suggested 4 vCPU for the
   integration shards, but a trial run made every shard 17–97 s slower. Trial a
   smaller runner before moving to it.
 - **Jobs under 2 minutes are left out of the suggestions.** They get too few
-  samples. Jobs under a minute have none at all (CPU needs two samples), so they
-  show `–`. There is no point waiting for them: a runner pod's samples stop once
+  samples. There is no point waiting for them: a runner pod's samples stop once
   its job ends and the pod is deleted.
 
 The suggested size is the smallest catalog runner with memory ≥ 1.3 × peak and
