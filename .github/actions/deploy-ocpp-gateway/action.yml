@@ -17,15 +17,15 @@ inputs:
     description: 'Infra Portal token'
     required: true
   infra-portal-context:
-    description: 'Kube context the infra-portal releaser should target (e.g. main-staging). Defaults to ocpp-<cluster> derived from stage.'
+    description: 'Kube context the infra-portal releaser should target (e.g. main-staging). Defaults to main-<cluster> derived from stage.'
     required: false
     default: ''
   infra-portal-hostname:
-    description: 'Infra Portal host to post the release to. Defaults to infra-portal.internal.monta.app for dev/staging, infra-portal.monta.app otherwise.'
+    description: 'Infra Portal host to post the release to. Defaults to infra-portal.internal.monta.app.'
     required: false
     default: ''
   infra-portal-path-prefix:
-    description: 'URL path prefix in front of /<context>/<namespace>/create-gateway-release. Defaults to /api/public for dev/staging, empty otherwise. Set to /api/public to target the v2 releaser from a production stage.'
+    description: 'URL path prefix in front of /<context>/<namespace>/create-gateway-release. Defaults to /api/public.'
     required: false
     default: ''
 
@@ -36,33 +36,22 @@ runs:
       id: set-infra-portal-server
       shell: bash
       env:
-        STAGE: ${{ inputs.stage }}
         HOSTNAME_OVERRIDE: ${{ inputs.infra-portal-hostname }}
       run: |
-        if [[ -n $HOSTNAME_OVERRIDE ]]; then
-          INFRA_PORTAL_HOSTNAME="$HOSTNAME_OVERRIDE"
-        elif [[ $STAGE =~ dev|staging ]]; then
-          INFRA_PORTAL_HOSTNAME="infra-portal.internal.monta.app"
-        else
-          INFRA_PORTAL_HOSTNAME="infra-portal.monta.app"
-        fi
+        INFRA_PORTAL_HOSTNAME="${HOSTNAME_OVERRIDE:-infra-portal.internal.monta.app}"
         echo "infra-portal-hostname=$INFRA_PORTAL_HOSTNAME" >> "$GITHUB_OUTPUT"
     - name: Deploy OCPP Gateway to Infra Portal
       shell: bash
       run: |
         if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
           cluster=staging
-          path_prefix="/api/public"
         else
           cluster=production
-          path_prefix=""
         fi
-        if [[ -n "${{ inputs.infra-portal-path-prefix }}" ]]; then
-          path_prefix="${{ inputs.infra-portal-path-prefix }}"
-        fi
+        path_prefix="${{ inputs.infra-portal-path-prefix || '/api/public' }}"
         context="${{ inputs.infra-portal-context }}"
         if [[ -z "$context" ]]; then
-          context="ocpp-${cluster}"
+          context="main-${cluster}"
         fi
         release_url="https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}${path_prefix}/${context}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release"
         echo "Posting gateway release to ${release_url}"

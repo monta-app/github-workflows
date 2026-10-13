@@ -27,9 +27,7 @@ A composite action that deploys OCPP Gateway services to the Infra Portal.
 
 ## How it Works
 
-1. Determines the appropriate Infra Portal hostname based on the stage:
-   - For `dev` and `staging`: Uses `infra-portal.staging.monta.app`
-   - For `production`: Uses `infra-portal.monta.app`
+1. Posts to `infra-portal.internal.monta.app` under `/api/public` (override with `infra-portal-hostname` / `infra-portal-path-prefix`)
 
 2. Determines the cluster based on the stage:
    - For `dev` and `staging`: Uses `staging` cluster
