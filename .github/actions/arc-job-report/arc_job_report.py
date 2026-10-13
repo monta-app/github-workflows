@@ -20,7 +20,7 @@ from job_resources import MEMORY_HEADROOM, MIN_RUNS, WINDOW, analyse_run, sh
 
 MARKER = "<!-- arc-job-report -->"
 HISTORY = re.compile(r"<!-- history (\[.*?\]) -->", re.S)
-SHARD = re.compile(r"^(.*) - shard (\d+)$")
+SHARD = re.compile(r"^(.*?)(?: - shard (\d+)| \(shard (\d+)\))$")
 RESULT = {"success": "✅", "failure": "❌"}
 WHY = {"memory": "needs memory", "faster": "CPU-bound, faster", "fits": "fits", "trial": "trial: may be slower"}
 # ponytail: keeps the last 50 runs so the comment stays far below GitHub's 65,536-character limit
@@ -59,36 +59,51 @@ def name(r):
     return re.sub(r" *[(].*[)]$", "", r["job"])
 
 
-def job_rows(results):
+def shard(r):
+    m = SHARD.match(r["job"])
+    return m and int(m.group(2) or m.group(3))
+
+
+def grouped(results, key=lambda r: None):
     groups = {}
     for r in results:
-        shard = SHARD.match(name(r))
-        groups.setdefault((shard.group(1), True) if shard else (name(r), False), []).append(r)
+        sharded = shard(r) is not None
+        label = SHARD.match(r["job"]).group(1) if sharded else r["job"]
+        groups.setdefault((label, sharded, key(r)), []).append(r)
+    return sorted(groups.items(), key=lambda g: (g[0][0], g[0][1]))
+
+
+def job_label(label, sharded, jobs, bold=None):
+    if not sharded:
+        return f"[{name(jobs[0])}]({jobs[0]['dashboard']})"
+    links = " ".join(f"**[{shard(r)}]({r['dashboard']})**" if r is bold else f"[{shard(r)}]({r['dashboard']})"
+                     for r in sorted(jobs, key=shard))
+    return f"{label} · shards {links}"
+
+
+def job_rows(results):
     rows = []
-    for (label, sharded), jobs in sorted(groups.items()):
+    for (label, sharded, _), jobs in grouped(results):
         slow = max(jobs, key=lambda r: r["duration_s"])
-        if not sharded:
-            rows.append(f"| [{label}]({slow['dashboard']}) | {minutes(slow['duration_s'])} |")
-            continue
         fast = min(jobs, key=lambda r: r["duration_s"])
-        number = {id(r): SHARD.match(name(r)).group(2) for r in jobs}
-        links = " ".join(f"**[{number[id(r)]}]({r['dashboard']})**" if r is slow else f"[{number[id(r)]}]({r['dashboard']})"
-                         for r in sorted(jobs, key=lambda r: int(number[id(r)])))
         time = minutes(slow["duration_s"]) if fast is slow else f"{minutes(fast['duration_s'])} – {minutes(slow['duration_s'])}"
-        rows.append(f"| {label} · shards {links} | {time} |")
+        rows.append(f"| {job_label(label, sharded, jobs, slow if sharded else None)} | {time} |")
     return rows
 
 
 def change(r):
-    return r.get("suggested_runner") and (size(r["runner"]), size(r["suggested_runner"]))
+    return r.get("suggested_runner") and (size(r["runner"]), size(r["suggested_runner"]), r["reason"])
 
 
-def suggestion_row(r):
-    runner, suggested = change(r)
-    arrow = "⬇️" if rank(suggested) < rank(runner) else "⬆️"
-    h = r["history"]
-    return (f"| [{name(r)}]({r['dashboard']}) | {arrow} {runner} → {suggested} | {WHY[r['reason']]} | "
-            f"{h['peak_mem_gib']:.1f} GiB | {h['cpu_p50']:.1f} / {h['cpu_peak']:.1f} | {h['runs']} |")
+def suggestion_rows(results):
+    rows = []
+    for (label, sharded, (runner, suggested, reason)), jobs in grouped(filter(change, results), change):
+        arrow = "⬇️" if rank(suggested) < rank(runner) else "⬆️"
+        h = [r["history"] for r in jobs]
+        rows.append(f"| {job_label(label, sharded, jobs)} | {arrow} {runner} → {suggested} | {WHY[reason]} | "
+                    f"{max(x['peak_mem_gib'] for x in h):.1f} GiB | {max(x['cpu_p50'] for x in h):.1f} / "
+                    f"{max(x['cpu_peak'] for x in h):.1f} | {min(x['runs'] for x in h)} |")
+    return rows
 
 
 def history_row(h, previous):
@@ -111,7 +126,7 @@ def render(run, results, previous_body):
     runs = [history[n] for n in sorted(history)][-MAX_HISTORY:]
     previous = {h["run"]: p for p, h in zip(runs, runs[1:])}
     before = previous.get(current["run"])
-    changed = [r for r in sorted(results, key=lambda r: r["job"]) if change(r)]
+    changed = suggestion_rows(results)
     summary = (f"{RESULT.get(current['conclusion'], '⚠️')} <b>{minutes(current['wall'])}</b>"
                + (f" ({delta(current['wall'], before['wall'])} vs previous run)" if before else "")
                + f" · 🏃 ARC runners · <a href=\"{current['url']}\">run #{current['run']}</a> · {current['sha']}"
@@ -133,7 +148,7 @@ def render(run, results, previous_body):
            "",
            f"| Job | Change | Why | Peak memory ({WINDOW}) | CPU median / peak | Runs ({WINDOW}) |",
            "|---|---|---|---|---|---|",
-           *map(suggestion_row, changed),
+           *changed,
            ""] if changed else []),
         f"<!-- history {json.dumps(runs)} -->",
         "| Run | Commit | Result | Wall time | Δ | Slowest job |",
