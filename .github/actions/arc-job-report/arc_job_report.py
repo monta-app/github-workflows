@@ -127,7 +127,7 @@ def render(run, results, previous_body):
         "|---|---|",
         *job_rows(results),
         "",
-        *(["💡 **Suggested runner changes.** Memory is the exact peak; CPU is the max of 60 s averages, so "
+        *(["💡 **Suggested runner changes.** Memory is the exact peak; CPU is the max of 1 min averages, so "
            "trial before downsizing on it. Jobs under 2 min have too few samples and are left out.",
            "",
            "| Job | Change | CPU | Memory |",
