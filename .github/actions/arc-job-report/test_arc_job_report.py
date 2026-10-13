@@ -65,6 +65,43 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("[Plan test shards](https://grafana/Plantestshards) | ⬇️", body)
         self.assertIn("· 💡 1 runner change</summary>", body)
 
+    def test_groups_parenthesised_shards_in_both_tables_apart_from_a_job_with_the_bare_name(self):
+        shards = [job("Test (shard 2)", 200, "arc-arm64-4cpu-12gb", "trial"),
+                  job("Test (shard 1)", 240, "arc-arm64-4cpu-12gb", "trial"),
+                  job("Test (shard 3)", 180, "arc-arm64-16cpu-48gb", "faster")]
+        shards[1]["history"] = {"runs": 12, "peak_mem_gib": 7.0, "cpu_p50": 3.9, "cpu_peak": 7.6}
+        body = render(run(1), [*shards, job("Test", 6)], None)
+
+        self.assertIn("| [Test](https://grafana/Test) | 6s |", body)
+        self.assertIn("| Test · shards **[1](https://grafana/Test(shard1))** [2](https://grafana/Test(shard2)) "
+                      "[3](https://grafana/Test(shard3)) | 3m 00s – 4m 00s |", body)
+        self.assertIn("| Test · shards [1](https://grafana/Test(shard1)) [2](https://grafana/Test(shard2)) | "
+                      "⬇️ 8cpu-24gb → 4cpu-12gb | trial: may be slower | 7.0 GiB | 3.9 / 7.6 | 12 |", body)
+        self.assertIn("| Test · shards [3](https://grafana/Test(shard3)) | ⬆️ 8cpu-24gb → 16cpu-48gb |", body)
+        self.assertIn("· 💡 2 runner changes</summary>", body)
+
+    def test_shows_the_full_name_of_matrix_jobs_that_would_share_a_short_name(self):
+        body = render(run(1), [job("integration-tests (integration, app)", 300),
+                               job("integration-tests (services, unit)", 200, "arc-arm64-16cpu-48gb", "memory"),
+                               job("static-checks (php)", 100)], None)
+
+        self.assertIn("| [integration-tests (integration, app)](https://grafana/integration-tests(integration,app)) "
+                      "| 5m 00s |", body)
+        self.assertIn("| [integration-tests (services, unit)](https://grafana/integration-tests(services,unit)) "
+                      "| 3m 20s |", body)
+        self.assertIn("| [static-checks](https://grafana/static-checks(php)) | 1m 40s |", body)
+        self.assertIn("| [integration-tests (services, unit)](https://grafana/integration-tests(services,unit)) "
+                      "| ⬆️ 8cpu-24gb → 16cpu-48gb | needs memory |", body)
+
+    def test_groups_dashed_shards_and_sorts_a_job_with_a_suffix_by_its_shown_name(self):
+        body = render(run(1), [job("unit-tests (shard-2)", 100), job("unit-tests (shard-1)", 90),
+                               job("unit-tests (fast)", 5)], None)
+
+        rows = [line for line in body.splitlines() if line.startswith("| [unit-tests]") or line.startswith("| unit-tests")]
+        self.assertEqual(rows, ["| [unit-tests](https://grafana/unit-tests(fast)) | 5s |",
+                                "| unit-tests · shards [1](https://grafana/unit-tests(shard-1)) "
+                                "**[2](https://grafana/unit-tests(shard-2))** | 1m 30s – 1m 40s |"])
+
     def test_omits_the_suggestion_table_when_every_runner_fits(self):
         body = render(run(12), [job("Compile", 150)], None)
 
