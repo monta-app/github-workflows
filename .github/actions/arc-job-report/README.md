@@ -12,8 +12,8 @@ Expanded, it has:
 
 - **Jobs:** each job's duration, with the job name linking to its pod on the
   [ARC Job Resources dashboard](https://montaapp.grafana.net/d/arc-job-resources).
-  Sharded jobs (`<name> - shard N` or `<name> (shard N)`) are merged into one row
-  with the time range and a link per shard number; the slowest shard is bold.
+  Sharded jobs (`<name> - shard N`, `<name> (shard N)` or `<name> (shard-N)`) are
+  merged into one row with the time range and a link per shard number; the slowest shard is bold.
 - **Suggested runner changes:** only jobs where another catalog size is
   suggested, marked ⬇️ (smaller) or ⬆️ (bigger) with the reason, the job's peak
   memory, median and peak CPU and number of runs over the last 7 days; the job

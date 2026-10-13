@@ -20,7 +20,7 @@ from job_resources import MEMORY_HEADROOM, MIN_RUNS, WINDOW, analyse_run, sh
 
 MARKER = "<!-- arc-job-report -->"
 HISTORY = re.compile(r"<!-- history (\[.*?\]) -->", re.S)
-SHARD = re.compile(r"^(.*?)(?: - shard (\d+)| \(shard (\d+)\))$")
+SHARD = re.compile(r"^(.*?)(?: - shard (\d+)| \(shard[ -](\d+)\))$")
 RESULT = {"success": "✅", "failure": "❌"}
 WHY = {"memory": "needs memory", "faster": "CPU-bound, faster", "fits": "fits", "trial": "trial: may be slower"}
 # ponytail: keeps the last 50 runs so the comment stays far below GitHub's 65,536-character limit
@@ -70,7 +70,7 @@ def grouped(results, key=lambda r: None):
         sharded = shard(r) is not None
         label = SHARD.match(r["job"]).group(1) if sharded else r["job"]
         groups.setdefault((label, sharded, key(r)), []).append(r)
-    return sorted(groups.items(), key=lambda g: (g[0][0], g[0][1]))
+    return sorted(groups.items(), key=lambda g: (name({"job": g[0][0]}), g[0][1]))
 
 
 def job_label(label, sharded, jobs, bold=None):

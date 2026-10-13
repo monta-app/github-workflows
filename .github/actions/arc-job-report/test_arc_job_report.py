@@ -80,6 +80,15 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| Test · shards [3](https://grafana/Test(shard3)) | ⬆️ 8cpu-24gb → 16cpu-48gb |", body)
         self.assertIn("· 💡 2 runner changes</summary>", body)
 
+    def test_groups_dashed_shards_and_sorts_a_job_with_a_suffix_by_its_shown_name(self):
+        body = render(run(1), [job("unit-tests (shard-2)", 100), job("unit-tests (shard-1)", 90),
+                               job("unit-tests (fast)", 5)], None)
+
+        rows = [line for line in body.splitlines() if line.startswith("| [unit-tests]") or line.startswith("| unit-tests")]
+        self.assertEqual(rows, ["| [unit-tests](https://grafana/unit-tests(fast)) | 5s |",
+                                "| unit-tests · shards [1](https://grafana/unit-tests(shard-1)) "
+                                "**[2](https://grafana/unit-tests(shard-2))** | 1m 30s – 1m 40s |"])
+
     def test_omits_the_suggestion_table_when_every_runner_fits(self):
         body = render(run(12), [job("Compile", 150)], None)
 
