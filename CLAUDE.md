@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-10-07
-- **Latest SHA**: 17d99ba (check for newer commits)
-- **Changes**: Terraform plans are stored beside the state in S3 instead of as Actions artifacts
+- **Date**: 2026-10-13
+- **Latest SHA**: 7ac4f51 (check for newer commits)
+- **Changes**: `argocd-resource-name` scopes the deploy's ArgoCD wait to one Deployment
+
+## Recent Changes (2026-10-13)
+1. **`argocd-resource-name` on the v2 deploy workflows**: `deploy-generic-v2.yml` and `deploy-kotlin-v2.yml` accept `argocd-resource-name` and pass it through `component-deploy-v2.yml` to `argocd-wait-sync`'s existing `resource-name` (kind stays `Deployment`). The wait then requires the expected revision, `Synced`, and that Deployment healthy, and ignores the app's aggregate health. Without it, any Degraded resource in the app fails the deploy on the first poll: service-monta-factory run 38388140776 failed with its Deployment `Healthy` because a CronJob's last Job had failed. Empty (the default) keeps tracking the whole app.
 
 ## Recent Changes (2026-10-07)
 1. **Terraform plans are stored beside the state, not as Actions artifacts**: `terraform-stack.yml` writes the saved plan to `s3://<bucket>/tfplans/<state key>/<pr head sha>.tfplan`, read from the initialised backend in `.terraform/terraform.tfstate`, and the apply downloads and then deletes it. A saved plan is a zip of the full prior state (`tfstate`, `tfstate-prev`) plus every variable value, `sensitive` or not, and Actions artifacts are downloadable by anyone with read access to the repository — the whole org. Verified locally: a `sensitive` data-source value was absent from the text plan and present in `terraform show -json tfplan`. The shared `tfplans/` prefix is what lets one bucket lifecycle rule expire unapplied plans and the noncurrent versions left by the post-apply delete (S3 lifecycle filters only match a literal key prefix); the cost is that roles scoped to their own state prefix need `tfplans/<prefix>/*` added. Stacks must use the `s3` backend; anything else fails with `Unsupported backend`. `plan-retention-days` and the `Slug the stack path` step are gone, and callers no longer need `actions: write`. The runner needs the AWS CLI. Callers pinned to an older SHA keep uploading artifacts until they bump, and a PR planned under the old pin finds no plan after the bump, so it needs a fresh plan or a `recover`.

@@ -75,6 +75,11 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      argocd-resource-name:
+        required: false
+        type: string
+        default: ''
+        description: 'Name of the Deployment in the ArgoCD app to judge the wait on, instead of the whole app, so other resources (e.g. a CronJob whose last run failed) being Degraded do not fail the deploy. Empty tracks the whole app.'
       wait-for-argocd-sync:
         required: false
         type: boolean
@@ -199,6 +204,7 @@ jobs:
       helm-values-path: ${{ inputs.helm-values-path }}
       repository-name: ${{ inputs.repository-name }}
       argocd-server: ${{ inputs.argocd-server }}
+      argocd-resource-name: ${{ inputs.argocd-resource-name }}
       wait-for-argocd-sync: ${{ inputs.wait-for-argocd-sync }}
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
