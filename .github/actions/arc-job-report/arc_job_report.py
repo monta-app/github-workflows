@@ -20,7 +20,11 @@ from job_resources import MEMORY_HEADROOM, MIN_RUNS, WINDOW, analyse_run, sh
 
 MARKER = "<!-- arc-job-report -->"
 HISTORY = re.compile(r"<!-- history (\[.*?\]) -->", re.S)
-SHARD = re.compile(r"^(.*?)(?: - shard (\d+)| \(shard[ -](\d+)\))$")
+SHARDS = [
+    re.compile(r"^(.*) - shard (\d+)$"),
+    re.compile(r"^(.*) \(shard (\d+)\)$"),
+    re.compile(r"^(.*) \(shard-(\d+)\)$"),
+]
 RESULT = {"success": "✅", "failure": "❌"}
 WHY = {"memory": "needs memory", "faster": "CPU-bound, faster", "fits": "fits", "trial": "trial: may be slower"}
 # ponytail: keeps the last 50 runs so the comment stays far below GitHub's 65,536-character limit
@@ -60,8 +64,8 @@ def name(r):
 
 
 def shard(r):
-    m = SHARD.match(r["job"])
-    return m and int(m.group(2) or m.group(3))
+    m = next((m for p in SHARDS if (m := p.match(r["job"]))), None)
+    return m and (m.group(1), int(m.group(2)))
 
 
 def grouped(results, key=lambda r: None):
@@ -70,7 +74,7 @@ def grouped(results, key=lambda r: None):
     for r in results:
         sharded = shard(r) is not None
         if sharded:
-            label = SHARD.match(r["job"]).group(1)
+            label = shard(r)[0]
         else:
             label = name(r) if short.count(name(r)) == 1 else r["job"]
         groups.setdefault((label, sharded, key(r)), []).append(r)
@@ -80,8 +84,8 @@ def grouped(results, key=lambda r: None):
 def job_label(label, sharded, jobs, bold=None):
     if not sharded:
         return f"[{label}]({jobs[0]['dashboard']})"
-    links = " ".join(f"**[{shard(r)}]({r['dashboard']})**" if r is bold else f"[{shard(r)}]({r['dashboard']})"
-                     for r in sorted(jobs, key=shard))
+    links = " ".join(f"**[{shard(r)[1]}]({r['dashboard']})**" if r is bold else f"[{shard(r)[1]}]({r['dashboard']})"
+                     for r in sorted(jobs, key=lambda r: shard(r)[1]))
     return f"{label} · shards {links}"
 
 
