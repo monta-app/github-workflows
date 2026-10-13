@@ -80,6 +80,19 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| Test · shards [3](https://grafana/Test(shard3)) | ⬆️ 8cpu-24gb → 16cpu-48gb |", body)
         self.assertIn("· 💡 2 runner changes</summary>", body)
 
+    def test_shows_the_full_name_of_matrix_jobs_that_would_share_a_short_name(self):
+        body = render(run(1), [job("integration-tests (integration, app)", 300),
+                               job("integration-tests (services, unit)", 200, "arc-arm64-16cpu-48gb", "memory"),
+                               job("static-checks (php)", 100)], None)
+
+        self.assertIn("| [integration-tests (integration, app)](https://grafana/integration-tests(integration,app)) "
+                      "| 5m 00s |", body)
+        self.assertIn("| [integration-tests (services, unit)](https://grafana/integration-tests(services,unit)) "
+                      "| 3m 20s |", body)
+        self.assertIn("| [static-checks](https://grafana/static-checks(php)) | 1m 40s |", body)
+        self.assertIn("| [integration-tests (services, unit)](https://grafana/integration-tests(services,unit)) "
+                      "| ⬆️ 8cpu-24gb → 16cpu-48gb | needs memory |", body)
+
     def test_groups_dashed_shards_and_sorts_a_job_with_a_suffix_by_its_shown_name(self):
         body = render(run(1), [job("unit-tests (shard-2)", 100), job("unit-tests (shard-1)", 90),
                                job("unit-tests (fast)", 5)], None)

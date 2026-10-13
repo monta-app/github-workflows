@@ -65,17 +65,21 @@ def shard(r):
 
 
 def grouped(results, key=lambda r: None):
+    short = [name({"job": j}) for j in {r["job"] for r in results if shard(r) is None}]
     groups = {}
     for r in results:
         sharded = shard(r) is not None
-        label = SHARD.match(r["job"]).group(1) if sharded else r["job"]
+        if sharded:
+            label = SHARD.match(r["job"]).group(1)
+        else:
+            label = name(r) if short.count(name(r)) == 1 else r["job"]
         groups.setdefault((label, sharded, key(r)), []).append(r)
-    return sorted(groups.items(), key=lambda g: (name({"job": g[0][0]}), g[0][1]))
+    return sorted(groups.items(), key=lambda g: (g[0][0], g[0][1]))
 
 
 def job_label(label, sharded, jobs, bold=None):
     if not sharded:
-        return f"[{name(jobs[0])}]({jobs[0]['dashboard']})"
+        return f"[{label}]({jobs[0]['dashboard']})"
     links = " ".join(f"**[{shard(r)}]({r['dashboard']})**" if r is bold else f"[{shard(r)}]({r['dashboard']})"
                      for r in sorted(jobs, key=shard))
     return f"{label} · shards {links}"
@@ -97,7 +101,10 @@ def change(r):
 
 def suggestion_rows(results):
     rows = []
-    for (label, sharded, (runner, suggested, reason)), jobs in grouped(filter(change, results), change):
+    for (label, sharded, changed), jobs in grouped(results, change):
+        if not changed:
+            continue
+        runner, suggested, reason = changed
         arrow = "⬇️" if rank(suggested) < rank(runner) else "⬆️"
         h = [r["history"] for r in jobs]
         rows.append(f"| {job_label(label, sharded, jobs)} | {arrow} {runner} → {suggested} | {WHY[reason]} | "
