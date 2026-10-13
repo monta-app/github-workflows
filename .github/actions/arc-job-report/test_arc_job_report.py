@@ -4,12 +4,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from arc_job_report import render  # noqa: E402
+from arc_job_report import MARKER, render, update  # noqa: E402
 from job_resources import history, suggest  # noqa: E402
 
 
-def run(number, attempt=1, ended="2026-09-28T11:07:46Z", conclusion="success"):
-    return {"run_number": number, "run_attempt": attempt, "html_url": f"https://example/runs/{number}",
+def run(number, attempt=1, ended="2026-09-28T11:07:46Z", conclusion="success", workflow="Unit tests"):
+    return {"name": workflow, "run_number": number, "run_attempt": attempt, "html_url": f"https://example/runs/{number}",
             "head_sha": f"{number}abcdef", "conclusion": conclusion,
             "run_started_at": "2026-09-28T11:00:00Z", "updated_at": ended}
 
@@ -37,7 +37,7 @@ class RenderTest(unittest.TestCase):
         rows = history_rows(body)
         self.assertEqual([r.split("]")[0] for r in rows], ["| [#10", "| [#12"])
         self.assertIn("| ✅ | 8m 00s | ▲ 14s | Compile (1m 20s) |", rows[1])
-        self.assertIn("<summary>✅ <b>8m 00s</b> (▲ 14s vs previous run)", body)
+        self.assertIn("<summary>Unit tests · ✅ <b>8m 00s</b> (▲ 14s vs previous run)", body)
 
     def test_merges_shards_into_one_row_with_a_link_per_shard_and_the_slowest_in_bold(self):
         body = render(run(1), [job("Tests - shard 1", 110), job("Tests - shard 0", 130), job("Tests - shard 2", 90)], None)
@@ -107,6 +107,36 @@ class RenderTest(unittest.TestCase):
 
         self.assertNotIn("Suggested runner changes", body)
         self.assertNotIn("💡", body)
+
+
+class UpdateTest(unittest.TestCase):
+    def test_keeps_one_section_per_workflow_and_replaces_only_the_reporting_one(self):
+        body = update(None, "Unit tests", run(5), [job("Compile", 100)])
+        body = update(body, "Integration tests", run(9, workflow="Integration tests"), [job("Suite", 200)])
+        body = update(body, "Unit tests", run(6), [job("Compile", 80)])
+
+        self.assertTrue(body.startswith(MARKER + "\n\n<!-- workflow: Integration tests -->\n<details>"))
+        self.assertEqual(update(body, "Unit tests", run(6), [job("Compile", 80)]), body)
+        self.assertEqual(body.count("<!-- workflow: "), 2)
+        self.assertIn("Integration tests · ✅", body)
+        self.assertIn("[Suite](https://grafana/Suite) | 3m 20s |", body)
+        self.assertNotIn("1m 40s |", body.split("<!-- workflow: Unit tests -->")[1].split("| Run |")[0])
+        self.assertEqual([r.split("]")[0] for r in history_rows(body)], ["| [#9", "| [#5", "| [#6"])
+
+    def test_adopts_a_comment_from_before_sections_as_the_reporting_workflow(self):
+        legacy = MARKER + "\n" + render(run(5), [job("Compile", 100)], None)
+        body = update(legacy, "Unit tests", run(6), [job("Compile", 80)])
+
+        self.assertEqual(body.count("<!-- workflow: Unit tests -->"), 1)
+        self.assertEqual([r.split("]")[0] for r in history_rows(body)], ["| [#5", "| [#6"])
+
+    def test_splits_the_run_history_between_the_workflows(self):
+        body = None
+        for n in range(1, 40):
+            body = update(body, "Unit tests", run(n), [job("Compile", 100)])
+            body = update(body, "Integration tests", run(n, workflow="Integration tests"), [job("Suite", 100)])
+
+        self.assertEqual(len(history_rows(body)), 50)
 
 
 def sized(peak_mem_gib=3.0, cpu_p50=1.0, cpu_peak=2.0, runs=40, oom=0, runner=POD):

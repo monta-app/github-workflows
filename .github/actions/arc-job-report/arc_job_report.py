@@ -6,8 +6,8 @@ Usage:
 
 Needs `gh` authenticated (GH_TOKEN) and GRAFANA_TOKEN, or `gcx` for local runs; see job_resources.py.
 
-The PR gets one comment: the latest run's per-job table, plus a history row per run so
-speed changes can be traced to commits. Only a bot-authored comment is updated, so run it
+The PR gets one comment with a section per workflow: the workflow's latest run's per-job
+table, plus a history row per run so speed changes can be traced to commits. Only a bot-authored comment is updated, so run it
 locally with --dry-run, which prints the comment instead of posting it.
 """
 import json
@@ -20,6 +20,7 @@ from job_resources import MEMORY_HEADROOM, MIN_RUNS, WINDOW, analyse_run, sh
 
 MARKER = "<!-- arc-job-report -->"
 HISTORY = re.compile(r"<!-- history (\[.*?\]) -->", re.S)
+SECTION = re.compile(r"<!-- workflow: (.+?) -->\n(.*?)(?=\n<!-- workflow: |\Z)", re.S)
 SHARDS = [
     re.compile(r"^(.*) - shard (\d+)$"),
     re.compile(r"^(.*) \(shard (\d+)\)$"),
@@ -27,7 +28,7 @@ SHARDS = [
 ]
 RESULT = {"success": "✅", "failure": "❌"}
 WHY = {"memory": "needs memory", "faster": "CPU-bound, faster", "fits": "fits", "trial": "trial: may be slower"}
-# ponytail: keeps the last 50 runs so the comment stays far below GitHub's 65,536-character limit
+# ponytail: the last 50 runs across all sections keep the comment far below GitHub's 65,536-character limit
 MAX_HISTORY = 50
 
 
@@ -124,7 +125,7 @@ def history_row(h, previous):
             f"{delta(h['wall'], previous['wall']) if previous else '–'} | {slowest} |")
 
 
-def render(run, results, previous_body):
+def render(run, results, previous_body, max_history=MAX_HISTORY):
     match = HISTORY.search(previous_body or "")
     history = {h["run"]: h for h in json.loads(match.group(1))} if match else {}
     slowest = max(results, key=lambda r: r["duration_s"], default=None)
@@ -134,16 +135,15 @@ def render(run, results, previous_body):
         "wall": seconds(run["run_started_at"], run["updated_at"]),
         "slowest": name(slowest) if slowest else None, "slowest_s": slowest["duration_s"] if slowest else None,
     }
-    runs = [history[n] for n in sorted(history)][-MAX_HISTORY:]
+    runs = [history[n] for n in sorted(history)][-max_history:]
     previous = {h["run"]: p for p, h in zip(runs, runs[1:])}
     before = previous.get(current["run"])
     changed = suggestion_rows(results)
-    summary = (f"{RESULT.get(current['conclusion'], '⚠️')} <b>{minutes(current['wall'])}</b>"
+    summary = (f"{run['name']} · {RESULT.get(current['conclusion'], '⚠️')} <b>{minutes(current['wall'])}</b>"
                + (f" ({delta(current['wall'], before['wall'])} vs previous run)" if before else "")
                + f" · 🏃 ARC runners · <a href=\"{current['url']}\">run #{current['run']}</a> · {current['sha']}"
                + (f" · 💡 {len(changed)} runner change{'s' if len(changed) != 1 else ''}" if changed else ""))
     return "\n".join([
-        MARKER,
         f"<details><summary>{summary}</summary>",
         "",
         "Job names and shard numbers link to their CPU and memory graphs; the slowest shard is bold.",
@@ -170,6 +170,13 @@ def render(run, results, previous_body):
     ])
 
 
+def update(body, workflow, run, results):
+    sections = {w: s.strip() for w, s in SECTION.findall(body or "")} or ({workflow: body} if body else {})
+    sections[workflow] = render(run, results, sections.get(workflow),
+                                MAX_HISTORY // len(sections.keys() | {workflow}))
+    return "\n\n".join([MARKER, *(f"<!-- workflow: {w} -->\n{s}" for w, s in sorted(sections.items()))])
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args:
@@ -181,13 +188,14 @@ def main():
     run = json.loads(sh("gh", "api", f"repos/{repo}/actions/runs/{run_id}"))
     prs = run["pull_requests"] or json.loads(sh("gh", "api", f"repos/{repo}/commits/{run['head_sha']}/pulls"))
     if not prs:
-        sys.exit(f"no pull request found for run {run_id}")
+        print(f"no pull request found for run {run_id}, nothing to report")
+        return
     pr = prs[0]["number"]
     results = analyse_run(args[0])
     comments = json.loads(sh("gh", "api", "--paginate", "--slurp", f"repos/{repo}/issues/{pr}/comments"))
     existing = next((c for page in reversed(comments) for c in reversed(page)
                      if MARKER in c["body"] and c["user"]["type"] == "Bot"), None)
-    body = render(run, results, existing and existing["body"])
+    body = update(existing and existing["body"], run["name"], run, results)
     if "--dry-run" in sys.argv:
         print(body)
     elif existing:

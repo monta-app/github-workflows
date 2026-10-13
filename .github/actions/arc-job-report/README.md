@@ -2,13 +2,14 @@
 
 Keeps **one comment per PR** that shows how each job of a workflow run used its
 self-hosted ARC runner, which jobs would fit a different runner size, and how the
-run's wall time changes from commit to commit.
+run's wall time changes from commit to commit. Each reported workflow gets its own
+section in that comment, and a run only updates its own workflow's section.
 
-Collapsed, the comment is a single line:
+Collapsed, each section is a single line:
 
-> ▶ ✅ **4m 33s** (▲ 18s vs previous run) · 🏃 ARC runners · [run #6228](#) · 315e3c4 · 💡 2 runner changes
+> ▶ Unit tests · ✅ **4m 33s** (▲ 18s vs previous run) · 🏃 ARC runners · [run #6228](#) · 315e3c4 · 💡 2 runner changes
 
-Expanded, it has:
+Expanded, a section has:
 
 - **Jobs:** each job's duration, with the job name linking to its pod on the
   [ARC Job Resources dashboard](https://montaapp.grafana.net/d/arc-job-resources).
@@ -23,10 +24,12 @@ Expanded, it has:
 - **Run history:** one row per run (commit, ✅/❌, wall time, change vs the
   previous run, slowest job), so speed changes can be traced to commits. The
   history is stored as JSON in a hidden HTML comment and re-rendered on every
-  run, keeping the last 50 runs.
+  run, keeping the last 50 runs, split evenly between the sections.
 
 The comment is edited in place on every run. Only a bot-authored comment is
 updated, so a comment someone posted by running the script locally is left alone.
+A comment from before sections existed is adopted as the reporting workflow's
+section, history included.
 
 ## Usage
 
@@ -61,6 +64,11 @@ jobs:
 
 No checkout is needed: the action ships its own scripts. Jobs that did not run on
 an ARC runner (`arc-*` / `self-hosted-*`) are skipped.
+
+To report several workflows, list them all in `workflows:`; they share the PR's one
+comment. If they run on `push` rather than `pull_request` (as in monta-app/server),
+drop the `event == 'pull_request'` condition: the report finds the PR from the
+commit, and a run whose commit has no PR is skipped without failing.
 
 | Input | Required | Description |
 |---|---|---|
