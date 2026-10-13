@@ -43,6 +43,11 @@ on:
         default: 300
         type: number
         description: 'Timeout duration in seconds to wait for ArgoCD sync to apply'
+      argocd-resource-name:
+        required: false
+        type: string
+        default: ''
+        description: 'Name of the Deployment in the ArgoCD app to judge the wait on, instead of the whole app, so other resources (e.g. a CronJob whose last run failed) being Degraded do not fail the deploy. Empty tracks the whole app.'
       wait-for-argocd-sync:
         required: false
         default: true
@@ -238,6 +243,7 @@ jobs:
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
+          resource-name: ${{ inputs.argocd-resource-name }}
           manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           github-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Resolve deployment URL

@@ -574,6 +574,7 @@ jobs:
 | `argocd-server` | No | - | ArgoCD server URL (e.g., argocd.monta.app) |
 | `argocd-app-name` | No | `{service-identifier}` | ArgoCD application name prefix (without stage) |
 | `argocd-sync-wait-seconds` | No | 300 | Timeout for ArgoCD sync monitoring |
+| `argocd-resource-name` | No | `''` | Deployment to judge the ArgoCD wait on instead of the whole app, so an unrelated Degraded resource (e.g. a failed CronJob run) doesn't fail the deploy |
 | `git-sha` | No | - | Git SHA to checkout and build from |
 | `enable-release-tag` | No | false | Enable automatic release tag creation |
 | `release-tag-prefix` | No | '' | Optional prefix for release tag names |
