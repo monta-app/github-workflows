@@ -28,6 +28,11 @@ merge_base=$(git merge-base HEAD "$base")
 # Strip directory, the B/V prefix and the __description suffix.
 versions() { sed -E 's|.*/||; s|^[BV]||; s|__.*$||'; }
 
+# Only versioned (V) and baseline (B) migrations have a version. Repeatable
+# (R__) and callback files have none, and would otherwise parse as e.g. "R",
+# which sort -V places after every timestamp.
+versioned() { grep -E '(^|/)[BV][0-9][^/]*\.sql$' || true; }
+
 # A root is a directory named "migration" under src/main/resources holding at
 # least one .sql somewhere beneath it -- NOT every directory that contains a
 # .sql. Flyway pools all of a root's subdirectories (common/, <env>/,
@@ -93,7 +98,7 @@ check_root() {
     local base_max
     base_max=$(
         git ls-tree -r --name-only "$base" -- "$migrations" |
-            { grep -E '\.sql$' || true; } | versions | sort -V | tail -1
+            versioned | versions | sort -V | tail -1
     )
     echo "  newest migration on $base: ${base_max:-<none>}"
 
