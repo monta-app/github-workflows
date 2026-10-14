@@ -114,6 +114,10 @@ are therefore left alone rather than reported.
 - Scope is Flyway-style versioned filenames. Version *extraction* (strip a
   leading `B`/`V`, strip `__description`) is Flyway-specific; Laravel- or
   Prisma-style migrations would need a second extraction mode.
+- Only `B`/`V` files set the base branch's newest version. Repeatable (`R__`)
+  migrations and callbacks have no version; counted naively, service-grid's
+  `R__monta_service_provider_seed.sql` became version `R`, which `sort -V`
+  places after every timestamp, so no new migration could pass.
 
 ## Limitation worth knowing
 
