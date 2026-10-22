@@ -114,9 +114,8 @@ jobs:
         shell: bash
         run: |
           # Find the generated spec
-          YML_FILE=$(find . -type f -name '*.yml' \
-            | grep "$OPENAPI_OUTPUT_DIR" \
-            | head -n1)
+          YML_FILE=$(find . -type f -name '*.yml' | grep "^\./${OPENAPI_OUTPUT_DIR}/" | head -n1 || true)
+          [ -n "$YML_FILE" ] || YML_FILE=$(find . -type f -name '*.yml' | grep "$OPENAPI_OUTPUT_DIR" | head -n1)
 
           # Check if a .yml file was found and display the result or an error message
           if [ -z "${YML_FILE}" ]; then
