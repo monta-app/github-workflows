@@ -1,9 +1,12 @@
 # Claude Code Notes
 
 ## Last Documentation Update
-- **Date**: 2026-10-13
-- **Latest SHA**: 821e53e (check for newer commits)
-- **Changes**: `arc-job-report` keeps one comment per PR with a section per workflow
+- **Date**: 2026-10-22
+- **Latest SHA**: 84fb68d (check for newer commits)
+- **Changes**: `sonar-cloud.yml` can submit Gradle dependencies to GitHub's dependency graph (`submit-dependencies`)
+
+## Recent Changes (2026-10-22)
+1. **`submit-dependencies` on `sonar-cloud.yml`**: when set, a run on the default branch runs `gradle/actions/dependency-submission` (v6.4.0, pinned) after the tests, so the Gradle dependencies the build resolves reach GitHub's dependency graph. GitHub's dependency graph has no Gradle support from manifests, so without this a Kotlin repo's Dependabot alerts and its SBOM export (`GET /repos/{owner}/{repo}/dependency-graph/sbom`) list no Gradle packages, which leaves license scanning blind to them. It runs after the tests so the dependencies are already in the Gradle cache, gets `GHL_USERNAME`/`GHL_PASSWORD` like the build steps (GitHub Packages; CodeArtifact comes from the runner image's init script), and uses `cache-provider: external` because the job restores and saves the Gradle cache itself (the action's default `enhanced` cache is a commercial service). Only the default branch's submission is shown by GitHub, so other refs skip the step. It's `continue-on-error`. Submitting needs `contents: write`; the step relies on the repository's default workflow token rather than declaring `permissions:`, because a nested job asking for more than its caller grants fails at startup, which would break Code Analysis in repos whose default token is read-only (there the step just fails softly). `DEPENDENCY_GRAPH_RUNTIME_EXCLUDE_CONFIGURATIONS` is set from `dependency-development-configurations` (tests and build tooling by default), which turns on scopes: dependencies resolved only there are `development`, any also resolved elsewhere `runtime`. GitHub keeps the scope for Dependabot but its SBOM export drops it, so the graph is also saved as a workflow artifact (the action's default `generate-submit-and-upload`, 30 days) for tools that need it. Off by default; repos opt in one by one.
 
 ## Recent Changes (2026-10-13)
 1. **`argocd-resource-name` on the v2 deploy workflows**: `deploy-generic-v2.yml` and `deploy-kotlin-v2.yml` accept `argocd-resource-name` and pass it through `component-deploy-v2.yml` to `argocd-wait-sync`'s existing `resource-name` (kind stays `Deployment`). The wait then requires the expected revision, `Synced`, and that Deployment healthy, and ignores the app's aggregate health. Without it, any Degraded resource in the app fails the deploy on the first poll: service-monta-factory run 38388140776 failed with its Deployment `Healthy` because a CronJob's last Job had failed. Empty (the default) keeps tracking the whole app.

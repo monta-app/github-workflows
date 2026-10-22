@@ -997,7 +997,8 @@ jobs:
 3. Caches SonarQube packages
 4. Joins the Tailscale VPN (when `TAILSCALE_AUTHKEY` is set) to reach the self-hosted SonarQube
 5. Runs tests with Kover coverage (gating)
-6. Uploads analysis to SonarQube (best-effort by default)
+6. With `submit-dependencies`, submits the Gradle dependencies to GitHub's dependency graph (default branch only, best-effort)
+7. Uploads analysis to SonarQube (best-effort by default)
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -1007,6 +1008,8 @@ jobs:
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
+| `submit-dependencies` | No | false | On the default branch, submit the build's resolved Gradle dependencies to GitHub's dependency graph with `gradle/actions/dependency-submission`, so Dependabot and the repository's SBOM export cover Gradle, and save the graph as a workflow artifact (30 days). Best-effort: a failure never fails the job. Needs the default workflow token to have `contents: write`. |
+| `dependency-development-configurations` | No | tests and build tooling | Regular expression for the Gradle configurations whose dependencies are scoped `development` (the default matches test, `classpath`, kapt/KSP, annotation-processor, detekt, ktlint and Kover configurations). A dependency also resolved by any other configuration is scoped `runtime`. |
 
 ### Secrets:
 | Secret | Required | Description |
