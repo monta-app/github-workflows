@@ -1008,7 +1008,7 @@ jobs:
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
-| `submit-dependencies` | No | false | On the default branch, submit the build's resolved Gradle dependencies to GitHub's dependency graph with `gradle/actions/dependency-submission`, so Dependabot and the repository's SBOM export cover Gradle, and save the graph as a workflow artifact (30 days). Best-effort: a failure never fails the job. Needs the default workflow token to have `contents: write`. |
+| `submit-dependencies` | No | false | On the default branch, submit the build's resolved Gradle dependencies to GitHub's dependency graph with `gradle/actions/dependency-submission`, so Dependabot and the repository's SBOM export cover Gradle, and save the graph as a workflow artifact (30 days). Packages keep their `repository_url` purl qualifier only for GitHub Packages, so ones resolved through a proxy of Maven Central (CodeArtifact on ARC) are matched to Maven Central and get its license and advisory data. Best-effort: a failure never fails the job. Needs the default workflow token to have `contents: write`. |
 | `dependency-development-configurations` | No | tests and build tooling | Regular expression for the Gradle configurations whose dependencies are scoped `development` (the default matches test, `classpath`, kapt/KSP, annotation-processor, detekt, ktlint and Kover configurations). A dependency also resolved by any other configuration is scoped `runtime`. |
 
 ### Secrets:
