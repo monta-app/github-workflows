@@ -13,15 +13,16 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 7. [Deploy Kotlin](#deploy-kotlin)
 8. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
 9. [Gradle Dependency Submission](#gradle-dependency-submission)
-10. [Publish Tech Docs](#publish-tech-docs)
-11. [Pull Request Kotlin](#pull-request-kotlin)
-12. [Pull Request React (Bun)](#pull-request-react-bun)
-13. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-14. [Rollback](#rollback)
-15. [SonarCloud Analysis](#sonarcloud-analysis)
-16. [Track Pending Release](#track-pending-release)
-17. [PR Digest](#pr-digest)
-18. [Terraform](#terraform)
+10. [pnpm Dependency Submission](#pnpm-dependency-submission)
+11. [Publish Tech Docs](#publish-tech-docs)
+12. [Pull Request Kotlin](#pull-request-kotlin)
+13. [Pull Request React (Bun)](#pull-request-react-bun)
+14. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+15. [Rollback](#rollback)
+16. [SonarCloud Analysis](#sonarcloud-analysis)
+17. [Track Pending Release](#track-pending-release)
+18. [PR Digest](#pr-digest)
+19. [Terraform](#terraform)
 
 ---
 
@@ -809,6 +810,43 @@ jobs:
       GH_ACTION_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
       GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+```
+
+---
+
+## pnpm Dependency Submission
+
+**File:** `pnpm-dependency-submission.yml`  
+**Purpose:** Submits the packages a `pnpm-lock.yaml` resolves to GitHub's dependency graph, for repos whose lockfile GitHub can't read. pnpm 12 writes the lockfile as two YAML documents, a first one that only pins pnpm and then the workspace's lockfile, and GitHub's parser reads only the first. It then falls back to each workspace's `package.json`, so the SBOM lists only direct dependencies with their specifiers (`catalog:…`, `^1.2.3`) and no transitive ones.
+
+### What it does:
+1. Runs only on the default branch (on other refs the job is skipped)
+2. Reads every document of the lockfile with `yq`; it doesn't install anything
+3. Writes one manifest per workspace package, named after its `package.json`, with every package that workspace's dependencies resolve to. A manifest a submission names the same as one GitHub detects replaces it, so the specifiers disappear from the SBOM.
+4. Scopes a package `runtime` if any workspace's `dependencies` or `optionalDependencies` reach it, `development` if only `devDependencies` do. Peer dependencies don't decide the scope, since the consumer supplies them.
+5. Submits the snapshot to `/repos/{repo}/dependency-graph/snapshots` (job correlator `pnpm-dependency-submission`)
+
+The converter is the [`pnpm-dependency-graph`](../.github/actions/pnpm-dependency-graph) action, which also works on its own in a job. Its tests run with `python3 .github/actions/pnpm-dependency-graph/test_pnpm_dependency_graph.py`. Submitting needs the default workflow token to have `contents: write`.
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `lockfile` | No | "pnpm-lock.yaml" | Path of the pnpm lockfile, relative to the repository root |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (never used in public repos) |
+
+### Example Usage:
+```yaml
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  dependencies:
+    permissions:
+      contents: write
+    uses: monta-app/github-workflows/.github/workflows/pnpm-dependency-submission.yml@main
 ```
 
 ---
