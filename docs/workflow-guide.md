@@ -769,7 +769,7 @@ service-{identifier}/
 ### What it does:
 1. Runs only on the default branch, the only branch whose graph GitHub uses (on other refs the jobs are skipped)
 2. Checks out the code, sets up Java and restores the Gradle cache (it doesn't save it)
-3. Resolves every configuration with `gradle/actions/dependency-submission`, without compiling or running tests, and saves the graph as a workflow artifact (`dependency-graph_*`, 30 days)
+3. Resolves every configuration with `gradle/actions/dependency-submission`, without compiling or running tests, and saves the graph as a workflow artifact named `dependency-graph_gradle-dependency-submission.json` in every repo (30 days)
 4. Drops the `repository_url` purl qualifier from every package except GitHub Packages ones, so packages resolved through a proxy of Maven Central (CodeArtifact on ARC) are matched to Maven Central and get its license and advisory data
 5. Submits the graph to `/repos/{repo}/dependency-graph/snapshots`
 

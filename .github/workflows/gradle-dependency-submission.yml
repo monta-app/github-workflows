@@ -96,6 +96,10 @@ jobs:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
           GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
           DEPENDENCY_GRAPH_RUNTIME_EXCLUDE_CONFIGURATIONS: ${{ inputs.dependency-development-configurations }}
+          # Names the snapshot and its artifact the same in every repo, rather
+          # than after the calling workflow and job, so readers can fetch
+          # dependency-graph_gradle-dependency-submission.json by name.
+          GITHUB_DEPENDENCY_GRAPH_JOB_CORRELATOR: gradle-dependency-submission
         uses: gradle/actions/dependency-submission@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           dependency-graph: generate-and-upload
