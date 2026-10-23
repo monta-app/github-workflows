@@ -16,6 +16,9 @@ This repository contains several reusable workflows designed to streamline the C
 ### `sonar-cloud.yml`
 - **Purpose**: Integrates with SonarCloud for analyzing code quality and vulnerabilities.
 
+### `gradle-dependency-submission.yml`
+- **Purpose**: Submits a Gradle build's resolved dependencies to GitHub's dependency graph on the default branch, so Dependabot and the repository's SBOM cover Gradle. See [Gradle Dependency Submission in workflow-guide.md](./docs/workflow-guide.md#gradle-dependency-submission).
+
 ### `semgrep-security-scan.yml`
 - **Purpose**: Runs Semgrep static analysis to detect security vulnerabilities, hardcoded secrets, and unsafe coding patterns. Designed primarily for pull requests (PR commenting, diff-aware scanning), but can be called from other event types via `workflow_call` with limited functionality.
 
