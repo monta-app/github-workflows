@@ -1,0 +1,35 @@
+name: 'pnpm Dependency Graph'
+description: 'Submit the packages a pnpm-lock.yaml resolves to GitHub''s dependency graph, one manifest per workspace package.json'
+author: 'Monta'
+
+inputs:
+  lockfile:
+    description: >-
+      Path of the pnpm lockfile, relative to the repository root.
+    required: false
+    default: 'pnpm-lock.yaml'
+  github-token:
+    description: >-
+      Token for the dependency submission API. Needs `contents: write`; the calling job's `github.token` works.
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Submit pnpm dependency graph
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        LOCKFILE: ${{ inputs.lockfile }}
+      run: |
+        set -euo pipefail
+        yq -o=json -I=0 '.' "$LOCKFILE" \
+          | python3 "${{ github.action_path }}/pnpm_dependency_graph.py" "$(dirname "$LOCKFILE")" > "$RUNNER_TEMP/pnpm-snapshot.json"
+        jq -r '"Manifests: \(.manifests | length), packages: \([.manifests[].resolved | keys[]] | unique | length)"' "$RUNNER_TEMP/pnpm-snapshot.json"
+        curl --fail-with-body --silent --show-error -X POST \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          --data-binary @"$RUNNER_TEMP/pnpm-snapshot.json" \
+          "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/dependency-graph/snapshots"
+        echo
