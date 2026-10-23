@@ -34,11 +34,11 @@ on:
         required: false
         description: "AWS secret key for the S3 cache bucket, used on ARC. Without it ARC jobs use the GitHub cache."
       GHL_USERNAME:
-        required: true
-        description: "Github Username (Gradle plugin)"
+        required: false
+        description: "Github Username (Gradle plugin), for builds that resolve packages from GitHub Packages"
       GHL_PASSWORD:
-        required: true
-        description: "Github Password (Gradle plugin)"
+        required: false
+        description: "Github Password (Gradle plugin), for builds that resolve packages from GitHub Packages"
 env:
   LC_ALL: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'C.UTF-8' || '' }}
   S3_CACHE: ${{ (inputs.use-arc-runners && github.event.repository.private) && secrets.GH_ACTION_ACCESS_KEY_ID != '' }}
