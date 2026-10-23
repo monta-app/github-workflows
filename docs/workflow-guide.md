@@ -789,8 +789,8 @@ Dependencies resolved only by the configurations matching `dependency-developmen
 |--------|----------|-------------|
 | `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
 | `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
-| `GHL_USERNAME` | Yes | GitHub username |
-| `GHL_PASSWORD` | Yes | GitHub token |
+| `GHL_USERNAME` | No | GitHub username, for builds that resolve packages from GitHub Packages |
+| `GHL_PASSWORD` | No | GitHub token, for builds that resolve packages from GitHub Packages |
 
 ### Example Usage:
 ```yaml
