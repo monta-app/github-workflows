@@ -37,7 +37,7 @@ on:
         required: false
         type: boolean
         default: false
-        description: "When true, a run on the default branch submits the Gradle build's resolved dependencies to GitHub's dependency graph (for Dependabot and the repository's SBOM), and saves the graph as a workflow artifact. Packages keep a repository_url qualifier only for GitHub Packages, so ones resolved through a Maven Central proxy are matched to Maven Central. Dependencies resolved only by the configurations matching dependency-development-configurations are scoped 'development', the rest 'runtime'. Best-effort: a failure never fails the job. Needs the default workflow token to have contents: write."
+        description: "When true, a run on the default branch also runs gradle-dependency-submission.yml as a separate job, alongside the tests: it submits the Gradle build's resolved dependencies to GitHub's dependency graph (for Dependabot and the repository's SBOM), and saves the graph as a workflow artifact. Best-effort: a failure never fails the workflow. Needs the default workflow token to have contents: write."
       dependency-development-configurations:
         required: false
         type: string
@@ -83,6 +83,23 @@ jobs:
         with:
           runner-size: ${{ inputs.runner-size }}
           use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
+  # A job of its own, so slow or failing tests don't keep the graph from
+  # being submitted.
+  dependencies:
+    name: Dependency Submission
+    if: ${{ inputs.submit-dependencies }}
+    uses: monta-app/github-workflows/.github/workflows/gradle-dependency-submission.yml@main
+    with:
+      runner-size: ${{ inputs.runner-size }}
+      use-arc-runners: ${{ inputs.use-arc-runners }}
+      java-version: ${{ inputs.java-version }}
+      dependency-development-configurations: ${{ inputs.dependency-development-configurations }}
+      best-effort: true
+    secrets:
+      GH_ACTION_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+      GH_ACTION_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
   sonar-cloud:
     name: SonarQube Analysis
     needs: setup
@@ -156,46 +173,6 @@ jobs:
           gradle-module: ${{ inputs.gradle-module }}
           gradle-tasks: 'test koverXmlReport'
           gradle-args: ${{ inputs.gradle-args }}
-      # After the tests, so the dependencies are already resolved and in the
-      # Gradle cache. Only the default branch's graph is used by GitHub.
-      - name: Generate Gradle dependency graph
-        id: dependency-graph
-        if: ${{ inputs.submit-dependencies && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-        continue-on-error: true
-        env:
-          GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
-          GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
-          DEPENDENCY_GRAPH_RUNTIME_EXCLUDE_CONFIGURATIONS: ${{ inputs.dependency-development-configurations }}
-        uses: gradle/actions/dependency-submission@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-        with:
-          dependency-graph: generate-and-upload
-          # The job restores and saves the Gradle cache itself.
-          cache-provider: external
-          artifact-retention-days: 30
-      # A package resolved anywhere but Maven Central itself carries its
-      # repository as a repository_url qualifier, so one resolved through a
-      # proxy of Maven Central (as on the ARC runners) isn't matched to Maven
-      # Central: GitHub then has no license or advisory data for it. Only
-      # GitHub Packages addresses are kept, to tell those packages apart.
-      - name: Submit Gradle dependency graph
-        if: ${{ steps.dependency-graph.outcome == 'success' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          for report in dependency-graph-reports/*.json; do
-            jq '(.manifests[].resolved[].package_url) |= (if test("repository_url=https%3A%2F%2Fmaven\\.pkg\\.github\\.com") then . else sub("\\?repository_url=[^#]*$"; "") end)' \
-              "$report" > "$report.submit"
-            curl --fail-with-body --silent --show-error -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              --data-binary @"$report.submit" \
-              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/dependency-graph/snapshots"
-            echo
-          done
       # Wait for the tailnet path to SonarQube to actually be usable before
       # scanning. `tailscale up` returns before DERP/route programming has
       # settled, so the scanner's first call (GET /api/v2/analysis/version)

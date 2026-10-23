@@ -12,15 +12,16 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 6. [Component Test (Kotlin)](#component-test-kotlin)
 7. [Deploy Kotlin](#deploy-kotlin)
 8. [Deploy Kotlin V2 (Service Repo)](#deploy-kotlin-v2-service-repo)
-9. [Publish Tech Docs](#publish-tech-docs)
-10. [Pull Request Kotlin](#pull-request-kotlin)
-11. [Pull Request React (Bun)](#pull-request-react-bun)
-12. [Pull Request React (pnpm)](#pull-request-react-pnpm)
-13. [Rollback](#rollback)
-14. [SonarCloud Analysis](#sonarcloud-analysis)
-15. [Track Pending Release](#track-pending-release)
-16. [PR Digest](#pr-digest)
-17. [Terraform](#terraform)
+9. [Gradle Dependency Submission](#gradle-dependency-submission)
+10. [Publish Tech Docs](#publish-tech-docs)
+11. [Pull Request Kotlin](#pull-request-kotlin)
+12. [Pull Request React (Bun)](#pull-request-react-bun)
+13. [Pull Request React (pnpm)](#pull-request-react-pnpm)
+14. [Rollback](#rollback)
+15. [SonarCloud Analysis](#sonarcloud-analysis)
+16. [Track Pending Release](#track-pending-release)
+17. [PR Digest](#pr-digest)
+18. [Terraform](#terraform)
 
 ---
 
@@ -760,6 +761,58 @@ service-{identifier}/
 
 ---
 
+## Gradle Dependency Submission
+
+**File:** `gradle-dependency-submission.yml`  
+**Purpose:** Submits a Gradle build's resolved dependencies to GitHub's dependency graph, so Dependabot and the repository's SBOM export cover Gradle. GitHub can't read Gradle builds on its own.
+
+### What it does:
+1. Runs only on the default branch, the only branch whose graph GitHub uses (on other refs the jobs are skipped)
+2. Checks out the code, sets up Java and restores the Gradle cache (it doesn't save it)
+3. Resolves every configuration with `gradle/actions/dependency-submission`, without compiling or running tests, and saves the graph as a workflow artifact (`dependency-graph_*`, 30 days)
+4. Drops the `repository_url` purl qualifier from every package except GitHub Packages ones, so packages resolved through a proxy of Maven Central (CodeArtifact on ARC) are matched to Maven Central and get its license and advisory data
+5. Submits the graph to `/repos/{repo}/dependency-graph/snapshots`
+
+Dependencies resolved only by the configurations matching `dependency-development-configurations` are scoped `development`, the rest `runtime`. Submitting needs the default workflow token to have `contents: write`; the workflow doesn't declare `permissions:`, so a caller with a read-only token gets a failed submit step rather than a workflow that can't start. `sonar-cloud.yml` calls it when `submit-dependencies` is set.
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `runner-size` | No | "normal" | Runner size |
+| `use-arc-runners` | No | true | Run on the self-hosted ARC arm64 runners (never used in public repos); set to `false` to use the GitHub-hosted `linux-arm64` runners. The Gradle cache is restored from S3 (`monta-github-ci-cache`) when the `GH_ACTION_*` secrets are passed, the GitHub cache otherwise. |
+| `java-version` | No | "21" | Java version |
+| `dependency-development-configurations` | No | tests and build tooling | Regular expression for the Gradle configurations whose dependencies are scoped `development` (the default matches test, `classpath`, kapt/KSP, annotation-processor, detekt, ktlint and Kover configurations). A dependency also resolved by any other configuration is scoped `runtime`. |
+| `best-effort` | No | false | When true, a failure to generate or submit the graph doesn't fail the job |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GH_ACTION_ACCESS_KEY_ID` | No | AWS access key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GH_ACTION_SECRET_ACCESS_KEY` | No | AWS secret key for the S3 cache bucket on ARC; without it the GitHub cache is used |
+| `GHL_USERNAME` | Yes | GitHub username |
+| `GHL_PASSWORD` | Yes | GitHub token |
+
+### Example Usage:
+```yaml
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  dependencies:
+    uses: monta-app/github-workflows/.github/workflows/gradle-dependency-submission.yml@main
+    with:
+      java-version: "25"
+    secrets:
+      GH_ACTION_ACCESS_KEY_ID: ${{ secrets.GH_ACTION_ACCESS_KEY_ID }}
+      GH_ACTION_SECRET_ACCESS_KEY: ${{ secrets.GH_ACTION_SECRET_ACCESS_KEY }}
+      GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
+      GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
+```
+
+---
+
 ## Publish Tech Docs
 
 **File:** `publish-tech-docs.yml`  
@@ -997,8 +1050,9 @@ jobs:
 3. Caches SonarQube packages
 4. Joins the Tailscale VPN (when `TAILSCALE_AUTHKEY` is set) to reach the self-hosted SonarQube
 5. Runs tests with Kover coverage (gating)
-6. With `submit-dependencies`, submits the Gradle dependencies to GitHub's dependency graph (default branch only, best-effort)
-7. Uploads analysis to SonarQube (best-effort by default)
+6. Uploads analysis to SonarQube (best-effort by default)
+
+With `submit-dependencies`, a separate job runs [Gradle Dependency Submission](#gradle-dependency-submission) alongside the tests (default branch only, best-effort), so slow or failing tests don't keep the graph from being submitted.
 
 ### Inputs:
 | Input | Required | Default | Description |
@@ -1008,8 +1062,8 @@ jobs:
 | `java-version` | No | "21" | Java version |
 | `gradle-module` | No | - | Gradle module name |
 | `sonar-non-blocking` | No | true | When true, a failure of the Tailscale bring-up or the SonarQube analysis step does not fail the job (tests still gate). Set to false to make SonarQube a hard gate. |
-| `submit-dependencies` | No | false | On the default branch, submit the build's resolved Gradle dependencies to GitHub's dependency graph with `gradle/actions/dependency-submission`, so Dependabot and the repository's SBOM export cover Gradle, and save the graph as a workflow artifact (30 days). Packages keep their `repository_url` purl qualifier only for GitHub Packages, so ones resolved through a proxy of Maven Central (CodeArtifact on ARC) are matched to Maven Central and get its license and advisory data. Best-effort: a failure never fails the job. Needs the default workflow token to have `contents: write`. |
-| `dependency-development-configurations` | No | tests and build tooling | Regular expression for the Gradle configurations whose dependencies are scoped `development` (the default matches test, `classpath`, kapt/KSP, annotation-processor, detekt, ktlint and Kover configurations). A dependency also resolved by any other configuration is scoped `runtime`. |
+| `submit-dependencies` | No | false | On the default branch, run [Gradle Dependency Submission](#gradle-dependency-submission) as a separate job, so Dependabot and the repository's SBOM export cover Gradle. Best-effort: a failure never fails the workflow. Needs the default workflow token to have `contents: write`. |
+| `dependency-development-configurations` | No | tests and build tooling | Passed to Gradle Dependency Submission when `submit-dependencies` is set. |
 
 ### Secrets:
 | Secret | Required | Description |
