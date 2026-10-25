@@ -784,6 +784,7 @@ Dependencies resolved only by the configurations matching `dependency-developmen
 | `java-version` | No | "21" | Java version |
 | `dependency-development-configurations` | No | tests and build tooling | Regular expression for the Gradle configurations whose dependencies are scoped `development` (the default matches test, `classpath`, kapt/KSP, annotation-processor, detekt, ktlint and Kover configurations). A dependency also resolved by any other configuration is scoped `runtime`. |
 | `best-effort` | No | false | When true, a failure to generate or submit the graph doesn't fail the job |
+| `build-root-directory` | No | repository root | Folder of the Gradle build, relative to the repository root, for a repo whose build isn't at the root |
 
 ### Secrets:
 | Secret | Required | Description |
