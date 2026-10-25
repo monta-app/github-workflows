@@ -26,6 +26,11 @@ on:
         type: boolean
         default: false
         description: "When true, a failure to generate or submit the graph doesn't fail the job."
+      build-root-directory:
+        required: false
+        type: string
+        default: ''
+        description: "Folder of the Gradle build, relative to the repository root. Defaults to the repository root."
     secrets:
       GH_ACTION_ACCESS_KEY_ID:
         required: false
@@ -103,6 +108,7 @@ jobs:
         uses: gradle/actions/dependency-submission@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           dependency-graph: generate-and-upload
+          build-root-directory: ${{ inputs.build-root-directory }}
           # The job restores the Gradle cache itself.
           cache-provider: external
           artifact-retention-days: 30
