@@ -202,12 +202,12 @@ jobs:
             ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           secrets: |
-            GHL_USERNAME=${{ secrets.GHL_USERNAME }}
-            GHL_PASSWORD=${{ secrets.GHL_PASSWORD }}
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            FARO_API_KEY=${{ secrets.FARO_API_KEY }}
-            AWS_CDN_ACCESS_KEY_ID=${{ secrets.AWS_CDN_ACCESS_KEY_ID }}
-            AWS_CDN_SECRET_ACCESS_KEY=${{ secrets.AWS_CDN_SECRET_ACCESS_KEY }}
-            LOKALISE_TOKEN=${{ secrets.LOKALISE_TOKEN }}
-            LOKALISE_PROJECT_ID=${{ secrets.LOKALISE_PROJECT_ID }}
-            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
+            ${{ secrets.GHL_USERNAME && format('GHL_USERNAME={0}', secrets.GHL_USERNAME) || '' }}
+            ${{ secrets.GHL_PASSWORD && format('GHL_PASSWORD={0}', secrets.GHL_PASSWORD) || '' }}
+            ${{ secrets.SENTRY_AUTH_TOKEN && format('SENTRY_AUTH_TOKEN={0}', secrets.SENTRY_AUTH_TOKEN) || '' }}
+            ${{ secrets.FARO_API_KEY && format('FARO_API_KEY={0}', secrets.FARO_API_KEY) || '' }}
+            ${{ secrets.AWS_CDN_ACCESS_KEY_ID && format('AWS_CDN_ACCESS_KEY_ID={0}', secrets.AWS_CDN_ACCESS_KEY_ID) || '' }}
+            ${{ secrets.AWS_CDN_SECRET_ACCESS_KEY && format('AWS_CDN_SECRET_ACCESS_KEY={0}', secrets.AWS_CDN_SECRET_ACCESS_KEY) || '' }}
+            ${{ secrets.LOKALISE_TOKEN && format('LOKALISE_TOKEN={0}', secrets.LOKALISE_TOKEN) || '' }}
+            ${{ secrets.LOKALISE_PROJECT_ID && format('LOKALISE_PROJECT_ID={0}', secrets.LOKALISE_PROJECT_ID) || '' }}
+            ${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY && format('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY={0}', secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY) || '' }}
