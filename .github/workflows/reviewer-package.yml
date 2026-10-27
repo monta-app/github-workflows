@@ -130,14 +130,21 @@ jobs:
           : > "$OUT/related-details.txt"
           jq -r --arg repo "$REPO" 'sort_by(.repo == $repo) | .[:6][] | "\(.repo)#\(.number)"' "$OUT/related.json" \
             | while read -r REF; do
-              {
-                GH_TOKEN="$READ_TOKEN" gh pr view "${REF#*#}" --repo "${REF%#*}" \
+              if ! META=$(GH_TOKEN="$READ_TOKEN" gh pr view "${REF#*#}" --repo "${REF%#*}" \
                   --json state,mergedAt,baseRefName,title,body,files \
-                  --jq '"<related_pr ref=\"'"$REF"'\" state=\"\(.state)\" merged_at=\"\(.mergedAt // "")\" base=\"\(.baseRefName)\">\n<title>\(.title)</title>\n<description>\n\((.body // "")[0:4000])\n</description>\n<files>\n\(.files | map(.path) | join("\n"))\n</files>"'
-                echo "<diff>"
-                GH_TOKEN="$READ_TOKEN" gh pr diff "${REF#*#}" --repo "${REF%#*}" 2>/dev/null | head -c 30000 || true
-                printf '\n</diff>\n</related_pr>\n'
-              } >> "$OUT/related-details.txt" || echo "::warning::Could not read details of $REF."
+                  --jq '"<related_pr ref=\"'"$REF"'\" state=\"\(.state)\" merged_at=\"\(.mergedAt // "")\" base=\"\(.baseRefName)\">\n<title>\(.title)</title>\n<description>\n\((.body // "")[0:4000])\n</description>\n<files>\n\(.files | map(.path) | join("\n"))\(if (.files | length) >= 100 then "\n(First 100 files only.)" else "" end)\n</files>"'); then
+                echo "::warning::Could not read details of $REF; the overview only gets its title from the related list."
+                continue
+              fi
+              # The model is told to say when it can't see a contract, so it must know when a diff is missing or cut.
+              if DIFF=$(GH_TOKEN="$READ_TOKEN" gh pr diff "${REF#*#}" --repo "${REF%#*}" 2>&1); then
+                if [[ ${#DIFF} -gt 30000 ]]; then
+                  DIFF="${DIFF:0:30000}"$'\n(The diff is cut off after 30000 characters.)'
+                fi
+              else
+                DIFF="(Diff unavailable: ${DIFF:0:300})"
+              fi
+              printf '%s\n<diff>\n%s\n</diff>\n</related_pr>\n' "$META" "$DIFF" >> "$OUT/related-details.txt"
             done
 
           # Earlier PRs that changed the same files, ranked by how many of them they changed.
@@ -204,15 +211,14 @@ jobs:
             --slurpfile history "$OUT/history.json" \
             --rawfile diff "$OUT/diff.patch" \
             --rawfile details "$OUT/related-details.txt" \
-            --arg repo "$REPO" \
             --arg note "$DIFF_NOTE" \
             --argjson max "$MAX_DIFF_CHARS" \
             '"<pull_request>\n" + ($pr[0] | {title, body, base: .baseRefName} | tojson) + "\n</pull_request>\n"
              + "<changed_files>\n" + ($files[0] | map("\(.status)\t+\(.additions)/-\(.deletions)\t\(.filename)") | join("\n")) + "\n</changed_files>\n"
              + "<diff>\n" + $diff[0:$max] + "\n</diff>\n" + $note + "\n"
              + "<earlier_prs_on_the_same_files>\n" + ($history[0] | map("#\(.number) \(.title)") | join("\n")) + "\n</earlier_prs_on_the_same_files>\n"
-             + "<related_pr_details>\n" + $details + "</related_pr_details>\n"
-             + "Related PRs found but not detailed above: " + ($related[0] | sort_by(.repo == $repo) | .[6:] | map("\(.repo)#\(.number) \(.title)") | join("; "))' > "$OUT/prompt.txt"
+             + "<related_prs>\n" + ($related[0] | map("\(.repo)#\(.number) [\(.state)] \(.title)") | join("\n")) + "\n</related_prs>\n"
+             + "<related_pr_details>\n" + $details + "</related_pr_details>\n"' > "$OUT/prompt.txt"
 
           jq -n \
             --arg model "$ANTHROPIC_MODEL" \
@@ -280,8 +286,8 @@ jobs:
             echo
             echo "<sub>For $HEAD · [run]($RUN_URL) · re-run with \`/package\` where enabled</sub>"
           } \
-            | perl -pe 's/(?<!`)@(?=[A-Za-z0-9])/@\xE2\x80\x8B/g' > "$OUT/comment.md"
-          # The zero-width space after @ keeps titles and model output from pinging people (code spans can't ping, so they keep a plain @).
+            | perl -pe 's/@(?=[A-Za-z0-9])/@\xE2\x80\x8B/g' > "$OUT/comment.md"
+          # The zero-width space after @ keeps titles and model output from pinging people Applied everywhere: a backtick that looks like a code span may not close.
 
           cat "$OUT/comment.md" >> "$GITHUB_STEP_SUMMARY"
 

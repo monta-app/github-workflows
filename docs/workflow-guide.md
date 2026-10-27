@@ -1435,11 +1435,12 @@ The first manual run is the recommended way to verify channel membership, secret
 The workflow needs `contents: read` and `pull-requests: write`. The calling job must grant them.
 
 ### Behaviour notes:
-- **Non-blocking AI:** the Claude step has a 4-minute timeout and `continue-on-error: true`. A failed or refused call, or a reply without a Mermaid diagram, leaves the overview out; the rest of the comment still posts. Requests use `fallbacks: "default"`, so a declined request is retried on Anthropic's recommended fallback model.
+- **Non-blocking AI:** the Claude step has a 5-minute timeout and `continue-on-error: true`. A failed or refused call, or a reply without a Mermaid diagram, leaves the overview out; the rest of the comment still posts. Requests use `fallbacks: "default"`, so a declined request is retried on Anthropic's recommended fallback model.
 - **What goes to Anthropic:** this PR's diff and the related PRs' descriptions and diffs. A public caller never sends private-repository PRs (see below).
 - **Untrusted input:** the PR description and diff go to the model as data. Images and raw HTML are stripped from the reply, and every `@` before a name in the comment gets a zero-width space so titles and model output can't ping anyone. Links in the reply are kept.
 - **Private repositories:** when the calling repository is public, related PRs from private repositories are left out.
-- **One comment per PR:** runs for the same PR queue (`concurrency`), so two quick triggers can't post two comments. The comment is not refreshed on later pushes; its footer shows the commit it was built for.- **Large PRs:** `gh pr diff` refuses diffs over 20,000 lines; the overview then works from the file list.
+- **One comment per PR:** runs for the same PR queue (`concurrency`), so two quick triggers can't post two comments. The comment is not refreshed on later pushes; its footer shows the commit it was built for.
+- **Large PRs:** `gh pr diff` refuses diffs over 20,000 lines; the overview then works from the file list.
 - **Cost (Opus 5.5):** about 20k–90k input tokens per run depending on the PR and its related PRs, roughly $0.10–0.40. Run it once per PR plus on demand rather than on every push.
 - **Forks:** a PR from a fork gets no secrets and a read-only token, so the comment can't be posted. Gate the caller on `github.event.pull_request.head.repo.full_name == github.repository`.
 
