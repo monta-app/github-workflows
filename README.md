@@ -28,6 +28,9 @@ This repository contains several reusable workflows designed to streamline the C
 ### `pr-digest.yml`
 - **Purpose**: Posts a daily Slack digest of open pull requests for the calling repository. AI-curates the message (focus PRs, headline, area summary) for high-volume repos, with a deterministic fallback. See [PR Digest in workflow-guide.md](./docs/workflow-guide.md#pr-digest).
 
+### `reviewer-package.yml`
+- **Purpose**: Posts one comment on a pull request with related PRs from other repositories (same Jira key or linked from the description), earlier PRs that changed the same files, and an optional Claude-written overview with a Mermaid diagram. See [Reviewer Package in workflow-guide.md](./docs/workflow-guide.md#reviewer-package).
+
 ### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
 

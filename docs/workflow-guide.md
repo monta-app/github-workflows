@@ -22,7 +22,8 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 16. [SonarCloud Analysis](#sonarcloud-analysis)
 17. [Track Pending Release](#track-pending-release)
 18. [PR Digest](#pr-digest)
-19. [Terraform](#terraform)
+19. [Reviewer Package](#reviewer-package)
+20. [Terraform](#terraform)
 
 ---
 
@@ -1399,6 +1400,80 @@ gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
 ```
 
 The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
+
+---
+
+## Reviewer Package
+
+**File:** `reviewer-package.yml`
+**Purpose:** Posts one comment on a pull request with the context a reviewer can't get from the diff: PRs in other repositories for the same Jira key or linked from the description, earlier PRs that changed the same files, and an optional Claude-written overview with a Mermaid diagram of the parts of the system the change touches. Re-runs edit the same comment.
+
+### What it does:
+1. Reads the PR, its changed files and its description through the GitHub API (no checkout).
+2. **Related pull requests:** searches the organisation for each Jira key in the PR title and branch name, keeping only hits whose title or body contains the whole key, and adds every PR the description links to (`github.com/<org>/<repo>/pull/<n>` or `<org>/<repo>#<n>`).
+3. **Earlier PRs:** for the 40 largest changed files (minus `history-exclude`), reads the last 10 commits on the base branch, takes the PR number from the squash-merge subject (`title (#123)`), and lists the PRs that changed the most of these files.
+4. **Optional overview:** sends the PR title and description, the file list, the PRs above and the diff (cut off after 150,000 characters) to Claude, which writes two or three sentences on where the change sits, a Mermaid `flowchart` with the changed parts marked, and a "Where to start" review order. GitHub renders the diagram in the comment.
+5. Posts the comment, or edits the earlier one (found by its `<!-- reviewer-package -->` marker), and writes it to the job summary.
+
+### Inputs:
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `pr-number` | No | the triggering event's PR | PR to package. Needed only when the caller isn't a `pull_request` or `issue_comment` event. |
+| `history-limit` | No | `5` | Max earlier PRs to list. |
+| `history-exclude` | No | lockfiles and `*.snap` | Extended regex (`grep -E`) of changed paths to leave out of the earlier-PR lookup. |
+| `jira-key-pattern` | No | `[A-Z][A-Z0-9]+-[0-9]+` | Extended regex for Jira keys in the title and branch name. |
+| `use-ai-overview` | No | `true` | Ask Claude for the overview. |
+| `model` | No | `"claude-opus-5-5"` | Anthropic model identifier for the overview. |
+
+### Secrets:
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `ANTHROPIC_API_KEY` | No | Without it, the comment ships without the overview. |
+| `ORG_READ_TOKEN` | No | A token that can read pull requests in the organisation's other repositories. `GITHUB_TOKEN` only sees the calling repository, so without this, cross-repo PRs are not found. Prefer a read-only token (fine-grained PAT or GitHub App with "Pull requests: read") limited to repositories whose PR titles every reader of the calling repository may see: anyone who can write a PR description can make the comment show any PR this token can read. |
+
+### Permissions:
+The workflow needs `contents: read` and `pull-requests: write`. The calling job must grant them.
+
+### Behaviour notes:
+- **Non-blocking AI:** the Claude step has a 4-minute timeout and `continue-on-error: true`. A failed or refused call, or a reply without a Mermaid diagram, leaves the overview out; the rest of the comment still posts. Requests use `fallbacks: "default"`, so a declined request is retried on Anthropic's recommended fallback model.
+- **Untrusted input:** the PR description and diff go to the model as data. Images and raw HTML are stripped from the reply, and every `@` before a name in the comment gets a zero-width space so titles and model output can't ping anyone. Links in the reply are kept.
+- **Private repositories:** when the calling repository is public, related PRs from private repositories are left out.
+- **One comment per PR:** runs for the same PR queue (`concurrency`), so two quick triggers can't post two comments. The comment is not refreshed on later pushes; its footer shows the commit it was built for.- **Large PRs:** `gh pr diff` refuses diffs over 20,000 lines; the overview then works from the file list.
+- **Cost (Opus 5.5):** about 20k–45k input tokens per run, roughly $0.10–0.20. Run it once per PR plus on demand rather than on every push.
+- **Forks:** a PR from a fork gets no secrets and a read-only token, so the comment can't be posted. Gate the caller on `github.event.pull_request.head.repo.full_name == github.repository`.
+
+### Example Usage:
+
+Once when a PR is opened or marked ready, and again when a member comments `/package`:
+
+```yaml
+name: Pull Request - Reviewer Package
+
+on:
+  pull_request:
+    types: [ opened, ready_for_review ]
+  issue_comment:
+    types: [ created ]
+
+jobs:
+  reviewer-package:
+    if: >
+      (github.event_name == 'pull_request'
+          && github.event.pull_request.draft == false
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && github.event.pull_request.user.type != 'Bot')
+      || (github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && (github.event.comment.body == '/package' || startsWith(github.event.comment.body, '/package '))
+          && contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association))
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: monta-app/github-workflows/.github/workflows/reviewer-package.yml@main
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
+```
 
 ---
 
