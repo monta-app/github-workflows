@@ -198,7 +198,7 @@ jobs:
           Reply with these parts in this order and nothing else:
 
           1. One or two sentences: which apps, services or packages this touches and how they connect.
-          2. A Mermaid diagram in a ```mermaid fence: `flowchart TD`, at most 10 nodes, labels of at most 4 words, every label and subgraph title in double quotes. Group nodes in one `subgraph` per app, service, package or other repository. Show what this PR changes and what it calls or is called by, as far as the input shows, including the parts related PRs change. Mark nodes this PR changes with `:::changed` and nodes only a related PR changes with `:::related`, and end with `classDef changed stroke-width:3px` and `classDef related stroke-dasharray:4 3`.
+          2. A Mermaid diagram in a ```mermaid fence: `flowchart TD`, at most 10 nodes, labels of at most 4 words, every label and subgraph title in double quotes. Group nodes in one `subgraph` per app, service, package or other repository. Show what this PR changes and what it calls or is called by, as far as the input shows, including the parts related PRs change. Use rounded nodes `id("label")`, and `id[("label")]` for databases and queues. Give every node one class: `:::changed` for what this PR changes, `:::related` for what only a related PR changes, `:::context` for the rest. Write no `classDef`, `style`, `linkStyle` or `%%` lines; the styling is added for you.
           3. Only if <related_pr_details> has entries: a line `**Cross-repo changes**`, then one bullet per related PR of at most two sentences, starting with its ref: how it connects (which side calls which, over what), and which merges or deploys first. Compare both sides of each shared contract the diffs show (paths, methods, field names, types, nullability, enum values, ids as string or number); add a sub-bullet per mismatch quoting both sides, or end with "contract matches", "matches as far as shown (diff cut off)" or "contract not visible". Group related PRs that do not touch this change into one line.
           4. A line `**Where to start**` followed by at most 3 bullets in review order: a file path and why, in at most 8 words.
 
@@ -247,6 +247,20 @@ jobs:
           if ! grep -q '```mermaid' "$OUT/overview.md"; then
             echo "::warning::Overview skipped: the reply had no Mermaid diagram."
             rm "$OUT/overview.md"
+          else
+            # One house style for every diagram, so the model only draws structure. Explicit text colours
+            # keep nodes readable in GitHub's dark mode too.
+            perl -0pi -e '
+              my $init = q|%%{init: {"theme": "base", "themeVariables": {"fontSize": "14px", "lineColor": "#94a3b8", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "titleColor": "#475569"}, "flowchart": {"curve": "basis", "padding": 16, "nodeSpacing": 28, "rankSpacing": 40, "subGraphTitleMargin": {"top": 4, "bottom": 10}}}}%%|;
+              my $styles = join "\n",
+                q|classDef changed fill:#eef2ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b|,
+                q|classDef related fill:#fff7ed,stroke:#f97316,stroke-width:1.5px,stroke-dasharray:5 4,color:#431407|,
+                q|classDef context fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#334155|;
+              s{```mermaid\n(.*?)\n```}{
+                my $d = $1;
+                $d =~ s/^\s*(?:classDef|style|linkStyle|%%).*\n?//mg;
+                "```mermaid\n$init\n$d\n$styles\n```\n<sub>🟦 changed here · 🟧 changed in a related PR</sub>"
+              }se;' "$OUT/overview.md"
           fi
           jq -c .usage "$OUT/response.json"
 
