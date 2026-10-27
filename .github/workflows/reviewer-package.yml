@@ -88,7 +88,7 @@ jobs:
           jq -r '.title + " " + .headRefName' "$OUT/pr.json" \
             | grep -oE "$JIRA_KEY_PATTERN" | sort -u > "$OUT/keys.txt" || true
           : > "$OUT/related.jsonl"
-          # GitHub search splits "ROAM-1067" into words, so keep only hits that contain the whole key.
+          # GitHub search splits a key like "ABC-123" into words, so keep only hits that contain the whole key.
           while read -r KEY; do
             GH_TOKEN="$READ_TOKEN" gh search prs "\"$KEY\"" --owner "$OWNER" --limit 20 \
               --json repository,number,title,body,url,state \
