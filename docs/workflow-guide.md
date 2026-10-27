@@ -1412,7 +1412,7 @@ The first manual run is the recommended way to verify channel membership, secret
 1. Reads the PR, its changed files and its description through the GitHub API (no checkout).
 2. **Related pull requests:** searches the organisation for each Jira key in the PR title and branch name, keeping only hits whose title or body contains the whole key, and adds every PR the description links to (`github.com/<org>/<repo>/pull/<n>` or `<org>/<repo>#<n>`).
 3. **Earlier PRs:** for the 40 largest changed files (minus `history-exclude`), reads the last 10 commits on the base branch, takes the PR number from the squash-merge subject (`title (#123)`), and lists the PRs that changed the most of these files.
-4. **Optional overview:** sends the PR title and description, the file list, the PRs above and the diff (cut off after 150,000 characters) to Claude, which writes two or three sentences on where the change sits, a Mermaid `flowchart` with the changed parts marked, and a "Where to start" review order. GitHub renders the diagram in the comment.
+4. **Optional overview:** sends the PR title and description, the file list, the diff (cut off after 150,000 characters), the earlier PRs, and the description, file list and diff (30,000 characters each) of up to 6 related PRs, other repositories first, to Claude. Claude writes two or three sentences on where the change sits and a Mermaid `flowchart` with one box per app, service or repository: parts this PR changes are bold, parts only a related PR changes are dashed. Then comes a **Cross-repo changes** section: for each related PR, how it connects (which side calls which, the shared endpoint or type), which must merge or deploy first, and a comparison of both sides of each shared contract (paths, field names, types, nullability, enum values) that quotes any mismatch or says where a diff was cut off. Last is a "Where to start" review order. GitHub renders the diagram in the comment.
 5. Posts the comment, or edits the earlier one (found by its `<!-- reviewer-package -->` marker), and writes it to the job summary.
 
 ### Inputs:
@@ -1436,10 +1436,11 @@ The workflow needs `contents: read` and `pull-requests: write`. The calling job 
 
 ### Behaviour notes:
 - **Non-blocking AI:** the Claude step has a 4-minute timeout and `continue-on-error: true`. A failed or refused call, or a reply without a Mermaid diagram, leaves the overview out; the rest of the comment still posts. Requests use `fallbacks: "default"`, so a declined request is retried on Anthropic's recommended fallback model.
+- **What goes to Anthropic:** this PR's diff and the related PRs' descriptions and diffs. A public caller never sends private-repository PRs (see below).
 - **Untrusted input:** the PR description and diff go to the model as data. Images and raw HTML are stripped from the reply, and every `@` before a name in the comment gets a zero-width space so titles and model output can't ping anyone. Links in the reply are kept.
 - **Private repositories:** when the calling repository is public, related PRs from private repositories are left out.
 - **One comment per PR:** runs for the same PR queue (`concurrency`), so two quick triggers can't post two comments. The comment is not refreshed on later pushes; its footer shows the commit it was built for.- **Large PRs:** `gh pr diff` refuses diffs over 20,000 lines; the overview then works from the file list.
-- **Cost (Opus 5.5):** about 20k–45k input tokens per run, roughly $0.10–0.20. Run it once per PR plus on demand rather than on every push.
+- **Cost (Opus 5.5):** about 20k–90k input tokens per run depending on the PR and its related PRs, roughly $0.10–0.40. Run it once per PR plus on demand rather than on every push.
 - **Forks:** a PR from a fork gets no secrets and a read-only token, so the comment can't be posted. Gate the caller on `github.event.pull_request.head.repo.full_name == github.repository`.
 
 ### Example Usage:
