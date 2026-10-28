@@ -858,8 +858,7 @@ jobs:
 **Purpose:** Publishes technical documentation to Backstage via AWS S3.
 
 ### What it does:
-1. Sets up Node.js and Python environments
-2. Installs techdocs-cli and mkdocs
+1. Uses the techdocs-cli and mkdocs (with the techdocs-core, literate-nav and mermaid2 plugins) baked into ARC runners; on other runners, sets up Node.js and Python and installs them
 3. Generates documentation site
 4. Publishes to S3 bucket for Backstage
 

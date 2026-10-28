@@ -28,15 +28,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+      # ARC runners ship techdocs-cli and mkdocs with these plugins (monta-app/actions-runner).
+      - name: Check for the runner's TechDocs tools
+        id: baked
+        run: |
+          if command -v techdocs-cli >/dev/null && command -v mkdocs >/dev/null \
+             && "$(dirname "$(readlink -f "$(command -v mkdocs)")")/python" -c "import techdocs_core, mkdocs_literate_nav, mermaid2" 2>/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "TechDocs tools not on this runner; installing them"
+          fi
+
+      - if: steps.baked.outputs.present != 'true'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - if: steps.baked.outputs.present != 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: '3.14'
 
       - name: Install techdocs-cli
+        if: steps.baked.outputs.present != 'true'
         run: sudo npm install -g @techdocs/cli
 
       - name: Install mkdocs and mkdocs plugins
+        if: steps.baked.outputs.present != 'true'
         run: python -m pip install mkdocs-techdocs-core==1.* mkdocs-literate-nav mkdocs-mermaid2-plugin
 
       - name: Generate docs site
