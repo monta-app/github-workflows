@@ -207,37 +207,45 @@ jobs:
               ? `> [!WARNING]\n> This stack has an **unresolved failed apply** (#${stuck.number}). The plan below may include leftover changes from it — check before merging.\n\n`
               : ''
 
-            // Mirrors "Plan: N to add, N to change, N to destroy." with a
-            // colored, at-a-glance version — easier to scan across a PR
-            // with several stacks than the plain sentence alone.
+            // Mirrors "Plan: [N to import, ]N to add, N to change, N to destroy."
+            // with a colored, at-a-glance version, read from the full plan so it
+            // survives the comment truncation below.
             let summary
+            let destroyed = []
             if (process.env.PLAN_FAILED === 'true') {
               summary = '❌ Plan failed'
             } else if (process.env.HAS_CHANGES !== 'true') {
               summary = '🔵 No changes'
             } else {
-              const counts = plan.match(/^Plan: (\d+) to add, (\d+) to change, (\d+) to destroy\.$/m)
+              const counts = plan.match(/^Plan: (?:(\d+) to import, )?(\d+) to add, (\d+) to change, (\d+) to destroy\.$/m)
               if (counts) {
-                const [toAdd, toChange, toDestroy] = counts.slice(1).map(Number)
+                const [toImport, toAdd, toChange, toDestroy] = counts.slice(1).map(n => Number(n ?? 0))
                 summary = [
+                  toImport  > 0 && `🔵 **${toImport} to import**`,
                   toAdd     > 0 && `🟢 **${toAdd} to add**`,
                   toChange  > 0 && `🟡 **${toChange} to change**`,
                   toDestroy > 0 && `🔴 **${toDestroy} to destroy**`,
-                ].filter(Boolean).join('  ·  ')
+                ].filter(Boolean).join('  ·  ') || 'Changes planned'
               } else {
                 summary = 'Changes planned'
               }
+              destroyed = [...plan.matchAll(/^\s+# (.+?) (will be destroyed|must be replaced)$/gm)]
+                .map(([, addr, what]) => `- \`${addr}\`${what === 'must be replaced' ? ' (replaced)' : ''}`)
             }
 
+            const shown = plan.split('\n')
+              .filter(l => !/: (Refreshing state|Reading|Preparing import)\.\.\.|: Read complete after /.test(l))
+              .join('\n')
             const LIMIT = 60000
             const body = [
               `<!-- terraform-plan:${stack} -->`,
               banner + `### Terraform plan — \`${stack}\``,
               '', `**${summary}**`, '',
+              ...(destroyed.length ? ['> [!CAUTION]', '> **Destroyed or replaced:**', ...destroyed.map(d => `> ${d}`), ''] : []),
               '<details><summary>Show plan</summary>', '', '```terraform',
-              plan.length > LIMIT
-                ? plan.slice(0, LIMIT) + `\n\n... truncated (${plan.length} chars); see the run log.`
-                : plan,
+              shown.length > LIMIT
+                ? shown.slice(0, LIMIT) + `\n\n... truncated (${shown.length} chars); see the run log.`
+                : shown,
               '```', '</details>',
             ].join('\n')
 
