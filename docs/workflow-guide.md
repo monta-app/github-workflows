@@ -1436,7 +1436,11 @@ The stack is left partially applied. The workflow re-plans in place, then opens 
 
 Recovery is always a forward apply — never a hand-rolled rollback. Create the `terraform-failed` label in the repository before first use.
 
-Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again. Recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no saved plan (plan still running, failed, or deleted) is recovered the same way.
+Re-running the failed job does not recover: a partial apply moved the state on, so the saved plan is stale and Terraform rejects it again.
+
+With the `recovery-token` secret set, the failed apply also opens a draft **recovery pull request** from `terraform-recover/<stack>`, which only writes the failed run's URL into `<stack>/recover.tf`. That change selects the stack, so the pull request gets the normal plan comment: exactly what is left over. Fix the cause (in that pull request, or outside Terraform, e.g. a provider permission), re-run its plan, review and merge; the apply then runs the reviewed plan like any other merge. A later failure of the same stack adds a commit to the open recovery pull request instead of opening another, and any successful apply of the stack closes it. The token must be able to push and open pull requests (a PAT or GitHub App token); `GITHUB_TOKEN` does not work because pull requests it opens never trigger the plan.
+
+Without the secret, recover by dispatching the caller with `stack` set; that runs `command: recover`, which plans and applies that one stack in the same job under its environment. The plan is not reviewed — read the leftover diff in the issue first. A merged PR whose apply found no saved plan (plan still running, failed, or deleted) is recovered the same way, with or without the secret: nothing was applied, so no recovery pull request is opened.
 
 ### Caller
 
@@ -1493,6 +1497,8 @@ jobs:
       environment: ${{ (github.event_name == 'push' || inputs.stack != '') && matrix.stack.environment || '' }}
       aws-role: ${{ matrix.stack.role }}
       aws-region: ${{ matrix.stack.region }}
+    secrets:
+      recovery-token: ${{ secrets.MONTA_BOT_TOKEN }}
 
   terraform-ok:
     needs: [discover, terraform]

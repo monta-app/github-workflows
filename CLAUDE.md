@@ -5,6 +5,9 @@
 - **Latest SHA**: 84fb68d (check for newer commits)
 - **Changes**: new `pnpm-dependency-submission.yml` and `pnpm-dependency-graph` action for pnpm 12 lockfiles
 
+## Recent Changes (2026-11-09)
+1. **Recovery pull request after a failed Terraform apply**: `terraform-stack.yml` takes an optional `recovery-token` secret. When an apply fails, it pushes `terraform-recover/<stack>` with the failed run's URL in `<stack>/recover.tf` and opens a draft pull request, so the leftover gets a normal reviewed plan and applies on merge. `command: recover` plans and applies unreviewed, which is what this replaces (monta-app/terraform#440). The branch is cut from the default branch only when no recovery pull request is open; otherwise the file is updated on the open one, so a fix pushed there is never reset. Commits go through the contents API, so no git credentials are needed on the runner. The token cannot be `GITHUB_TOKEN`: pull requests it opens never trigger workflows. Any successful apply of the stack closes the open recovery pull request. A missing reviewed plan fails before the apply step and still needs `recover`.
+
 ## Recent Changes (2026-10-27)
 1. **`publish-tech-docs.yml` uses the runner's TechDocs tools**: the ARC runner image (monta-app/actions-runner) ships `@techdocs/cli` and mkdocs with the techdocs-core, literate-nav and mermaid2 plugins, pinned there by lockfiles. A first step checks that `techdocs-cli` is on PATH and that the Python behind `mkdocs` imports the three plugins, and when it does, setup-node, setup-python and both installs are skipped. Those took 27-46s of a 50-70s job on `arc-arm64-2cpu-4gb` (service-ocpi, service-wallet), on every push to main in 55 calling repos. Public repos (`ubuntu-24.04-arm`) and runners without the tools install them as before, unpinned. The baked versions are bumped in actions-runner, not here.
 

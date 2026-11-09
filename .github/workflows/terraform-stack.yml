@@ -60,6 +60,9 @@ on:
       tailscale-authkey:
         description: Required when tailscale is true.
         required: false
+      recovery-token:
+        description: Token that can push branches and open pull requests here (a PAT or GitHub App token, not GITHUB_TOKEN, so the pull request gets planned). When set, a failed apply opens a recovery pull request.
+        required: false
 
 jobs:
   terraform:
@@ -299,18 +302,50 @@ jobs:
         if: steps.apply.outcome == 'failure'
         run: terraform plan -no-color -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} > replan.txt 2>&1 || true
 
+      - name: Open the recovery pull request
+        id: recovery
+        if: steps.apply.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.recovery-token }}
+          BASE: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eu
+          [ -n "$GH_TOKEN" ] || exit 0
+          branch="terraform-recover/$STACK"
+          path="$STACK/recover.tf"
+          url=$(gh pr list -R "$REPO" --head "$branch" --state open --json url -q '.[0].url')
+          if [ -z "$url" ]; then
+            base_sha=$(gh api "repos/$REPO/git/ref/heads/$BASE" -q .object.sha)
+            gh api -X PATCH "repos/$REPO/git/refs/heads/$branch" -f sha="$base_sha" -F force=true > /dev/null 2>&1 \
+              || gh api "repos/$REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$base_sha" > /dev/null
+          fi
+          args=()
+          if sha=$(gh api "repos/$REPO/contents/$path?ref=$branch" -q .sha 2> /dev/null); then args=(-f sha="$sha"); fi
+          content=$(printf '# Changed by the Terraform workflow after a failed apply, so a pull request re-plans this stack.\n# %s\n' "$RUN_URL" | base64 -w0)
+          gh api -X PUT "repos/$REPO/contents/$path" -f message="Recover $STACK after $RUN_URL" \
+            -f content="$content" -f branch="$branch" "${args[@]}" > /dev/null
+          if [ -z "$url" ]; then
+            url=$(gh pr create -R "$REPO" --draft --base "$BASE" --head "$branch" \
+              --title "Recover Terraform stack $STACK" \
+              --body "The apply of \`$STACK\` failed: $RUN_URL. The plan on this pull request is what is left over. Fix the cause (here, or in Terraform's dependencies such as provider permissions), re-run this pull request's plan, review it and merge to apply it.")
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
       - name: Report the failed apply
         if: steps.apply.outcome == 'failure'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           MERGER: ${{ github.actor }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RECOVERY_PR: ${{ steps.recovery.outputs.url }}
         with:
           script: |
             const fs = require('fs')
             const { owner, repo } = context.repo
             const stack = process.env.STACK
-            const { MERGER, RUN_URL } = process.env
+            const { MERGER, RUN_URL, RECOVERY_PR } = process.env
             let plan = '(re-plan produced no output)'
             try { plan = fs.readFileSync(`${stack}/replan.txt`, 'utf8').slice(-40000) } catch (e) {}
 
@@ -328,8 +363,11 @@ jobs:
               '',
               '<details><summary>Plan as of right now</summary>', '', '```terraform', plan, '```', '</details>',
               '',
+              ...(RECOVERY_PR ? [`**Recovery PR:** ${RECOVERY_PR} — its plan is the leftover above. Fix the cause, re-run its plan, review and merge.`, ''] : []),
               '**Next step — every option is a forward apply:**',
-              '- transient (rate limit, timeout, eventual consistency) → dispatch the caller with `command: recover` for this stack; re-running the failed job reuses the now-stale plan and fails again',
+              RECOVERY_PR
+                ? '- transient (rate limit, timeout, eventual consistency) → re-run the recovery PR\'s plan and merge it; re-running the failed job reuses the now-stale plan and fails again'
+                : '- transient (rate limit, timeout, eventual consistency) → dispatch the caller with `command: recover` for this stack; re-running the failed job reuses the now-stale plan and fails again',
               '- config, IAM or quota problem → fix it in a PR, re-plan, apply',
               '- the change was wrong → `git revert`, and apply that as a new reviewed plan',
               '- `AlreadyExists` → the resource exists but is absent from state: add an `import` block in a PR',
@@ -385,6 +423,16 @@ jobs:
                 body: `Apply of \`${stack}\` succeeded at ${context.sha.slice(0, 8)}. Closing.`,
               })
               await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed' })
+            }
+            const { data: recovery } = await github.rest.pulls.list({
+              owner, repo, state: 'open', head: `${owner}:terraform-recover/${stack}`,
+            })
+            for (const pr of recovery) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: `Apply of \`${stack}\` succeeded at ${context.sha.slice(0, 8)}; nothing left to recover. Closing.`,
+              })
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' })
             }
 
       - name: Fail on apply error
