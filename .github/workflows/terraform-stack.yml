@@ -49,6 +49,10 @@ on:
       runner:
         type: string
         default: linux-arm64
+      dismiss-stale-approvals:
+        description: On a pull request, dismiss approvals given on a commit whose plan for this stack differs from the new plan.
+        type: boolean
+        default: false
     secrets:
       aws-access-key-id:
         required: false
@@ -189,12 +193,34 @@ jobs:
           AWS_REGION: ${{ steps.store.outputs.region || inputs.aws-region }}
         run: aws s3 cp --only-show-errors tfplan "$URI"
 
+      - name: Fingerprint the planned changes
+        id: fingerprint
+        if: inputs.command == 'plan' && inputs.dismiss-stale-approvals && github.event_name == 'pull_request' && steps.plan.outputs.failed != 'true'
+        run: |
+          set -eu
+          hash=$(terraform show -json tfplan | jq -cS '
+            def mask($s):
+              if $s == true then "(sensitive)"
+              elif type == "object" and ($s | type) == "object" then with_entries(.key as $k | .value |= mask($s[$k] // false))
+              elif type == "array" and ($s | type) == "array" then [range(0; length) as $i | .[$i] | mask($s[$i] // false)]
+              else . end;
+            [.resource_changes[]?
+              | .change as $c
+              | select($c.actions != ["no-op"] and $c.actions != ["read"])
+              | {address, actions: $c.actions, after: ($c.after | mask($c.after_sensitive // false)),
+                 after_unknown: $c.after_unknown, replace_paths: $c.replace_paths, importing: $c.importing}]
+            | sort_by(.address)' | sha256sum | cut -d' ' -f1)
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          echo "Plan fingerprint: $hash"
+
       - name: Comment plan on the pull request
         if: inputs.command == 'plan' && github.event_name == 'pull_request'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           PLAN_FAILED: ${{ steps.plan.outputs.failed }}
           HAS_CHANGES: ${{ steps.plan.outputs.changes }}
+          FINGERPRINT: ${{ steps.fingerprint.outputs.hash }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
             const fs = require('fs')
@@ -257,9 +283,34 @@ jobs:
               owner, repo, issue_number: context.issue.number, per_page: 100,
             })
             const existing = comments.find(c => c.body.includes(marker))
+
+            const fingerprint = process.env.FINGERPRINT
+            const seen = new Map([...(existing?.body ?? '').matchAll(/^<!-- terraform-plan-fingerprint:(\w+):(\w+) -->$/gm)].map(m => [m[1], m[2]]))
+            if (fingerprint) {
+              seen.delete(process.env.HEAD_SHA)
+              seen.set(process.env.HEAD_SHA, fingerprint)
+            }
+            const full = [body, ...[...seen].slice(-50).map(([sha, fp]) => `<!-- terraform-plan-fingerprint:${sha}:${fp} -->`)].join('\n')
             existing
-              ? await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body })
-              : await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body })
+              ? await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: full })
+              : await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body: full })
+
+            if (fingerprint) {
+              const pull_number = context.issue.number
+              const reviews = await github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number, per_page: 100 })
+              const latest = new Map()
+              for (const r of reviews) if (r.state !== 'COMMENTED' && r.state !== 'PENDING') latest.set(r.user.id, r)
+              for (const r of latest.values()) {
+                if (r.state !== 'APPROVED') continue
+                const approved = seen.get(r.commit_id)
+                if (approved === fingerprint) continue
+                const message = approved
+                  ? `The plan for ${stack} changed since this approval (${r.commit_id.slice(0, 7)}). Review the new plan and approve again.`
+                  : `No plan for ${stack} was recorded on the approved commit (${r.commit_id.slice(0, 7)}), so this approval cannot be matched to the new plan. Review it and approve again.`
+                await github.rest.pulls.dismissReview({ owner, repo, pull_number, review_id: r.id, message })
+                core.notice(`Dismissed ${r.user.login}'s approval: ${message}`)
+              }
+            }
 
       - name: Fail on plan error
         if: steps.plan.outputs.failed == 'true'

@@ -1416,6 +1416,8 @@ A change inside a local module selects every stack that calls that module, direc
 
 Optional per-stack inputs on `terraform-stack.yml`: `tailscale: true` (with the `tailscale-authkey` secret) joins the tailnet before init, for providers that talk to private endpoints such as a database; `parallelism` sets Terraform's `-parallelism` for plan and apply; `aws-session-duration` lengthens the OIDC session for applies that run past an hour (the role's `MaxSessionDuration` must allow it). Discovery passes any extra key on an `accounts[]` entry through to the matrix, so these can be set per path prefix.
 
+`dismiss-stale-approvals: true` makes an approval cover a plan, not a commit. Each plan records a fingerprint of its planned changes (address, actions and non-sensitive values, ignoring no-ops and drift) in the plan comment. When a new plan's fingerprint differs from the one on the approved commit, for example after a rebase that pulled in another stack change, the approval is dismissed and someone has to review the new plan. A rebase that leaves the plan unchanged keeps the approval.
+
 Each stack needs `.terraform-version` (its own, or one at the repository root) and a committed `.terraform.lock.hcl`. Generate the lock file for the runner architecture:
 
 ```bash
