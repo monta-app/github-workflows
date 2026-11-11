@@ -5,6 +5,9 @@
 - **Latest SHA**: 84fb68d (check for newer commits)
 - **Changes**: new `pnpm-dependency-submission.yml` and `pnpm-dependency-graph` action for pnpm 12 lockfiles
 
+## Recent Changes (2026-11-12)
+1. **`argocd-wait-sync-multi` refreshes and polls apps in parallel**: the initial refresh and each poll ran `argocd app get` once per app, one after another (~2.6 s each). With monorepo-typescript's 18 apps the refresh took ~47 s before the first poll, and a poll sweep 15-25 s, so an app's `end` was late by up to a sweep. Both now run every app's call in the background and `wait`; the per-app state machine then reads the fetched status from a temp dir, unchanged. Against a 1 s fake `argocd` with 10 already-healthy apps the script went from 23 s to 3 s. Offline tests unchanged and passing.
+
 ## Recent Changes (2026-11-09)
 1. **Recovery pull request after a failed Terraform apply**: `terraform-stack.yml` takes an optional `recovery-token` secret. When an apply fails, it pushes `terraform-recover/<stack>` with the failed run's URL in `<stack>/recover.tf` and opens a draft pull request, so the leftover gets a normal reviewed plan and applies on merge. `command: recover` plans and applies unreviewed, which is what this replaces (monta-app/terraform#440). The branch is cut from the default branch only when no recovery pull request is open; otherwise the file is updated on the open one, so a fix pushed there is never reset. Commits go through the contents API, so no git credentials are needed on the runner. The token cannot be `GITHUB_TOKEN`: pull requests it opens never trigger workflows. Any successful apply of the stack closes the open recovery pull request. A missing reviewed plan fails before the apply step and still needs `recover`.
 
