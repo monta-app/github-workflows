@@ -85,6 +85,9 @@ done < <(echo "$APPS_JSON" | jq -r '.[] | [.app, .revision, (.name // .app)] | @
 
 N=${#APP_NAMES[@]}
 
+INFO_DIR=$(mktemp -d)
+trap 'rm -rf "$INFO_DIR"' EXIT
+
 # Per-app state. STATE ∈ pending | started | done
 STATE=()
 START_AT=()          # ArgoCD operationState.startedAt (ISO)
@@ -168,8 +171,9 @@ fail_out() {
 
 echo "Triggering ArgoCD refresh on all apps..."
 for ((i = 0; i < N; i++)); do
-    refresh_app "${APP_NAMES[$i]}"
+    refresh_app "${APP_NAMES[$i]}" &
 done
+wait
 echo ""
 
 # --- main concurrent poll loop ----------------------------------------------
@@ -188,6 +192,14 @@ while true; do
 
     ALL_DONE=true
 
+    # Fetched in parallel so each app's END_AT is accurate to one poll interval,
+    # not to a sequential sweep over every app.
+    for ((i = 0; i < N; i++)); do
+        [ "${STATE[$i]}" = "done" ] && continue
+        get_app_info "${APP_NAMES[$i]}" > "$INFO_DIR/$i.json" &
+    done
+    wait
+
     for ((i = 0; i < N; i++)); do
         [ "${STATE[$i]}" = "done" ] && continue
         ALL_DONE=false
@@ -196,7 +208,7 @@ while true; do
         expected="${EXPECTED_REVS[$i]}"
         display="${DISPLAY_NAMES[$i]}"
 
-        info=$(get_app_info "$app")
+        info=$(cat "$INFO_DIR/$i.json")
         sync_status=$(echo "$info" | jq -r '.status.sync.status // "Unknown"')
         health_status=$(echo "$info" | jq -r '.status.health.status // "Unknown"')
         op_phase=$(echo "$info" | jq -r '.status.operationState.phase // ""')

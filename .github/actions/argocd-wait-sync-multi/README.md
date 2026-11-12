@@ -73,8 +73,11 @@ commit — the same for every app in the run).
   from your revision — or when the overall `timeout` elapses with any app not
   yet healthy. Transient `Unknown` (≤30s) and `ComparisonError` (≤60s, with a
   hard refresh) are tolerated.
-- **Refresh first**: every app is refreshed up front so ArgoCD detects the new
-  revision immediately instead of on its next reconciliation.
+- **Refresh first**: every app is refreshed up front, in parallel, so ArgoCD
+  detects the new revision immediately instead of on its next reconciliation.
+- **Parallel polls**: each poll fetches every unfinished app's status in
+  parallel, so an app's `end` is accurate to one `poll-interval` however many
+  apps are waited on.
 - **Supersede-aware**: if a newer bump moved an app past your revision, the
   action confirms your commit is an ancestor (`compare … = ahead`) and treats it
   as success (bundled).
