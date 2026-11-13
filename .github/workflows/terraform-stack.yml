@@ -27,6 +27,18 @@ on:
         description: IAM role ARN to assume via OIDC. Leave empty to use the static key secrets.
         type: string
         default: ""
+      aws-extra-role:
+        description: >-
+          Optional second IAM role ARN to assume via OIDC, for a stack that also works in another AWS account
+          (for example a cross-account VPC peering). Its credentials are written to the AWS profile named by
+          aws-extra-profile and never to the environment, so the primary role (aws-role or the static key) is
+          untouched. The stack's provider selects them with `profile = "<aws-extra-profile>"`.
+        type: string
+        default: ""
+      aws-extra-profile:
+        description: Name of the AWS profile that gets the credentials of aws-extra-role. No whitespace, brackets or slashes.
+        type: string
+        default: extra
       aws-region:
         type: string
         default: eu-west-1
@@ -123,6 +135,19 @@ jobs:
           aws-access-key-id: ${{ secrets.aws-access-key-id }}
           aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
           aws-region: ${{ inputs.aws-region }}
+
+      # A second account for the stack. With aws-profile the action writes the credentials to
+      # ~/.aws/credentials and does not export them (output-env-credentials defaults to false then),
+      # so the credentials of the step above stay the ones in the environment, and the S3 backend and
+      # the saved plan keep using them. Needs id-token: write, like the primary OIDC role.
+      - name: Configure AWS credentials for the extra role
+        if: inputs.aws-extra-role != ''
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          role-to-assume: ${{ inputs.aws-extra-role }}
+          aws-profile: ${{ inputs.aws-extra-profile }}
+          aws-region: ${{ inputs.aws-region }}
+          role-duration-seconds: ${{ inputs.aws-session-duration }}
 
       - name: Join the tailnet
         if: inputs.tailscale
