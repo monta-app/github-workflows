@@ -157,7 +157,6 @@ jobs:
           path: ${{ runner.temp }}/buildkit-cache-mounts
           key: buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', '**/package-lock.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/bun.lock', '**/bun.lockb', '**/requirements*.txt', '**/poetry.lock', '**/uv.lock', '**/go.sum', '**/Cargo.lock') }}${{ env.S3_CACHE == 'true' && format('-{0}', github.sha) || '' }}
           restore-keys: |
-            buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', '**/package-lock.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/bun.lock', '**/bun.lockb', '**/requirements*.txt', '**/poetry.lock', '**/uv.lock', '**/go.sum', '**/Cargo.lock') }}
             buildkit-cache-mounts-${{ inputs.docker-file-name }}-
       - name: Restore Dockerfile cache mounts (S3)
         id: cache-mounts-s3
