@@ -75,6 +75,16 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      prebuilt-artifact:
+        required: false
+        type: string
+        default: ''
+        description: "Name of an artifact an earlier job in the run uploaded, downloaded into the root of the build context before the Docker build. Needs the caller to run that job first: pass it in the same workflow run (see component-build.yml)."
+      dockerfile-cache-mounts:
+        required: false
+        type: boolean
+        default: true
+        description: "Restore and save the Dockerfile's RUN --mount=type=cache contents on ARC. Turn it off when the build skips the stages that use them."
       argocd-resource-name:
         required: false
         type: string
@@ -179,6 +189,8 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       git-sha: ${{ inputs.git-sha }}
+      prebuilt-artifact: ${{ inputs.prebuilt-artifact }}
+      dockerfile-cache-mounts: ${{ inputs.dockerfile-cache-mounts }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

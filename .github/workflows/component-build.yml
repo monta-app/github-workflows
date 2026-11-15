@@ -50,6 +50,16 @@ on:
         required: false
         type: string
         description: 'Git SHA to checkout and build from. Defaults to the triggering commit SHA.'
+      prebuilt-artifact:
+        required: false
+        type: string
+        default: ''
+        description: "Name of an artifact an earlier job in the run uploaded, downloaded into the root of the build context before the Docker build, such as a binary compiled on the runner. Artifacts don't keep file modes, so the Dockerfile should COPY it with --chmod."
+      dockerfile-cache-mounts:
+        required: false
+        type: boolean
+        default: true
+        description: "Restore and save the Dockerfile's RUN --mount=type=cache contents on ARC. Turn it off when the build skips the stages that use them, such as with a prebuilt-artifact."
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -128,6 +138,11 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.git-sha || github.sha }}
+      - name: Download prebuilt artifact
+        if: ${{ inputs.prebuilt-artifact != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ inputs.prebuilt-artifact }}
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -151,7 +166,7 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
       - name: Restore Dockerfile cache mounts
         id: cache-mounts
-        if: ${{ (inputs.use-arc-runners && github.event.repository.private) && env.S3_CACHE != 'true' }}
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) && inputs.dockerfile-cache-mounts && env.S3_CACHE != 'true' }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with: &cache-mounts
           path: ${{ runner.temp }}/buildkit-cache-mounts
@@ -160,7 +175,7 @@ jobs:
             buildkit-cache-mounts-${{ inputs.docker-file-name }}-
       - name: Restore Dockerfile cache mounts (S3)
         id: cache-mounts-s3
-        if: ${{ env.S3_CACHE == 'true' }}
+        if: ${{ inputs.dockerfile-cache-mounts && env.S3_CACHE == 'true' }}
         uses: runs-on/cache@88d90644011a3a9957fd141a106f5a94f9794203 # v5.0.7
         env:
           RUNS_ON_S3_BUCKET_CACHE: monta-github-ci-cache
@@ -171,7 +186,7 @@ jobs:
           AWS_REGION: eu-west-1
         with: *cache-mounts
       - name: Inject Dockerfile cache mounts into the builder
-        if: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
+        if: ${{ (inputs.use-arc-runners && github.event.repository.private) && inputs.dockerfile-cache-mounts }}
         uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
         with:
           dockerfile: ${{ inputs.docker-file-name }}
