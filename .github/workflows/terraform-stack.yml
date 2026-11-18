@@ -75,8 +75,9 @@ jobs:
     # Nothing is cancelled once it runs: a plan holds the stack's state lock, and a run
     # cancelled while it held it left the lock behind, failing every later plan and apply of
     # the stack until someone force-unlocked it. A newer push to the same ref waits for the
-    # running plan; a plan still waiting is replaced by the newest one. Plans of other refs
-    # queue on the state lock itself (-lock-timeout).
+    # running plan; a plan still waiting is replaced by the newest one. A pull request's plan
+    # that finds the state locked by another run fails at once (re-run it); apply and recover
+    # wait up to 5 minutes for the lock.
     concurrency:
       group: tf-${{ inputs.stack }}-${{ inputs.command != 'plan' && 'apply' || github.ref }}
       cancel-in-progress: false
@@ -179,9 +180,11 @@ jobs:
       - name: Terraform plan
         id: plan
         if: inputs.command == 'plan' || inputs.command == 'recover'
+        env:
+          LOCK_TIMEOUT: ${{ inputs.command == 'plan' && '0s' || '5m' }}
         run: |
           set -eu
-          terraform plan -no-color -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} \
+          terraform plan -no-color -input=false -lock-timeout="$LOCK_TIMEOUT" -parallelism=${{ inputs.parallelism }} \
             -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
           tail -c 400000 plan.txt
           case "$code" in
