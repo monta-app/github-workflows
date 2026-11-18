@@ -1,0 +1,87 @@
+name: 'Translate export'
+description: "Fetch locale files from the translate app's export endpoint, with retries and a shrink guard"
+author: 'Monta'
+
+# The runner must already reach the translate app: join the tailnet first
+# (tailscale/github-action) on a runner that is not inside the cluster.
+inputs:
+  project:
+    description: 'Translate project slug, e.g. product-hub-fe-react'
+    required: true
+  languages:
+    description: 'Languages to fetch, separated by commas or spaces, e.g. "da,de,en"'
+    required: true
+  out-dir:
+    description: 'Directory the files are written to, relative to the workspace'
+    required: true
+  file:
+    description: 'File name per language; {lang} is replaced by the language code'
+    required: false
+    default: '{lang}.json'
+  format:
+    description: 'Export format. Only json is served today.'
+    required: false
+    default: 'json'
+  key-prefix:
+    description: 'Keep only top-level keys that start with this text (for a repo that owns part of a shared project)'
+    required: false
+    default: ''
+  max-shrink:
+    description: 'Fail when a file loses more than this many strings against git HEAD'
+    required: false
+    default: '50'
+  allow-shrink:
+    description: 'Let a planned key retirement through the shrink guard'
+    required: false
+    default: 'false'
+  guard:
+    description: 'Run the shrink and raw reference-token checks after writing'
+    required: false
+    default: 'true'
+  export-url:
+    description: 'Override the export endpoint. Leave empty: consumers rely on the default address, which stays the same when translate moves.'
+    required: false
+    default: ''
+  notes-file:
+    description: "Where the export's stale and warning notes are written as Markdown (empty when there are none)"
+    required: false
+    default: ''
+
+outputs:
+  notes-file:
+    description: 'Path of the Markdown notes file'
+    value: ${{ steps.fetch.outputs.notes-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch locale files
+      id: fetch
+      shell: bash
+      env:
+        INPUT_PROJECT: ${{ inputs.project }}
+        INPUT_LANGUAGES: ${{ inputs.languages }}
+        INPUT_OUT_DIR: ${{ inputs.out-dir }}
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_KEY_PREFIX: ${{ inputs.key-prefix }}
+        INPUT_MAX_SHRINK: ${{ inputs.max-shrink }}
+        INPUT_ALLOW_SHRINK: ${{ inputs.allow-shrink }}
+        INPUT_GUARD: ${{ inputs.guard }}
+        INPUT_EXPORT_URL: ${{ inputs.export-url }}
+        INPUT_NOTES_FILE: ${{ inputs.notes-file }}
+      run: |
+        set -euo pipefail
+        if ! command -v node >/dev/null; then
+          echo "::error::translate-export needs Node 20 or later on the runner (actions/setup-node)."
+          exit 1
+        fi
+        notes="${INPUT_NOTES_FILE:-$RUNNER_TEMP/translate-export-notes.md}"
+        echo "notes-file=$notes" >> "$GITHUB_OUTPUT"
+        args=(--project "$INPUT_PROJECT" --out-dir "$INPUT_OUT_DIR" --file "$INPUT_FILE" --format "$INPUT_FORMAT" --max-shrink "$INPUT_MAX_SHRINK")
+        args+=(--lang "$(echo "$INPUT_LANGUAGES" | tr -s ' \n' ',,' | sed 's/^,//; s/,$//')")
+        if [ -n "$INPUT_KEY_PREFIX" ]; then args+=(--key-prefix "$INPUT_KEY_PREFIX"); fi
+        if [ "$INPUT_ALLOW_SHRINK" = "true" ]; then args+=(--allow-shrink); fi
+        if [ "$INPUT_GUARD" != "true" ]; then args+=(--no-guard); fi
+        if [ -n "$INPUT_EXPORT_URL" ]; then args+=(--export-url "$INPUT_EXPORT_URL"); fi
+        EXPORT_NOTES_FILE="$notes" node "$GITHUB_ACTION_PATH/translate-export.mjs" "${args[@]}"
