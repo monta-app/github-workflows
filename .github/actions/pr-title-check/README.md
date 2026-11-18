@@ -18,7 +18,7 @@ This action runs two checks:
 
 ### Skipping the Jira check
 
-Include `nojira` or `no-jira` in the branch name, PR title, or description to skip the Jira check. Automated PRs from Renovate and Dependabot are skipped automatically.
+Include `nojira` or `no-jira` in the branch name, PR title, or description to skip the Jira check. Automated PRs from Renovate (Mend's `renovate[bot]` and Monta's self-hosted `monta-renovate[bot]`) and Dependabot are skipped automatically.
 
 ## Title Format
 
