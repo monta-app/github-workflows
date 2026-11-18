@@ -6,7 +6,7 @@
 - **Changes**: new `pnpm-dependency-submission.yml` and `pnpm-dependency-graph` action for pnpm 12 lockfiles
 
 ## Recent Changes (2026-11-18)
-1. **A pull request's Terraform plan fails at once on a held state lock**: `command: plan` runs `terraform plan -lock-timeout=0s` instead of waiting 5 minutes for another run's lock; `recover`'s plan and apply keep `-lock-timeout=5m`, since a failed apply opens a recovery issue. Re-run the plan once the other run is done.
+1. **A Terraform plan fails at once on a held state lock**: the plan step drops `-lock-timeout=5m` and uses Terraform's default (no wait), for pull request plans and `recover`'s plan alike, instead of waiting 5 minutes for another run's lock. Apply keeps `-lock-timeout=5m`, since a failed apply opens a recovery issue. Re-run the plan once the other run is done.
 
 1. **`terraform-stack.yml` never cancels a running plan, and plans lock again**: the job's concurrency group now has `cancel-in-progress: false` for every command, so a newer push to the same ref waits for the running plan (a plan still waiting is replaced by the newest), and #411's `-lock=false` on plans is reverted. A plan cancelled while it held the S3 lockfile left the lock behind: the terraform repo's `global/grafana` lock from PR #520 (12:27 UTC) failed every later Grafana plan (#520's rerun, #521, #522) until it was released by hand. #411 stopped plans taking the lock instead, but the saved plan is what main applies, so plans keep the lock and take turns on it. Callers pick it up when they bump their pin.
 
