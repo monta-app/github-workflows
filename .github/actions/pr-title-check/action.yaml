@@ -18,7 +18,8 @@ runs:
           const prAuthor = context.payload.pull_request.user.login || '';
 
           // Skip validation for automated PRs (Renovate, Dependabot, etc.)
-          const automatedBots = ['renovate[bot]', 'dependabot[bot]'];
+          // monta-renovate[bot] is Monta's self-hosted Renovate (kube-manifests infra/renovate).
+          const automatedBots = ['renovate[bot]', 'monta-renovate[bot]', 'dependabot[bot]'];
           if (automatedBots.includes(prAuthor)) {
             core.info(`✅ Automated PR from ${prAuthor} - skipping Jira link validation`);
             return;
