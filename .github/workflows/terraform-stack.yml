@@ -171,12 +171,19 @@ jobs:
       - name: Terraform validate
         run: terraform validate -no-color
 
+      # A pull request's plan only reads state, so it takes no lock: the plan's concurrency
+      # group cancels it on the next push, and a run cancelled while it held the lock left it
+      # behind, failing every later plan and apply of the stack until someone force-unlocked
+      # it. Apply still locks, and refuses a saved plan whose state has changed since.
+      # recover plans and applies in one job, so its plan keeps the lock.
       - name: Terraform plan
         id: plan
         if: inputs.command == 'plan' || inputs.command == 'recover'
+        env:
+          LOCK: ${{ inputs.command == 'plan' && '-lock=false' || '-lock-timeout=5m' }}
         run: |
           set -eu
-          terraform plan -no-color -input=false -lock-timeout=5m -parallelism=${{ inputs.parallelism }} \
+          terraform plan -no-color -input=false "$LOCK" -parallelism=${{ inputs.parallelism }} \
             -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
           tail -c 400000 plan.txt
           case "$code" in
