@@ -1518,6 +1518,7 @@ jobs:
 - **`terraform-ok` is the only required status check.** The matrix is empty when no stack is affected, and a skipped job never reports a check — a required check on `terraform` itself would leave unrelated PRs blocked forever. It must gate on `discover` as well: discovery hard-fails on an unmapped stack, which leaves `terraform` *skipped* rather than failed.
 - **`fail-fast: false` is required**, otherwise one stack failing cancels sibling applies mid-apply.
 - Locking is per stack, set inside `terraform-stack.yml`: plans of the same stack cancel each other per ref, applies and recovers share one group and are never cancelled.
+- A `plan` runs with `-lock=false`, so a plan cancelled by the next push can't leave the state lock behind. Only apply and `recover` take the lock, and apply refuses a saved plan whose state changed after it was planned.
 - `accounts[]` is matched by path prefix, first match wins — list more specific prefixes first. A stack matching no entry fails discovery rather than running without credentials.
 - Any key on the matched `accounts[]` entry other than `match` is passed through to the matrix entry. A repo with one static key pair per account can carry the secret name that way and select it in the caller: `${{ secrets[format('TERRAFORM_CORE_{0}_AWS_ACCESS_KEY_ID', matrix.stack.secret_key)] }}`.
 - Leave `aws-role` empty to fall back to the `aws-access-key-id` / `aws-secret-access-key` secrets during an OIDC migration.
