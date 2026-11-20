@@ -87,7 +87,7 @@ on:
         required: false
         type: boolean
         default: false
-        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.35.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
+        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
       enable-changelog:
         required: false
         type: boolean

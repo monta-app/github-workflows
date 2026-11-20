@@ -26,7 +26,7 @@ on:
         required: false
         type: string
         default: ''
-        description: "Sentry release to write into the values' existing 'sentryRelease' key (kotlin chart >= 1.35.0). Empty leaves the values as before. The key is only rewritten, never added: older chart schemas reject unknown keys."
+        description: "Sentry release to write into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0). Empty leaves the values as before. The key is only rewritten, never added: older chart schemas reject unknown keys."
       argocd-server:
         required: false
         type: string
@@ -102,7 +102,7 @@ jobs:
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
           # Writes the Sentry release into an existing sentryRelease line only, never adds one:
-          # kotlin chart schemas before 1.35.0 reject unknown keys, which would fail the ArgoCD sync.
+          # kotlin chart schemas before 1.36.0 reject unknown keys, which would fail the ArgoCD sync.
           set_sentry_release() {
             if [[ -z "$SENTRY_RELEASE" ]]; then
               return 0
@@ -114,7 +114,7 @@ jobs:
             if grep -qE '^[[:space:]]*sentryRelease:' "$1"; then
               sed -i -E "s/^([[:space:]]*)sentryRelease:.*/\1sentryRelease: \"${SENTRY_RELEASE}\"/" "$1"
             else
-              echo "::warning::sentry-release is set but $1 has no sentryRelease key. Add sentryRelease next to build once the app is on kotlin chart 1.35.0 or newer."
+              echo "::warning::sentry-release is set but $1 has no sentryRelease key. Add sentryRelease next to build once the app is on kotlin chart 1.36.0 or newer."
             fi
           }
           declare -f set_sentry_release > "$RUNNER_TEMP/set-sentry-release.sh"
