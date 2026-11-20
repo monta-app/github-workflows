@@ -83,6 +83,11 @@ on:
         required: false
         type: string
         description: "Optional prefix for release tag names. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM'. Leave empty for date-only tags."
+      sentry-release-from-tag:
+        required: false
+        type: boolean
+        default: false
+        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.35.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
       enable-changelog:
         required: false
         type: boolean
@@ -251,6 +256,31 @@ permissions:
   actions: write
 
 jobs:
+  release-name:
+    name: Release Name
+    if: inputs.sentry-release-from-tag && inputs.enable-release-tag
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 2
+    outputs:
+      tag: ${{ steps.name.outputs.tag }}
+      sentry-release: ${{ steps.name.outputs.sentry-release }}
+    steps:
+      - name: Decide the release tag and Sentry release
+        id: name
+        shell: bash
+        env:
+          PREFIX: ${{ inputs.release-tag-prefix }}
+        run: |
+          date_tag=$(date -u +"%Y-%m-%d-%H-%M")
+          if [[ -n "$PREFIX" ]]; then
+            tag="${PREFIX}-${date_tag}"
+          else
+            tag="${date_tag}"
+          fi
+          sentry_release="${tag}+${GITHUB_SHA::8}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sentry-release=$sentry_release" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $tag, Sentry release: $sentry_release"
   test:
     name: Test
     if: inputs.run-tests
@@ -300,9 +330,11 @@ jobs:
     needs:
       - test
       - build
-    if: always() && (!inputs.run-tests || needs.test.result == 'success') && needs.build.result == 'success'
+      - release-name
+    if: always() && (!inputs.run-tests || needs.test.result == 'success') && needs.build.result == 'success' && needs.release-name.result != 'failure'
     uses: ./.github/workflows/component-deploy-v2.yml
     with:
+      sentry-release: ${{ needs.release-name.outputs.sentry-release }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       service-identifier: ${{ inputs.service-identifier }}
@@ -337,10 +369,11 @@ jobs:
   create-release-tag:
     name: Create Release Tag
     if: always() && inputs.enable-release-tag && needs.deploy.result == 'success'
-    needs: deploy
+    needs: [deploy, release-name]
     uses: ./.github/workflows/create-release-tag.yml
     with:
       prefix: ${{ inputs.release-tag-prefix }}
+      tag: ${{ needs.release-name.outputs.tag }}
   create-changelog:
     name: Create and Publish Changelog
     needs: [create-release-tag, deploy]

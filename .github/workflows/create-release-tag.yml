@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: ''
+      tag:
+        description: "Optional tag name decided earlier in the run (e.g. by a deploy that wrote it into the Sentry release). When set, it is used as is and `prefix` is ignored; when empty, the tag is generated from the prefix and the current time."
+        required: false
+        type: string
+        default: ''
 
 jobs:
   create-tag:
@@ -23,11 +28,15 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate tag name
         id: generate_tag
+        env:
+          GIVEN_TAG: ${{ inputs.tag }}
         run: |
           prefix="${{ inputs.prefix }}"
           date_tag=$(date -u +"%Y-%m-%d-%H-%M")
 
-          if [[ -n "$prefix" ]]; then
+          if [[ -n "$GIVEN_TAG" ]]; then
+            tag="$GIVEN_TAG"
+          elif [[ -n "$prefix" ]]; then
             tag="${prefix}-${date_tag}"
           else
             tag="${date_tag}"

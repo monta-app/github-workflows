@@ -108,6 +108,11 @@ jobs:
           ROLLBACK_COMMIT_SHA=${{ steps.find-commit.outputs.rollback_commit_sha }}
           sed -i "s/tag: .*/tag: $ROLLBACK_COMMIT_SHA/" values.yaml
           sed -i "s/revision: .*/revision: ${ROLLBACK_COMMIT_SHA::8}/" values.yaml
+          # Only apps that opted in carry sentryRelease; point it at the rolled-back commit
+          # so its errors don't land under the newer release. Never added where it's missing.
+          if grep -qE '^[[:space:]]*sentryRelease:' values.yaml; then
+            sed -i -E "s/^([[:space:]]*)sentryRelease:.*/\1sentryRelease: \"${ROLLBACK_COMMIT_SHA::8}\"/" values.yaml
+          fi
 
       - name: Update cluster config for ${{ inputs.environment }}
         shell: bash

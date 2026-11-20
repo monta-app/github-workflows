@@ -22,6 +22,11 @@ on:
         required: true
         type: string
         description: 'Docker image tag to deploy'
+      sentry-release:
+        required: false
+        type: string
+        default: ''
+        description: "Sentry release to write into the values' existing 'sentryRelease' key (kotlin chart >= 1.35.0). Empty leaves the values as before. The key is only rewritten, never added: older chart schemas reject unknown keys."
       helm-values-path:
         required: false
         type: string
@@ -89,6 +94,8 @@ permissions:
 jobs:
   deploy:
     name: Deploy
+    env:
+      SENTRY_RELEASE: ${{ inputs.sentry-release }}
     runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 10
     outputs:
@@ -124,16 +131,36 @@ jobs:
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
         run: |
+          # Writes the Sentry release into an existing sentryRelease line only, never adds one:
+          # kotlin chart schemas before 1.35.0 reject unknown keys, which would fail the ArgoCD sync.
+          set_sentry_release() {
+            if [[ -z "$SENTRY_RELEASE" ]]; then
+              return 0
+            fi
+            if [[ ! "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+              echo "::warning::sentry-release '$SENTRY_RELEASE' has characters outside [A-Za-z0-9._+-]; leaving sentryRelease as it is."
+              return 0
+            fi
+            if grep -qE '^[[:space:]]*sentryRelease:' "$1"; then
+              sed -i -E "s/^([[:space:]]*)sentryRelease:.*/\1sentryRelease: \"${SENTRY_RELEASE}\"/" "$1"
+            else
+              echo "::warning::sentry-release is set but $1 has no sentryRelease key. Add sentryRelease next to build once the app is on kotlin chart 1.35.0 or newer."
+            fi
+          }
+          declare -f set_sentry_release > "$RUNNER_TEMP/set-sentry-release.sh"
+
           # Update image tag using sed for chart-agnostic replacement (works with kotlin, static, etc.)
           sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+          set_sentry_release values.yaml
       - name: Commit and push with automatic retry
         shell: bash
         working-directory: ./service-repo
         env:
           HELM_VALUES_PATH: ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
         run: |
+          source "$RUNNER_TEMP/set-sentry-release.sh"
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
@@ -157,6 +184,7 @@ jobs:
               sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$HELM_VALUES_PATH/values.yaml"
+              set_sentry_release "$HELM_VALUES_PATH/values.yaml"
               git add .
               git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
             fi

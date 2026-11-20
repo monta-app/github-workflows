@@ -5,6 +5,9 @@
 - **Latest SHA**: 84fb68d (check for newer commits)
 - **Changes**: new `pnpm-dependency-submission.yml` and `pnpm-dependency-graph` action for pnpm 12 lockfiles
 
+## Recent Changes (2026-11-20)
+1. **Opt-in Sentry release that matches the release tag (`sentry-release-from-tag`)**: `deploy-kotlin.yml` and `deploy-kotlin-v2.yml` take `sentry-release-from-tag` (boolean, default `false`, needs `enable-release-tag`). When on, a new `release-name` job decides the tag name once at the start of the run (same `<prefix>-YYYY-MM-DD-HH-MM` format) and the Sentry release `<tag>+<short sha>`. `component-deploy(-v2).yml` take an optional `sentry-release` and rewrite an existing `sentryRelease:` line in the values (first write and the rebase-retry path), never adding one: kotlin chart schemas before 1.35.0 have `additionalProperties: false`, so an added key would fail the ArgoCD sync. `create-release-tag.yml` takes an optional `tag` and uses it instead of the clock, so tag and Sentry release match. `rollback.yml` sets an existing `sentryRelease` to the rolled-back commit's short SHA. With the input left off, every workflow behaves as before (`release-name` is skipped, `sentry-release` is empty, `tag` is empty). The kotlin chart 1.35.0 turns `sentryRelease` into `SENTRY_RELEASE`; services read it in `logback-docker.xml`.
+
 ## Recent Changes (2026-11-18)
 1. **A Terraform plan fails at once on a held state lock**: the plan step drops `-lock-timeout=5m` and uses Terraform's default (no wait), for pull request plans and `recover`'s plan alike, instead of waiting 5 minutes for another run's lock. Apply keeps `-lock-timeout=5m`, since a failed apply opens a recovery issue. Re-run the plan once the other run is done.
 
