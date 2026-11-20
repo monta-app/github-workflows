@@ -22,6 +22,16 @@ on:
         required: true
         type: string
         description: 'Docker image tag to deploy'
+      sentry-release:
+        required: false
+        type: string
+        default: ''
+        description: "Sentry release to write into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0). Empty leaves the values as before. The key is only rewritten, never added: older chart schemas reject unknown keys."
+      release-tag:
+        required: false
+        type: string
+        default: ''
+        description: "Release tag this deploy will create, written as 'releaseTag' into the app's cluster/config.yaml so ArgoCD's app-production ApplicationSet can show it under Info. Empty leaves config.yaml as before."
       argocd-server:
         required: false
         type: string
@@ -72,6 +82,9 @@ permissions:
 jobs:
   deploy:
     name: Deploy
+    env:
+      SENTRY_RELEASE: ${{ inputs.sentry-release }}
+      RELEASE_TAG: ${{ inputs.release-tag }}
     runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 20
     outputs:
@@ -94,20 +107,53 @@ jobs:
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
         run: |
+          # Writes the Sentry release into an existing sentryRelease line only, never adds one:
+          # kotlin chart schemas before 1.36.0 reject unknown keys, which would fail the ArgoCD sync.
+          set_sentry_release() {
+            if [[ -z "$SENTRY_RELEASE" ]]; then
+              return 0
+            fi
+            if [[ ! "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+              echo "::warning::sentry-release '$SENTRY_RELEASE' has characters outside [A-Za-z0-9._+-]; leaving sentryRelease as it is."
+              return 0
+            fi
+            if grep -qE '^[[:space:]]*sentryRelease:' "$1"; then
+              sed -i -E "s/^([[:space:]]*)sentryRelease:.*/\1sentryRelease: \"${SENTRY_RELEASE}\"/" "$1"
+            else
+              echo "::warning::sentry-release is set but $1 has no sentryRelease key. Add sentryRelease next to build once the app is on kotlin chart 1.36.0 or newer."
+            fi
+          }
+          declare -f set_sentry_release > "$RUNNER_TEMP/set-sentry-release.sh"
+
           echo "docker-image=$(yq .kotlin.image.repository values.yaml)" >> "$GITHUB_OUTPUT"
           echo "previous-image-tag=$(yq .kotlin.image.tag values.yaml)" >> "$GITHUB_OUTPUT"
 
           sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
+          set_sentry_release values.yaml
       - name: Update config
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
         run: |
+          # Writes the release tag ArgoCD shows under Info; only when the caller passes one.
+          set_release_tag() {
+            if [[ -z "$RELEASE_TAG" ]]; then
+              return 0
+            fi
+            if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "::warning::release-tag '$RELEASE_TAG' has characters outside [A-Za-z0-9._-]; leaving releaseTag as it is."
+              return 0
+            fi
+            yq e '.releaseTag = strenv(RELEASE_TAG)' -i "$1"
+          }
+          declare -f set_release_tag > "$RUNNER_TEMP/set-release-tag.sh"
+
           # Update previousHash
           previousHash=$(yq e .currentHash config.yaml) yq e '.previousHash = strenv(previousHash)' -i config.yaml
           # Update currentHash
           currentHash=${GITHUB_SHA::8} yq e '.currentHash = strenv(currentHash)' -i config.yaml
+          set_release_tag config.yaml
       - name: Detect ArgoCD auto-sync configuration
         id: detect-autosync
         shell: bash
@@ -128,6 +174,8 @@ jobs:
           APP_PATH: apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
           CLUSTER_PATH: apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
         run: |
+          source "$RUNNER_TEMP/set-sentry-release.sh"
+          source "$RUNNER_TEMP/set-release-tag.sh"
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
@@ -151,8 +199,10 @@ jobs:
               sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$APP_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$APP_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$APP_PATH/values.yaml"
+              set_sentry_release "$APP_PATH/values.yaml"
               previousHash=$(yq e .currentHash "$CLUSTER_PATH/config.yaml") yq e '.previousHash = strenv(previousHash)' -i "$CLUSTER_PATH/config.yaml"
               currentHash=${GITHUB_SHA::8} yq e '.currentHash = strenv(currentHash)' -i "$CLUSTER_PATH/config.yaml"
+              set_release_tag "$CLUSTER_PATH/config.yaml"
               git add .
               git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
             fi
