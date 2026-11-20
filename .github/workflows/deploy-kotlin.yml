@@ -318,6 +318,7 @@ jobs:
     uses: ./.github/workflows/component-deploy.yml
     with:
       sentry-release: ${{ needs.release-name.outputs.sentry-release }}
+      release-tag: ${{ needs.release-name.outputs.tag }}
       service-name: ${{ inputs.service-name }}
       service-emoji: ${{ inputs.service-emoji }}
       service-identifier: ${{ inputs.service-identifier }}
