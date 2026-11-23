@@ -6,6 +6,7 @@
 - **Changes**: new `pnpm-dependency-submission.yml` and `pnpm-dependency-graph` action for pnpm 12 lockfiles
 
 ## Recent Changes (2026-11-23)
+1. **`create-release-tag.yml` times out after 10 minutes**: the `create-tag` job had no `timeout-minutes`, so a tag job that hung after it started ran for GitHub's 6-hour default and held its caller's run (and that caller's concurrency group) open. A caller's job that uses a reusable workflow can't set `timeout-minutes` itself, so the limit lives here. It doesn't cover a job that never gets a runner: GitHub counts a job's timeout only once a runner picks it up.
 1. **A Terraform plan waits up to 3 minutes for a held state lock again**: reverts the 2026-11-18 fail-fast change. The plan step uses `-lock-timeout=${{ inputs.plan-lock-timeout }}` (new input, default `3m`; apply keeps 5m), so callers can tune it to a stack's usual apply time, so a pull request plan that starts while main applies the same stack queues behind the apply instead of failing with 412 (terraform-core#474, `accounts/monta/route53`: the apply took the lock 3 s after the plan's init). Stale locks from cancelled runs are already prevented by `cancel-in-progress: false`; a truly stuck lock still fails, 3 minutes later.
 
 ## Recent Changes (2026-11-20)
