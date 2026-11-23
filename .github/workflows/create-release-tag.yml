@@ -18,6 +18,7 @@ jobs:
   create-tag:
     name: Create Release Tag
     runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
