@@ -87,7 +87,7 @@ on:
         required: false
         type: boolean
         default: false
-        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
+        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. With a SENTRY_AUTH_TOKEN secret, a sentry-release job also creates the release in Sentry project service-<service-identifier>, sets its commits and records the deploy. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
       enable-changelog:
         required: false
         type: boolean
@@ -330,6 +330,69 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+  sentry-release:
+    name: Sentry Release
+    needs: [deploy, release-name]
+    # Opt-in: only for callers using sentry-release-from-tag, after a successful deploy.
+    # Never fails the deploy run: a Sentry outage or a wrong token only leaves a warning.
+    if: always() && inputs.sentry-release-from-tag && needs.deploy.result == 'success' && needs.release-name.outputs.sentry-release != ''
+    continue-on-error: true
+    # getsentry/action-release runs a Docker image on Linux, so this job needs a runner with Docker.
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 5
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: monta-app
+      DEPLOY_STARTED: ${{ needs.deploy.outputs.deployment-start-time }}
+    steps:
+      - name: Check for a Sentry token
+        id: token
+        shell: bash
+        run: |
+          if [[ -z "$SENTRY_AUTH_TOKEN" ]]; then
+            echo "::notice::No SENTRY_AUTH_TOKEN passed; skipping Sentry release commits and deploy."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -n "$DEPLOY_STARTED" ]]; then
+            echo "started-at=$(date -u -d "$DEPLOY_STARTED" +%s)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check out the deployed commit
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Create Sentry release, set commits and record the deploy
+        if: steps.token.outputs.present == 'true'
+        uses: getsentry/action-release@2e505a70ff06dac263413242aa3617fec90134e5 # v3.9.1
+        with:
+          release: ${{ needs.release-name.outputs.sentry-release }}
+          projects: service-${{ inputs.service-identifier }}
+          environment: ${{ inputs.stage }}
+          started_at: ${{ steps.token.outputs.started-at }}
+          set_commits: auto
+          ignore_missing: true
+          finalize: true
+          disable_telemetry: true
+      - name: Link the Sentry release to the GitHub release
+        if: steps.token.outputs.present == 'true'
+        shell: bash
+        env:
+          SENTRY_RELEASE: ${{ needs.release-name.outputs.sentry-release }}
+          RELEASE_TAG: ${{ needs.release-name.outputs.tag }}
+        run: |
+          # getsentry/action-release has no input for the release's url, so set it through Sentry's API.
+          # The tag and GitHub release are created by later jobs; the link is built from the tag name.
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          encoded=$(jq -rn --arg v "$SENTRY_RELEASE" '$v|@uri')
+          body=$(jq -n --arg url "$url" '{url: $url}')
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X PUT \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" -H "Content-Type: application/json" \
+            --data "$body" "https://sentry.io/api/0/organizations/${SENTRY_ORG}/releases/${encoded}/") || status=000
+          if [[ "$status" == "200" ]]; then
+            echo "Sentry release $SENTRY_RELEASE links to $url"
+          else
+            echo "::warning::Could not set the GitHub release link on Sentry release $SENTRY_RELEASE (HTTP $status)"
+          fi
   update-service-profile:
     name: Update Service Profile
     needs: deploy
