@@ -38,6 +38,10 @@ on:
         description: Terraform -parallelism for plan and apply.
         type: number
         default: 10
+      plan-lock-timeout:
+        description: How long a plan waits for a state lock held by another run (Terraform duration, e.g. 3m). Tune it to the stack's usual apply time.
+        type: string
+        default: 3m
       tailscale:
         description: Join the tailnet before init, for providers that reach private endpoints.
         type: boolean
@@ -76,7 +80,7 @@ jobs:
     # cancelled while it held it left the lock behind, failing every later plan and apply of
     # the stack until someone force-unlocked it. A newer push to the same ref waits for the
     # running plan; a plan still waiting is replaced by the newest one. A plan that finds the
-    # state locked by another run fails at once (re-run it); apply waits up to 5 minutes.
+    # state locked by another run waits `plan-lock-timeout` (default 3m); apply waits 5m.
     concurrency:
       group: tf-${{ inputs.stack }}-${{ inputs.command != 'plan' && 'apply' || github.ref }}
       cancel-in-progress: false
@@ -181,7 +185,7 @@ jobs:
         if: inputs.command == 'plan' || inputs.command == 'recover'
         run: |
           set -eu
-          terraform plan -no-color -input=false -parallelism=${{ inputs.parallelism }} \
+          terraform plan -no-color -input=false -lock-timeout=${{ inputs.plan-lock-timeout }} -parallelism=${{ inputs.parallelism }} \
             -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
           tail -c 400000 plan.txt
           case "$code" in
