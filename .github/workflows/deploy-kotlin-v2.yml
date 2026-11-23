@@ -87,7 +87,7 @@ on:
         required: false
         type: boolean
         default: false
-        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
+        description: "Opt in to a Sentry release that matches the release tag. Needs enable-release-tag. With a SENTRY_AUTH_TOKEN secret, a sentry-release job also creates the release in Sentry project service-<service-identifier>, sets its commits and records the deploy. The tag name is decided once at the start of the run and the deploy writes '<tag>+<short sha>' into the values' existing 'sentryRelease' key (kotlin chart >= 1.36.0, which sets SENTRY_RELEASE); the key is never added, since older charts' schemas reject it."
       enable-changelog:
         required: false
         type: boolean
@@ -350,6 +350,66 @@ jobs:
     secrets:
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+  sentry-release:
+    name: Sentry Release
+    needs: [deploy, release-name]
+    # Opt-in: only for callers using sentry-release-from-tag, after a successful deploy.
+    # Never fails the deploy run: a Sentry outage or a wrong token only leaves a warning.
+    if: always() && inputs.sentry-release-from-tag && needs.deploy.result == 'success' && needs.release-name.outputs.sentry-release != ''
+    continue-on-error: true
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 5
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: monta-app
+      SENTRY_PROJECT: service-${{ inputs.service-identifier }}
+      SENTRY_RELEASE: ${{ needs.release-name.outputs.sentry-release }}
+      SENTRY_ENVIRONMENT: ${{ inputs.stage }}
+      DEPLOY_STARTED: ${{ needs.deploy.outputs.deployment-start-time }}
+      DEPLOY_FINISHED: ${{ needs.deploy.outputs.deployment-end-time }}
+    steps:
+      - name: Check for a Sentry token
+        id: token
+        shell: bash
+        run: |
+          if [[ -z "$SENTRY_AUTH_TOKEN" ]]; then
+            echo "::notice::No SENTRY_AUTH_TOKEN passed; skipping Sentry release commits and deploy."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Node
+        if: steps.token.outputs.present == 'true'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Install sentry-cli
+        if: steps.token.outputs.present == 'true'
+        shell: bash
+        # Pinned like monorepo-typescript's finalize-sentry-release action: no curl | bash with a token in env.
+        run: npm install -g @sentry/cli@3.3.3
+      - name: Create release, set commits and record the deploy
+        if: steps.token.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Sentry project: $SENTRY_PROJECT, release: $SENTRY_RELEASE"
+          if ! sentry-cli releases new "$SENTRY_RELEASE"; then
+            echo "::warning::Could not create Sentry release $SENTRY_RELEASE in project $SENTRY_PROJECT (does the project exist, and does the token have project:releases?)"
+            exit 1
+          fi
+          sentry-cli releases set-commits "$SENTRY_RELEASE" \
+            --commit "${GITHUB_REPOSITORY}@${GITHUB_SHA}" --ignore-missing \
+            || echo "::warning::Could not set commits on $SENTRY_RELEASE (is ${GITHUB_REPOSITORY} connected to Sentry's GitHub integration?)"
+          deploy_args=(--release "$SENTRY_RELEASE" --env "$SENTRY_ENVIRONMENT" --name "$SENTRY_RELEASE" \
+            --url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")
+          if [[ -n "$DEPLOY_STARTED" && -n "$DEPLOY_FINISHED" ]]; then
+            deploy_args+=(--started "$(date -u -d "$DEPLOY_STARTED" +%s)" --finished "$(date -u -d "$DEPLOY_FINISHED" +%s)")
+          fi
+          sentry-cli deploys new "${deploy_args[@]}" \
+            || echo "::warning::Could not record the deploy of $SENTRY_RELEASE in Sentry"
+          sentry-cli releases finalize "$SENTRY_RELEASE" \
+            || echo "::warning::Could not finalize $SENTRY_RELEASE"
   update-service-profile:
     name: Update Service Profile
     needs: deploy
