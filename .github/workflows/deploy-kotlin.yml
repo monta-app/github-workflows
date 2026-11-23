@@ -373,6 +373,26 @@ jobs:
           ignore_missing: true
           finalize: true
           disable_telemetry: true
+      - name: Link the Sentry release to the GitHub release
+        if: steps.token.outputs.present == 'true'
+        shell: bash
+        env:
+          SENTRY_RELEASE: ${{ needs.release-name.outputs.sentry-release }}
+          RELEASE_TAG: ${{ needs.release-name.outputs.tag }}
+        run: |
+          # getsentry/action-release has no input for the release's url, so set it through Sentry's API.
+          # The tag and GitHub release are created by later jobs; the link is built from the tag name.
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          encoded=$(jq -rn --arg v "$SENTRY_RELEASE" '$v|@uri')
+          body=$(jq -n --arg url "$url" '{url: $url}')
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X PUT \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" -H "Content-Type: application/json" \
+            --data "$body" "https://sentry.io/api/0/organizations/${SENTRY_ORG}/releases/${encoded}/") || status=000
+          if [[ "$status" == "200" ]]; then
+            echo "Sentry release $SENTRY_RELEASE links to $url"
+          else
+            echo "::warning::Could not set the GitHub release link on Sentry release $SENTRY_RELEASE (HTTP $status)"
+          fi
   update-service-profile:
     name: Update Service Profile
     needs: deploy
