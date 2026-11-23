@@ -357,16 +357,13 @@ jobs:
     # Never fails the deploy run: a Sentry outage or a wrong token only leaves a warning.
     if: always() && inputs.sentry-release-from-tag && needs.deploy.result == 'success' && needs.release-name.outputs.sentry-release != ''
     continue-on-error: true
-    runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
+    # getsentry/action-release runs a Docker image on Linux, so this job needs a runner with Docker.
+    runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 5
     env:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: monta-app
-      SENTRY_PROJECT: service-${{ inputs.service-identifier }}
-      SENTRY_RELEASE: ${{ needs.release-name.outputs.sentry-release }}
-      SENTRY_ENVIRONMENT: ${{ inputs.stage }}
       DEPLOY_STARTED: ${{ needs.deploy.outputs.deployment-start-time }}
-      DEPLOY_FINISHED: ${{ needs.deploy.outputs.deployment-end-time }}
     steps:
       - name: Check for a Sentry token
         id: token
@@ -378,38 +375,24 @@ jobs:
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Set up Node
+          if [[ -n "$DEPLOY_STARTED" ]]; then
+            echo "started-at=$(date -u -d "$DEPLOY_STARTED" +%s)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check out the deployed commit
         if: steps.token.outputs.present == 'true'
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Create Sentry release, set commits and record the deploy
+        if: steps.token.outputs.present == 'true'
+        uses: getsentry/action-release@2e505a70ff06dac263413242aa3617fec90134e5 # v3.9.1
         with:
-          node-version: 22
-      - name: Install sentry-cli
-        if: steps.token.outputs.present == 'true'
-        shell: bash
-        # Pinned like monorepo-typescript's finalize-sentry-release action: no curl | bash with a token in env.
-        run: npm install -g @sentry/cli@3.3.3
-      - name: Create release, set commits and record the deploy
-        if: steps.token.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Sentry project: $SENTRY_PROJECT, release: $SENTRY_RELEASE"
-          if ! sentry-cli releases new "$SENTRY_RELEASE"; then
-            echo "::warning::Could not create Sentry release $SENTRY_RELEASE in project $SENTRY_PROJECT (does the project exist, and does the token have project:releases?)"
-            exit 1
-          fi
-          sentry-cli releases set-commits "$SENTRY_RELEASE" \
-            --commit "${GITHUB_REPOSITORY}@${GITHUB_SHA}" --ignore-missing \
-            || echo "::warning::Could not set commits on $SENTRY_RELEASE (is ${GITHUB_REPOSITORY} connected to Sentry's GitHub integration?)"
-          deploy_args=(--release "$SENTRY_RELEASE" --env "$SENTRY_ENVIRONMENT" --name "$SENTRY_RELEASE" \
-            --url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")
-          if [[ -n "$DEPLOY_STARTED" && -n "$DEPLOY_FINISHED" ]]; then
-            deploy_args+=(--started "$(date -u -d "$DEPLOY_STARTED" +%s)" --finished "$(date -u -d "$DEPLOY_FINISHED" +%s)")
-          fi
-          sentry-cli deploys new "${deploy_args[@]}" \
-            || echo "::warning::Could not record the deploy of $SENTRY_RELEASE in Sentry"
-          sentry-cli releases finalize "$SENTRY_RELEASE" \
-            || echo "::warning::Could not finalize $SENTRY_RELEASE"
+          release: ${{ needs.release-name.outputs.sentry-release }}
+          projects: service-${{ inputs.service-identifier }}
+          environment: ${{ inputs.stage }}
+          started_at: ${{ steps.token.outputs.started-at }}
+          set_commits: auto
+          ignore_missing: true
+          finalize: true
+          disable_telemetry: true
   update-service-profile:
     name: Update Service Profile
     needs: deploy
