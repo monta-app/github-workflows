@@ -137,44 +137,96 @@ jobs:
               {"condition": {"method": "HEAD"}, "name": "HEAD [Default]"},
               {"condition": {"method": "OPTIONS"}, "name": "OPTIONS [Default]"}
             ]' > service-profile.yml
+      # The caller's own build ran in this job, so the token that pushes to kube-manifests is fetched in a job of its
+      # own, which gets only the generated file.
+      - name: Upload service profile
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: service-profile-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          path: service-profile.yml
+          retention-days: 1
+          if-no-files-found: error
+
+  push-service-profile:
+    name: Push service profile
+    needs: update-service-profile
+    runs-on: ${{ (inputs.use-arc-runners && github.event.repository.private) && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # OIDC token for the deploy token (deployer-token action)
+    steps:
+      - name: Check inputs
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          FILE_NAME: ${{ inputs.file-name }}
+        run: |
+          # These inputs end up in paths and shell commands below, in a job that holds a token that can push to
+          # kube-manifests: refuse anything but plain names before the token is fetched.
+          fail=0
+          check() { [[ "$2" =~ $3 ]] || { echo "::error::$1 '$2' doesn't match $3"; fail=1; }; }
+          check service-identifier "$SERVICE_IDENTIFIER" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check stage "$STAGE" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check file-name "$FILE_NAME" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          exit $fail
+      - name: Download service profile
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: service-profile-${{ inputs.service-identifier }}-${{ inputs.stage }}
+      - name: Get deploy token
+        id: deploy-token
+        uses: monta-app/github-workflows/.github/actions/deployer-token@main
+        with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
+          repository: kube-manifests
+          fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Check out manifest repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: 'manifests'
           repository: monta-app/kube-manifests
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
+          token: ${{ steps.deploy-token.outputs.token }}
       - name: Update or create manifest file
         shell: bash
+        env:
+          TEMPLATES_PATH: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/templates
+          FILE_NAME: ${{ inputs.file-name }}
         run: |
-          TEMPLATES_PATH="./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/templates"
-          
-          mkdir -p $TEMPLATES_PATH
-          SERVICE_PROFILE_FILE="$TEMPLATES_PATH/${{ inputs.file-name }}"
-          
+          mkdir -p "$TEMPLATES_PATH"
+          SERVICE_PROFILE_FILE="$TEMPLATES_PATH/$FILE_NAME"
+
           # Only update the routes part of the service profile if it already exists
           if [[ -f "$SERVICE_PROFILE_FILE" ]]; then
-            yq -i '.spec.routes = load("service-profile.yml").spec.routes' $SERVICE_PROFILE_FILE
+            yq -i '.spec.routes = load("service-profile.yml").spec.routes' "$SERVICE_PROFILE_FILE"
           else
-            cp service-profile.yml $SERVICE_PROFILE_FILE
+            cp service-profile.yml "$SERVICE_PROFILE_FILE"
           fi
-          
+
           # Add a note that the metadata can be updated
           echo "NOTE! .spec.routes is updated automatically. You can update metadata if the generated name 
           does not match your service name or you would like to add labels, annotations etc. You need to 
           ensure the file is still valid yaml (no Helm templating!)" > headComment.txt
-          yq -i '. headComment=load("headComment.txt")' $SERVICE_PROFILE_FILE
-          
-          cat $SERVICE_PROFILE_FILE
+          yq -i '. headComment=load("headComment.txt")' "$SERVICE_PROFILE_FILE"
+
+          cat "$SERVICE_PROFILE_FILE"
       - name: Commit
         id: commit-changes
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app/templates
+        env:
+          FILE_NAME: ${{ inputs.file-name }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
+          GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
         run: |
-          git add ${{ inputs.file-name }}
+          git add "$FILE_NAME"
           if [[ -n "$(git diff --exit-code HEAD)" ]]; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git commit -m "Updated ${{inputs.file-name}} for ${{ inputs.service-identifier }} on ${{ inputs.stage }}"
+            git config --local user.email "$GIT_USER_EMAIL"
+            git config --local user.name "$GIT_USER_NAME"
+            git commit -m "Updated $FILE_NAME for $SERVICE_IDENTIFIER on $STAGE"
             echo "Changes committed"
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
@@ -186,5 +238,5 @@ jobs:
         uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
         with:
           directory: './manifests'
-          github_token: ${{ secrets.MANIFEST_REPO_PAT }}
+          github_token: ${{ steps.deploy-token.outputs.token }}
           repository: monta-app/kube-manifests

@@ -88,19 +88,40 @@ jobs:
 
       - name: Find commit to roll back to
         id: find-commit
+        shell: bash
+        env:
+          INPUT_COMMIT_SHA: ${{ github.event.inputs.commit-sha }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
+          # These values end up in paths, sed expressions and shell commands below, in a job that holds a token
+          # that can push to kube-manifests: refuse anything but plain names before the token is fetched.
+          fail=0
+          check() { [[ "$2" =~ $3 ]] || { echo "::error::$1 '$2' doesn't match $3"; fail=1; }; }
+          check service-identifier "$SERVICE_IDENTIFIER" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check environment "$ENVIRONMENT" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          [ -z "$INPUT_COMMIT_SHA" ] || check commit-sha "$INPUT_COMMIT_SHA" '^[0-9a-fA-F]{7,40}$'
+          [ "$fail" = 0 ] || exit 1
+
           PREVIOUS_COMMIT_SHA=$(git rev-parse HEAD^)
-          INPUT_COMMIT_SHA="${{ github.event.inputs.commit-sha }}"
           ROLLBACK_COMMIT_SHA=${INPUT_COMMIT_SHA:-$PREVIOUS_COMMIT_SHA}
           echo "Rolling back to commit: $ROLLBACK_COMMIT_SHA"
           echo "rollback_commit_sha=$ROLLBACK_COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Get deploy token
+        id: deploy-token
+        uses: monta-app/github-workflows/.github/actions/deployer-token@main
+        with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
+          repository: kube-manifests
+          fallback-token: ${{ secrets.ADMIN_PAT }}
 
       - name: Check out kube-manifests
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: monta-app/kube-manifests
           path: 'kube-manifests'
-          token: ${{ secrets.ADMIN_PAT }}
+          token: ${{ steps.deploy-token.outputs.token }}
 
       - name: Update app config for ${{ inputs.environment }}
         working-directory: ./kube-manifests/apps/${{ inputs.service-identifier }}/${{ inputs.environment }}/app
@@ -131,17 +152,20 @@ jobs:
 
       - name: Commit
         working-directory: ./kube-manifests
+        env:
+          GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
+          GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
         run: |
           echo "Committing changes:"
           git diff
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.email "$GIT_USER_EMAIL"
+          git config --local user.name "$GIT_USER_NAME"
           git commit -am "Bump docker tags for ${{ inputs.service-identifier }} on ${{ inputs.environment }} (rollback)"
 
       - name: Push
         if: ${{ !inputs.dry-run }}
         uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
         with:
-          github_token: ${{ secrets.ADMIN_PAT }}
+          github_token: ${{ steps.deploy-token.outputs.token }}
           directory: './kube-manifests'
           repository: 'monta-app/kube-manifests'

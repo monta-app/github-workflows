@@ -78,6 +78,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # OIDC token for the deploy token (deployer-token action)
 
 jobs:
   deploy:
@@ -96,12 +97,34 @@ jobs:
       deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
       deployment-url: ${{ steps.deployment-url.outputs.url }}
     steps:
+      - name: Check inputs
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          # These inputs end up in paths, sed expressions and shell commands below, in a job that holds a token
+          # that can push to the deploy repo: refuse anything but plain names before the token is fetched.
+          fail=0
+          check() { [[ "$2" =~ $3 ]] || { echo "::error::$1 '$2' doesn't match $3"; fail=1; }; }
+          check service-identifier "$SERVICE_IDENTIFIER" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check stage "$STAGE" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check image-tag "$IMAGE_TAG" '^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$'
+          exit $fail
+      - name: Get deploy token
+        id: deploy-token
+        uses: monta-app/github-workflows/.github/actions/deployer-token@main
+        with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
+          repository: kube-manifests
+          fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Check out manifest repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: monta-app/kube-manifests
           path: 'manifests'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
+          token: ${{ steps.deploy-token.outputs.token }}
       - name: Update image tag
         id: update-image-tag
         shell: bash
@@ -173,11 +196,13 @@ jobs:
         env:
           APP_PATH: apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
           CLUSTER_PATH: apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
+          GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
+          GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
         run: |
           source "$RUNNER_TEMP/set-sentry-release.sh"
           source "$RUNNER_TEMP/set-release-tag.sh"
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
+          git config user.name "$GIT_USER_NAME"
+          git config user.email "$GIT_USER_EMAIL"
 
           git add .
           git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
@@ -251,7 +276,7 @@ jobs:
           auth-token: ${{ secrets.ARGOCD_TOKEN }}
           revision: ${{ steps.manifest-sha.outputs.sha }}
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
-          github-token: ${{ secrets.MANIFEST_REPO_PAT }}
+          github-token: ${{ steps.deploy-token.outputs.token }}
       - name: Resolve deployment URL
         id: deployment-url
         if: ${{ inputs.argocd-server != '' }}
