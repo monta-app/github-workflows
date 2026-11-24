@@ -1,0 +1,106 @@
+name: Deploy token
+description: >-
+  Gets a one-hour token of the Monta Deployer GitHub App that can push to one repo (contents: write), from
+  octo-guardrail's deploy token broker, in exchange for this job's GitHub Actions OIDC token. Only the shared
+  deploy workflows of this repo on main get one (see octo-guardrail's README, "Deploy tokens"). While the
+  rollout lasts it falls back to fallback-token (the manifest PAT) when the broker can't be reached, isn't
+  configured or refuses, and says so in a warning. The job needs `permissions: id-token: write`.
+
+inputs:
+  repository:
+    description: 'Repo the token is for: a name in monta-app, without the owner (e.g. kube-manifests).'
+    required: true
+  fallback-token:
+    description: 'Token to use when no Deployer token can be had (the manifest PAT). Empty: fail instead.'
+    required: false
+    default: ''
+  broker-url:
+    description: "octo-guardrail's backend, reachable from the ARC runners in the internal cluster."
+    required: false
+    default: 'http://octo-guardrail-backend-internal.octo-guardrail-internal.svc.cluster.local:8080'
+  audience:
+    description: 'OIDC audience octo-guardrail expects (DEPLOYER_OIDC_AUDIENCE).'
+    required: false
+    default: 'octo-guardrail-deployer'
+
+outputs:
+  token:
+    description: 'The token (masked).'
+    value: ${{ steps.token.outputs.token }}
+  source:
+    description: '"deployer" for a Monta Deployer token, "fallback" for fallback-token.'
+    value: ${{ steps.token.outputs.source }}
+  git-user-name:
+    description: 'Commit author name that matches the token.'
+    value: ${{ steps.token.outputs.git-user-name }}
+  git-user-email:
+    description: 'Commit author email that matches the token.'
+    value: ${{ steps.token.outputs.git-user-email }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get deploy token
+      id: token
+      shell: bash
+      env:
+        TARGET: ${{ inputs.repository }}
+        FALLBACK: ${{ inputs.fallback-token }}
+        BROKER: ${{ inputs.broker-url }}
+        AUDIENCE: ${{ inputs.audience }}
+      run: |
+        set -uo pipefail
+        if [[ ! "$TARGET" =~ ^[A-Za-z0-9._-]{1,100}$ ]]; then
+          echo "::error::repository must be a repo name without the owner, got '$TARGET'"
+          exit 1
+        fi
+
+        token="" reason=""
+        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+          reason="the job has no id-token: write permission"
+        else
+          oidc=$(curl -fsS --max-time 10 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r '.value // empty') || oidc=""
+          if [ -z "$oidc" ]; then
+            reason="GitHub didn't issue an OIDC token"
+          else
+            echo "::add-mask::$oidc"
+            body=$(mktemp)
+            code=$(curl -sS --max-time 20 -o "$body" -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $oidc" -H 'Content-Type: application/json' \
+              -d "$(jq -cn --arg r "$TARGET" '{repository: $r}')" \
+              "$BROKER/api/public/deploy-token") || code="000"
+            if [ "$code" = "200" ]; then
+              token=$(jq -r '.token // empty' "$body")
+              [ -n "$token" ] || reason="the broker answered 200 without a token"
+            elif [ "$code" = "000" ]; then
+              reason="couldn't reach the broker at $BROKER"
+            else
+              # Error bodies carry only a message (which workflow or repo isn't allowed), never a token.
+              reason="the broker answered $code: $(jq -r '.error // empty' "$body" 2>/dev/null | head -c 300)"
+            fi
+            rm -f "$body"
+          fi
+        fi
+
+        if [ -n "$token" ]; then
+          echo "::add-mask::$token"
+          {
+            echo "token=$token"
+            echo "source=deployer"
+            echo "git-user-name=monta-deployer[bot]"
+            echo "git-user-email=360629325+monta-deployer[bot]@users.noreply.github.com"
+          } >> "$GITHUB_OUTPUT"
+          echo "Using a Monta Deployer token for monta-app/$TARGET"
+        elif [ -n "$FALLBACK" ]; then
+          echo "::warning::No Monta Deployer token for monta-app/$TARGET ($reason); using the fallback token."
+          {
+            echo "token=$FALLBACK"
+            echo "source=fallback"
+            echo "git-user-name=GitHub Action"
+            echo "git-user-email=action@github.com"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::No Monta Deployer token for monta-app/$TARGET ($reason) and no fallback-token."
+          exit 1
+        fi

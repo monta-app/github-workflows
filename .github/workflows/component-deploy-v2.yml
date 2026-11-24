@@ -90,6 +90,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # OIDC token for the deploy token (deployer-token action)
 
 jobs:
   deploy:
@@ -107,12 +108,42 @@ jobs:
       deployment-end-time: ${{ steps.argocd-sync.outputs.deployment-end-time }}
       deployment-url: ${{ steps.deployment-url.outputs.url }}
     steps:
+      - name: Check inputs
+        shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          REPOSITORY_NAME: ${{ inputs.repository-name }}
+          HELM_VALUES_PATH: ${{ inputs.helm-values-path }}
+          ARGOCD_APP_NAME: ${{ inputs.argocd-app-name }}
+        run: |
+          # These inputs end up in paths, sed expressions and shell commands below, in a job that holds a token
+          # that can push to the deploy repo: refuse anything but plain names before the token is fetched.
+          fail=0
+          check() { [[ "$2" =~ $3 ]] || { echo "::error::$1 '$2' doesn't match $3"; fail=1; }; }
+          check service-identifier "$SERVICE_IDENTIFIER" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check stage "$STAGE" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          check image-tag "$IMAGE_TAG" '^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$'
+          [ -z "$REPOSITORY_NAME" ] || check repository-name "$REPOSITORY_NAME" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          [ -z "$ARGOCD_APP_NAME" ] || check argocd-app-name "$ARGOCD_APP_NAME" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          if [ -n "$HELM_VALUES_PATH" ]; then
+            check helm-values-path "$HELM_VALUES_PATH" '^[A-Za-z0-9._][A-Za-z0-9._/-]*$'
+            if [[ "/$HELM_VALUES_PATH/" == */../* ]]; then echo "::error::helm-values-path must not contain '..'"; fail=1; fi
+          fi
+          exit $fail
+      - name: Get deploy token
+        id: deploy-token
+        uses: monta-app/github-workflows/.github/actions/deployer-token@main
+        with:
+          repository: ${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
+          fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Check out service repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           path: 'service-repo'
-          token: ${{ secrets.MANIFEST_REPO_PAT }}
+          token: ${{ steps.deploy-token.outputs.token }}
       - name: Setup main branch
         working-directory: './service-repo'
         shell: bash
@@ -159,10 +190,12 @@ jobs:
         working-directory: ./service-repo
         env:
           HELM_VALUES_PATH: ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+          GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
+          GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
         run: |
           source "$RUNNER_TEMP/set-sentry-release.sh"
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
+          git config user.name "$GIT_USER_NAME"
+          git config user.email "$GIT_USER_EMAIL"
 
           git add .
           git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
@@ -200,12 +233,27 @@ jobs:
           MANIFEST_SHA=$(git rev-parse HEAD)
           echo "sha=$MANIFEST_SHA" >> "$GITHUB_OUTPUT"
           echo "Manifest commit SHA: $MANIFEST_SHA"
+      - name: Look for a local cluster config
+        id: local-config
+        shell: bash
+        working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}', inputs.service-identifier, inputs.stage) }}
+        run: |
+          if [ -f "../cluster/config.yaml" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+      # The deploy token above only reaches the service repo; without a local config.yaml the auto-sync setting is
+      # read from kube-manifests, which needs a token of its own.
+      - name: Get kube-manifests token
+        id: manifests-token
+        if: ${{ steps.local-config.outputs.found == 'false' }}
+        uses: monta-app/github-workflows/.github/actions/deployer-token@main
+        with:
+          repository: kube-manifests
+          fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Detect ArgoCD auto-sync configuration
         id: detect-autosync
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}', inputs.service-identifier, inputs.stage) }}
         env:
-          GH_TOKEN: ${{ secrets.MANIFEST_REPO_PAT }}
+          GH_TOKEN: ${{ steps.manifests-token.outputs.token }}
         run: |
           # Opt-out model: auto-sync is on unless disableAutoSync is true
           if [ -f "../cluster/config.yaml" ]; then
@@ -273,7 +321,7 @@ jobs:
           timeout: ${{ inputs.argocd-sync-wait-seconds }}
           resource-name: ${{ inputs.argocd-resource-name }}
           manifest-repo: monta-app/${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
-          github-token: ${{ secrets.MANIFEST_REPO_PAT }}
+          github-token: ${{ steps.deploy-token.outputs.token }}
       - name: Resolve deployment URL
         id: deployment-url
         if: ${{ inputs.argocd-server != '' }}
