@@ -59,6 +59,7 @@ runs:
         fi
 
         token="" reason=""
+        BROKER="${BROKER%/}"
         if [ -z "$BROKER" ]; then
           reason="no broker URL (org variable DEPLOY_TOKEN_BROKER_URL isn't set)"
         elif [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
