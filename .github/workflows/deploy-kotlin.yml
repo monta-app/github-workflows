@@ -83,6 +83,11 @@ on:
         required: false
         type: string
         description: "Optional prefix for release tag names. If provided, creates tags like 'prefix-YYYY-MM-DD-HH-MM'. Leave empty for date-only tags."
+      sentry-project:
+        required: false
+        type: string
+        default: ''
+        description: "Sentry project slug for the sentry-release job. Empty uses service-<service-identifier>; set it when the project is named differently (e.g. service-ocpp for service-identifier ocpp-main)."
       sentry-release-from-tag:
         required: false
         type: boolean
@@ -366,7 +371,7 @@ jobs:
         uses: getsentry/action-release@2e505a70ff06dac263413242aa3617fec90134e5 # v3.9.1
         with:
           release: ${{ needs.release-name.outputs.sentry-release }}
-          projects: service-${{ inputs.service-identifier }}
+          projects: ${{ inputs.sentry-project || format('service-{0}', inputs.service-identifier) }}
           environment: ${{ inputs.stage }}
           started_at: ${{ steps.token.outputs.started-at }}
           set_commits: auto
