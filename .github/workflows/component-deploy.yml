@@ -116,6 +116,7 @@ jobs:
         id: deploy-token
         uses: monta-app/github-workflows/.github/actions/deployer-token@main
         with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
           repository: kube-manifests
           fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Check out manifest repository

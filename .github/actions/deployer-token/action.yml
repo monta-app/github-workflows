@@ -15,9 +15,12 @@ inputs:
     required: false
     default: ''
   broker-url:
-    description: "octo-guardrail's backend, reachable from the ARC runners in the internal cluster."
+    description: >-
+      octo-guardrail's backend, reachable from the ARC runners in the internal cluster. The workflows pass the org
+      variable DEPLOY_TOKEN_BROKER_URL: this repo is public, so the in-cluster address stays out of it (like
+      CHANGELOG_IDENTITY_RESOLVE_URL). Empty: use fallback-token.
     required: false
-    default: 'http://octo-guardrail-backend-internal.octo-guardrail-internal.svc.cluster.local:8080'
+    default: ''
   audience:
     description: 'OIDC audience octo-guardrail expects (DEPLOYER_OIDC_AUDIENCE).'
     required: false
@@ -56,7 +59,9 @@ runs:
         fi
 
         token="" reason=""
-        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+        if [ -z "$BROKER" ]; then
+          reason="no broker URL (org variable DEPLOY_TOKEN_BROKER_URL isn't set)"
+        elif [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
           reason="the job has no id-token: write permission"
         else
           oidc=$(curl -fsS --max-time 10 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \

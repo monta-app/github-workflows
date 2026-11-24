@@ -136,6 +136,7 @@ jobs:
         id: deploy-token
         uses: monta-app/github-workflows/.github/actions/deployer-token@main
         with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
           repository: ${{ inputs.repository-name || format('service-{0}', inputs.service-identifier) }}
           fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Check out service repository
@@ -246,6 +247,7 @@ jobs:
         if: ${{ steps.local-config.outputs.found == 'false' }}
         uses: monta-app/github-workflows/.github/actions/deployer-token@main
         with:
+          broker-url: ${{ vars.DEPLOY_TOKEN_BROKER_URL }}
           repository: kube-manifests
           fallback-token: ${{ secrets.MANIFEST_REPO_PAT }}
       - name: Detect ArgoCD auto-sync configuration
