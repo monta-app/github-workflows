@@ -9,11 +9,11 @@ on:
         description: 'Workflow (filename or name) to allow, e.g. "deploy-production.yml".'
     secrets:
       ADMIN_PAT:
-        required: true
+        required: false # unused: the deploy lock uses GITHUB_TOKEN; kept so callers that pass it keep working
         description: 'GitHub PAT to update workflows'
 
 permissions:
-  actions: read
+  actions: write # write: disable, enable and cancel the caller repo's deploy workflow with GITHUB_TOKEN
   contents: read
   id-token: write
 
@@ -29,4 +29,4 @@ jobs:
       - name: Enable ${{ inputs.workflow }} workflow
         run: gh workflow enable ${{ inputs.workflow }}
         env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          GH_TOKEN: ${{ github.token }}

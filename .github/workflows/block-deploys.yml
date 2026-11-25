@@ -9,11 +9,11 @@ on:
         description: 'Workflow (filename or name) to block, e.g. "deploy-production.yml".'
     secrets:
       ADMIN_PAT:
-        required: true
+        required: false # unused: the deploy lock uses GITHUB_TOKEN; kept so callers that pass it keep working
         description: 'GitHub PAT to update workflows'
 
 permissions:
-  actions: read
+  actions: write # write: disable, enable and cancel the caller repo's deploy workflow with GITHUB_TOKEN
   contents: read
   id-token: write
 
@@ -29,7 +29,7 @@ jobs:
       - name: Disable ${{ inputs.workflow }} workflow
         run: gh workflow disable ${{ inputs.workflow }} || true
         env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          GH_TOKEN: ${{ github.token }}
 
       # Cancel queued, in-progress, requested, pending or waiting deploy jobs
       - name: Cancel ${{ inputs.workflow }} jobs
@@ -39,4 +39,4 @@ jobs:
             gh run cancel "$runId" || echo "Could not cancel job $runId. Status might have just changed." ;
           done
         env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          GH_TOKEN: ${{ github.token }}
