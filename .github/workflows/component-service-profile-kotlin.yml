@@ -39,7 +39,28 @@ on:
         type: boolean
         default: false
         description: "Run on the self-hosted ARC arm64 runners."
+      image-tag:
+        required: false
+        type: string
+        default: ''
+        description: |
+          Tag of the image that was just deployed. With ecr-repository-name and the AWS_ACCOUNT_ID secret, the
+          OpenAPI spec is read from that image and the Gradle build is skipped. When the image doesn't hold exactly
+          one META-INF/swagger/*.yml, or it can't be read, the spec is built with Gradle as before.
+      ecr-repository-name:
+        required: false
+        type: string
+        default: ''
+        description: 'ECR repository of the image in image-tag'
+      region:
+        required: false
+        type: string
+        default: "eu-west-1"
+        description: 'AWS region of the ECR repository'
     secrets:
+      AWS_ACCOUNT_ID:
+        required: false
+        description: 'AWS account id of the ECR repository in ecr-repository-name'
       GHL_USERNAME:
         required: false
         description: 'Github Username (Required for Kotlin builds)'
@@ -59,9 +80,115 @@ jobs:
     name: Update service profile
     runs-on: ${{ inputs.use-arc-runners && 'arc-arm64-4cpu-12gb' || 'linux-arm64' }}
     steps:
+      - name: Check for an image to read the OpenAPI spec from
+        id: image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          ECR_REPOSITORY_NAME: ${{ inputs.ecr-repository-name }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          if [[ -n "$IMAGE_TAG" && -n "$ECR_REPOSITORY_NAME" && -n "$AWS_ACCOUNT_ID" ]]; then
+            echo "use=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "OpenAPI spec: building with Gradle, no image-tag, ecr-repository-name or AWS_ACCOUNT_ID was passed"
+          fi
+      # The image path is only a shortcut: any failure in it leaves the spec empty, and the Gradle steps below run.
+      - name: Configure AWS credentials via assumed role
+        id: aws
+        if: steps.image.outputs.use == 'true'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecr-put-image
+          role-session-name: service-profile-${{ inputs.service-identifier }}-${{ inputs.stage }}
+          aws-region: ${{ inputs.region }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        if: steps.aws.outcome == 'success'
+        continue-on-error: true
+        uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2
+      - name: Read OpenAPI spec from the image
+        id: image-spec
+        if: steps.image.outputs.use == 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        env:
+          LOGIN_OUTCOME: ${{ steps.login-ecr.outcome }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name }}:${{ inputs.image-tag }}
+        run: |
+          fallback() {
+            echo "::notice::OpenAPI spec: building with Gradle, $1"
+            exit 0
+          }
+
+          if [[ "$LOGIN_OUTCOME" != "success" ]]; then
+            fallback "the AWS or ECR login didn't succeed"
+          fi
+          if ! command -v docker >/dev/null || ! command -v unzip >/dev/null; then
+            fallback "docker or unzip isn't installed on this runner"
+          fi
+          if ! docker pull --quiet "$IMAGE" >/dev/null; then
+            fallback "$IMAGE couldn't be pulled"
+          fi
+
+          # Only the app's own files are searched, not the base image's (JDK and OS).
+          WORK_DIR=$(docker image inspect --format '{{.Config.WorkingDir}}' "$IMAGE" || true)
+          if [[ -z "$WORK_DIR" || "$WORK_DIR" == "/" ]]; then
+            fallback "$IMAGE sets no working directory to search"
+          fi
+          APP_DIR="$RUNNER_TEMP/image-app"
+          if ! CONTAINER=$(docker create "$IMAGE"); then
+            fallback "no container could be created from $IMAGE"
+          fi
+          copied=true
+          docker cp "$CONTAINER:$WORK_DIR/." "$APP_DIR" || copied=false
+          docker rm "$CONTAINER" >/dev/null || true
+          if [[ "$copied" != "true" ]]; then
+            fallback "$WORK_DIR couldn't be copied out of $IMAGE"
+          fi
+
+          # kapt puts the spec in the app's classes and KSP in its resources: a jar, or a loose resources directory.
+          found=()
+          while IFS= read -r -d '' file; do
+            if [[ "$(dirname "$file")" == */META-INF/swagger ]]; then
+              found+=("$file")
+              spec_file="$file"
+              spec_jar=""
+            fi
+          done < <(find "$APP_DIR" -type f -path '*/META-INF/swagger/*.yml' -print0)
+          while IFS= read -r -d '' jar; do
+            while IFS= read -r entry; do
+              found+=("${jar}!/${entry}")
+              spec_jar="$jar"
+              spec_entry="$entry"
+            done < <(unzip -Z1 "$jar" 2>/dev/null | grep -E '^META-INF/swagger/[^/]+\.yml$')
+          done < <(find "$APP_DIR" -type f -name '*.jar' -print0)
+
+          if [[ ${#found[@]} -eq 0 ]]; then
+            fallback "$IMAGE has no META-INF/swagger/*.yml under $WORK_DIR"
+          fi
+          if [[ ${#found[@]} -gt 1 ]]; then
+            fallback "$IMAGE has ${#found[@]} specs under $WORK_DIR: ${found[*]#"$APP_DIR"/}"
+          fi
+
+          SPEC="$RUNNER_TEMP/openapi-from-image.yml"
+          if [[ -n "$spec_jar" ]]; then
+            unzip -p "$spec_jar" "$spec_entry" > "$SPEC"
+          else
+            cp "$spec_file" "$SPEC"
+          fi
+          if [[ ! -s "$SPEC" ]]; then
+            fallback "${found[0]#"$APP_DIR"/} in $IMAGE is empty"
+          fi
+          echo "::notice::OpenAPI spec: read ${found[0]#"$APP_DIR"/} from $IMAGE, skipping the Gradle build"
+          echo "spec=$SPEC" >> "$GITHUB_OUTPUT"
       - name: Checkout
+        if: steps.image-spec.outputs.spec == ''
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up JDK
+        if: steps.image-spec.outputs.spec == ''
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: "corretto"
@@ -79,6 +206,7 @@ jobs:
           sudo curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_arm64
           sudo chmod +x /usr/local/bin/yq
       - name: Discover annotation processor
+        if: steps.image-spec.outputs.spec == ''
         shell: bash
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -99,6 +227,7 @@ jobs:
             echo "OPENAPI_OUTPUT_DIR=${GRADLE_MODULE}/${OUTPUT_DIR}" >> "$GITHUB_ENV"
           fi
       - name: Build OpenAPI spec
+        if: steps.image-spec.outputs.spec == ''
         shell: bash
         env:
           GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
@@ -112,9 +241,12 @@ jobs:
           fi
       - name: Generate service profile
         shell: bash
+        env:
+          IMAGE_SPEC: ${{ steps.image-spec.outputs.spec }}
         run: |
           # Find the generated spec
-          YML_FILE=$(find . -type f -name '*.yml' | grep "^\./${OPENAPI_OUTPUT_DIR}/" | head -n1 || true)
+          YML_FILE="$IMAGE_SPEC"
+          [ -n "$YML_FILE" ] || YML_FILE=$(find . -type f -name '*.yml' | grep "^\./${OPENAPI_OUTPUT_DIR}/" | head -n1 || true)
           [ -n "$YML_FILE" ] || YML_FILE=$(find . -type f -name '*.yml' | grep "$OPENAPI_OUTPUT_DIR" | head -n1)
 
           # Check if a .yml file was found and display the result or an error message

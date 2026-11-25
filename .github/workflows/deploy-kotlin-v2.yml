@@ -430,10 +430,14 @@ jobs:
       java-version: ${{ inputs.java-version }}
       openapi-max-workers: ${{ inputs.openapi-max-workers }}
       use-arc-runners: ${{ (inputs.use-arc-runners && github.event.repository.private) }}
+      image-tag: ${{ needs.deploy.outputs.image-tag }}
+      ecr-repository-name: ${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}
+      region: ${{ inputs.region }}
     secrets:
         GHL_USERNAME: ${{ secrets.GHL_USERNAME }}
         GHL_PASSWORD: ${{ secrets.GHL_PASSWORD }}
         MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   create-release-tag:
     name: Create Release Tag
     if: always() && inputs.enable-release-tag && needs.deploy.result == 'success'
