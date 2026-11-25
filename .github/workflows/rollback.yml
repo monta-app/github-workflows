@@ -37,13 +37,13 @@ on:
         required: true
         description: 'Slack webhook'
       ADMIN_PAT:
-        required: true
+        required: false # only the fallback for the kube-manifests push now; the deploy lock uses GITHUB_TOKEN
         description: 'GitHub PAT to update workflows and push to kube-manifests repo'
 
 
 
 permissions:
-  actions: read
+  actions: write # write: disable, enable and cancel the caller repo's deploy workflow with GITHUB_TOKEN
   contents: read
   id-token: write
 
