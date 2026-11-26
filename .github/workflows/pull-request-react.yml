@@ -85,6 +85,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Setup pnpm
@@ -103,15 +104,15 @@ jobs:
         run: pnpm install
       - name: Lint check
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.lint-command }}
+        run: ${{ inputs.lint-command }} # zizmor: ignore[template-injection] -- the input is a command the calling repo supplies to run
       - name: Format check
         if: ${{ inputs.format-command != '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.format-command }}
+        run: ${{ inputs.format-command }} # zizmor: ignore[template-injection] -- the input is a command the calling repo supplies to run
       - name: Run tests
         if: ${{ inputs.test-command != '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.test-command }}
+        run: ${{ inputs.test-command }} # zizmor: ignore[template-injection] -- the input is a command the calling repo supplies to run
       - name: Build check
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.build-command }}
+        run: ${{ inputs.build-command }} # zizmor: ignore[template-injection] -- the input is a command the calling repo supplies to run

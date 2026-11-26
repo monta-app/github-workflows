@@ -16,17 +16,24 @@ runs:
   steps:
     - name: Run Gradle tasks
       shell: bash
+      env:
+        GRADLE_MODULE: ${{ inputs.gradle-module }}
+        GRADLE_TASKS: ${{ inputs.gradle-tasks }}
+        GRADLE_ARGS: ${{ inputs.gradle-args }}
       run: |
-        if [ -z "${{ inputs.gradle-module }}" ]; then
+        # GRADLE_ARGS and GRADLE_TASKS are space-separated lists: left unquoted on purpose so they word-split
+        if [ -z "$GRADLE_MODULE" ]; then
           # For root project (no module specified)
-          echo "Running command: ./gradlew ${{ inputs.gradle-args }} ${{ inputs.gradle-tasks }}"
-          ./gradlew ${{ inputs.gradle-args }} ${{ inputs.gradle-tasks }}
+          echo "Running command: ./gradlew $GRADLE_ARGS $GRADLE_TASKS"
+          # shellcheck disable=SC2086
+          ./gradlew $GRADLE_ARGS $GRADLE_TASKS
         else
           # For specific module - prefix each task with module name
           PREFIXED_TASKS=""
-          for task in ${{ inputs.gradle-tasks }}; do
-            PREFIXED_TASKS="$PREFIXED_TASKS ${{ inputs.gradle-module }}:$task"
+          for task in $GRADLE_TASKS; do
+            PREFIXED_TASKS="$PREFIXED_TASKS $GRADLE_MODULE:$task"
           done
-          echo "Running command: ./gradlew ${{ inputs.gradle-args }} $PREFIXED_TASKS"
-          ./gradlew ${{ inputs.gradle-args }} $PREFIXED_TASKS
+          echo "Running command: ./gradlew $GRADLE_ARGS $PREFIXED_TASKS"
+          # shellcheck disable=SC2086
+          ./gradlew $GRADLE_ARGS $PREFIXED_TASKS
         fi

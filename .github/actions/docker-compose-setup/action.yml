@@ -20,18 +20,24 @@ runs:
   steps:
     - name: Start Docker Compose
       shell: bash
+      env:
+        COMPOSE_FILE_PATH: ${{ inputs.docker-compose-path }}
       run: |
-        docker compose -f ${{ inputs.docker-compose-path }} up -d
+        docker compose -f "$COMPOSE_FILE_PATH" up -d
     
     - name: Wait for containers to be healthy
       shell: bash
+      env:
+        COMPOSE_FILE_PATH: ${{ inputs.docker-compose-path }}
+        HEALTH_TIMEOUT: ${{ inputs.timeout }}
+        HEALTH_INTERVAL: ${{ inputs.interval }}
       run: |
         echo "Waiting for containers to become healthy..."
-        timeout=${{ inputs.timeout }}
-        interval=${{ inputs.interval }}
+        timeout="$HEALTH_TIMEOUT"
+        interval="$HEALTH_INTERVAL"
         end=$((SECONDS + timeout))
         
-        containers=$(docker compose -f ${{ inputs.docker-compose-path }} ps -q)
+        containers=$(docker compose -f "$COMPOSE_FILE_PATH" ps -q)
         
         while [ $SECONDS -lt $end ]; do
           unhealthy=0
@@ -52,5 +58,5 @@ runs:
         done
         
         echo "Timeout reached. Some containers are still unhealthy:"
-        docker compose -f ${{ inputs.docker-compose-path }} ps
+        docker compose -f "$COMPOSE_FILE_PATH" ps
         exit 1
