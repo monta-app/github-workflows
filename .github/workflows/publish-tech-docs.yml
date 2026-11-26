@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       # ARC runners ship techdocs-cli and mkdocs with these plugins (monta-app/actions-runner).
       - name: Check for the runner's TechDocs tools

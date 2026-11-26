@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Set up JDK
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -112,6 +114,9 @@ jobs:
           fi
       - name: Generate service profile
         shell: bash
+        env:
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
         run: |
           # Find the generated spec
           YML_FILE=$(find . -type f -name '*.yml' | grep "^\./${OPENAPI_OUTPUT_DIR}/" | head -n1 || true)
@@ -123,7 +128,7 @@ jobs:
               exit 1
           fi
           
-          SERVICE_NAME="${{ inputs.service-identifier }}-${{ inputs.stage }}"
+          SERVICE_NAME="${SERVICE_IDENTIFIER}-${STAGE}"
 
           linkerd profile --ignore-cluster -n "$SERVICE_NAME" --open-api "$YML_FILE" "$SERVICE_NAME" \
             | yq 'del(.spec.routes[].responseClasses)' \

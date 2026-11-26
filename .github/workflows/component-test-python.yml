@@ -68,6 +68,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Setup Docker Compose
         if: ${{ inputs.docker-compose-path }}
         uses: monta-app/github-workflows/.github/actions/docker-compose-setup@main
@@ -93,14 +95,19 @@ jobs:
           uv sync --all-extras --dev
       - name: Run tests with pytest
         id: pytest
+        env:
+          TEST_DIRECTORY: ${{ inputs.test-directory }}
+          PYTEST_ARGS: ${{ inputs.pytest-args }}
         run: |
-          PYTHONPATH=. uv run pytest ${{ inputs.test-directory }} \
+          # TEST_DIRECTORY and PYTEST_ARGS are left unquoted on purpose so they word-split, as before
+          # shellcheck disable=SC2086
+          PYTHONPATH=. uv run pytest $TEST_DIRECTORY \
             --junit-xml=pytest-report.xml \
             --html=pytest-report.html \
             --self-contained-html \
             --tb=short \
             -v \
-            ${{ inputs.pytest-args }}
+            $PYTEST_ARGS
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

@@ -30,6 +30,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Set up Python
@@ -42,19 +43,21 @@ jobs:
 
       - name: Get changed files
         id: changed-files
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           # Get list of changed files in this PR (null-delimited for safety)
-          git diff --name-only -z origin/${{ github.base_ref }}...HEAD > changed_files.txt
+          git diff --name-only -z "origin/${BASE_REF}...HEAD" > changed_files.txt
           echo "Changed files:"
           tr '\0' '\n' < changed_files.txt
           echo "count=$(tr '\0' '\n' < changed_files.txt | wc -l)" >> "$GITHUB_OUTPUT"
 
       - name: Determine Semgrep configs
         id: configs
+        env:
+          LANGUAGE: ${{ inputs.language }}
+          EXTRA: ${{ inputs.extra-configs }}
         run: |
-          LANGUAGE="${{ inputs.language }}"
-          EXTRA="${{ inputs.extra-configs }}"
-
           # Base configs for all languages
           CONFIGS="--config p/security-audit --config p/secrets --config p/github-actions --config p/docker"
 
@@ -84,6 +87,9 @@ jobs:
           echo "Using configs: $CONFIGS"
 
       - name: Run Semgrep (diff only)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          SEMGREP_CONFIGS: ${{ steps.configs.outputs.configs }}
         run: |
           if [ -s changed_files.txt ]; then
             # Filter to only existing files (exclude deleted files), handle special chars safely
@@ -91,11 +97,13 @@ jobs:
 
             if [ -s files_to_scan.txt ]; then
               echo "Scanning changed files..."
-              BASELINE=$(git merge-base origin/${{ github.base_ref }} HEAD)
+              BASELINE=$(git merge-base "origin/${BASE_REF}" HEAD)
               # Use xargs with null delimiter for safe filename handling
+              # SEMGREP_CONFIGS is a list of --config flags: left unquoted on purpose so it word-splits, as before
               set +e
+              # shellcheck disable=SC2086
               xargs -0 semgrep scan \
-                ${{ steps.configs.outputs.configs }} \
+                $SEMGREP_CONFIGS \
                 --baseline-commit "$BASELINE" \
                 --json \
                 --output=semgrep.json \

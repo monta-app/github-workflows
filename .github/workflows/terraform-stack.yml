@@ -94,6 +94,8 @@ jobs:
       STACK: ${{ inputs.stack }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Resolve Terraform version
         id: tfver
@@ -183,9 +185,12 @@ jobs:
       - name: Terraform plan
         id: plan
         if: inputs.command == 'plan' || inputs.command == 'recover'
+        env:
+          PLAN_LOCK_TIMEOUT: ${{ inputs.plan-lock-timeout }}
+          PARALLELISM: ${{ inputs.parallelism }}
         run: |
           set -eu
-          terraform plan -no-color -input=false -lock-timeout=${{ inputs.plan-lock-timeout }} -parallelism=${{ inputs.parallelism }} \
+          terraform plan -no-color -input=false -lock-timeout="$PLAN_LOCK_TIMEOUT" -parallelism="$PARALLELISM" \
             -out=tfplan -detailed-exitcode > plan.txt 2>&1 && code=0 || code=$?
           tail -c 400000 plan.txt
           case "$code" in
