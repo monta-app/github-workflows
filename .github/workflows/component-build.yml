@@ -118,6 +118,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Get runner name
         id: runner
@@ -137,6 +138,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           ref: ${{ inputs.git-sha || github.sha }}
       - name: Download prebuilt artifact
         if: ${{ inputs.prebuilt-artifact != '' }}
@@ -167,7 +169,9 @@ jobs:
       - name: Restore Dockerfile cache mounts
         id: cache-mounts
         if: ${{ (inputs.use-arc-runners && github.event.repository.private) && inputs.dockerfile-cache-mounts && env.S3_CACHE != 'true' }}
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        # GitHub scopes caches by ref, so a pull request's cache never reaches the default branch's builds; poisoning
+        # this cache already takes code running on the caller's default branch.
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5 # zizmor: ignore[cache-poisoning]
         with: &cache-mounts
           path: ${{ runner.temp }}/buildkit-cache-mounts
           key: buildkit-cache-mounts-${{ inputs.docker-file-name }}-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', '**/package-lock.json', '**/pnpm-lock.yaml', '**/yarn.lock', '**/bun.lock', '**/bun.lockb', '**/requirements*.txt', '**/poetry.lock', '**/uv.lock', '**/go.sum', '**/Cargo.lock') }}

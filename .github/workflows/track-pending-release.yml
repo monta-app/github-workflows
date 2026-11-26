@@ -23,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           fetch-depth: 0  # Need full history for comparison
 
       - name: Get latest production release tag
@@ -56,12 +57,11 @@ jobs:
         id: compare
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOYED: ${{ steps.get-release.outputs.deployed-sha }}
+          MAIN: ${{ steps.get-main.outputs.main-sha }}
         run: |
-          DEPLOYED="${{ steps.get-release.outputs.deployed-sha }}"
-          MAIN="${{ steps.get-main.outputs.main-sha }}"
-
           # Use GitHub API to compare commits
-          COMPARISON=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '{status: .status, ahead_by: .ahead_by, behind_by: .behind_by, total_commits: .total_commits}')
+          COMPARISON=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${DEPLOYED}...${MAIN}" --jq '{status: .status, ahead_by: .ahead_by, behind_by: .behind_by, total_commits: .total_commits}')
 
           echo "comparison=$COMPARISON" >> "$GITHUB_OUTPUT"
           echo "$COMPARISON" | jq .
@@ -70,21 +70,25 @@ jobs:
         id: changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOYED: ${{ steps.get-release.outputs.deployed-sha }}
+          DEPLOYED_SHORT: ${{ steps.get-release.outputs.deployed-sha-short }}
+          LATEST_TAG: ${{ steps.get-release.outputs.latest-tag }}
+          MAIN: ${{ steps.get-main.outputs.main-sha }}
+          MAIN_SHORT: ${{ steps.get-main.outputs.main-sha-short }}
+          MAIN_BRANCH: ${{ inputs.main-branch }}
+          PRODUCTION_WORKFLOW: ${{ inputs.production-workflow }}
         run: |
-          DEPLOYED="${{ steps.get-release.outputs.deployed-sha }}"
-          MAIN="${{ steps.get-main.outputs.main-sha }}"
-
           # Get commits between deployed and main
-          COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.commits[] | "- [\u0060\(.sha[0:7])\u0060](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
+          COMMITS=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${DEPLOYED}...${MAIN}" --jq '.commits[] | "- [\u0060\(.sha[0:7])\u0060](\(.html_url)) \(.commit.message | split("\n")[0]) by @\(.author.login // "unknown")"')
 
           # Count commits
-          COMMIT_COUNT=$(gh api "repos/${{ github.repository }}/compare/${DEPLOYED}...${MAIN}" --jq '.total_commits')
+          COMMIT_COUNT=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${DEPLOYED}...${MAIN}" --jq '.total_commits')
 
           # Determine status emoji: 🟢 green = 0, 🟡 yellow = 1, 🔴 red = >1
           if [ "$COMMIT_COUNT" -eq 0 ]; then
             STATUS_EMOJI="🟢"
             TITLE="🟢 Production Release Tracker"
-            STATUS_TEXT="✅ Up-to-date - Production is in sync with ${{ inputs.main-branch }}"
+            STATUS_TEXT="✅ Up-to-date - Production is in sync with ${MAIN_BRANCH}"
           elif [ "$COMMIT_COUNT" -eq 1 ]; then
             STATUS_EMOJI="🟡"
             TITLE="🟡 Production Release Tracker"
@@ -109,15 +113,15 @@ jobs:
           **Status:** ${STATUS_TEXT}
 
           **Latest Production Deploy:**
-          - Tag: \`${{ steps.get-release.outputs.latest-tag }}\`
-          - Commit: [\`${{ steps.get-release.outputs.deployed-sha-short }}\`](https://github.com/${{ github.repository }}/commit/${{ steps.get-release.outputs.deployed-sha }})
+          - Tag: \`${LATEST_TAG}\`
+          - Commit: [\`${DEPLOYED_SHORT}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${DEPLOYED})
 
-          **Current ${{ inputs.main-branch }} Branch:**
-          - Commit: [\`${{ steps.get-main.outputs.main-sha-short }}\`](https://github.com/${{ github.repository }}/commit/${{ steps.get-main.outputs.main-sha }})
+          **Current ${MAIN_BRANCH} Branch:**
+          - Commit: [\`${MAIN_SHORT}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${MAIN})
 
           ---
 
-          All changes on ${{ inputs.main-branch }} have been deployed to production. This issue will automatically update when new commits are pushed to ${{ inputs.main-branch }}.
+          All changes on ${MAIN_BRANCH} have been deployed to production. This issue will automatically update when new commits are pushed to ${MAIN_BRANCH}.
 
           *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
           EOF
@@ -128,11 +132,11 @@ jobs:
           **Status:** ${STATUS_TEXT}
 
           **Latest Production Deploy:**
-          - Tag: \`${{ steps.get-release.outputs.latest-tag }}\`
-          - Commit: [\`${{ steps.get-release.outputs.deployed-sha-short }}\`](https://github.com/${{ github.repository }}/commit/${{ steps.get-release.outputs.deployed-sha }})
+          - Tag: \`${LATEST_TAG}\`
+          - Commit: [\`${DEPLOYED_SHORT}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${DEPLOYED})
 
-          **Current ${{ inputs.main-branch }} Branch:**
-          - Commit: [\`${{ steps.get-main.outputs.main-sha-short }}\`](https://github.com/${{ github.repository }}/commit/${{ steps.get-main.outputs.main-sha }})
+          **Current ${MAIN_BRANCH} Branch:**
+          - Commit: [\`${MAIN_SHORT}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${MAIN})
 
           ### 📝 Commits Pending Deployment
 
@@ -142,9 +146,9 @@ jobs:
 
           **To deploy these changes to production:**
 
-          1. Go to [Actions > Deploy Production](https://github.com/${{ github.repository }}/actions/workflows/${{ inputs.production-workflow }})
+          1. Go to [Actions > Deploy Production](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/${PRODUCTION_WORKFLOW})
           2. Click "Run workflow"
-          3. Select branch: \`${{ inputs.main-branch }}\`
+          3. Select branch: \`${MAIN_BRANCH}\`
           4. Click "Run workflow"
 
           _Or manually create and push a tag:_
@@ -153,7 +157,7 @@ jobs:
           git push origin \$(date -u +%Y-%m-%d-%H-%M)
           \`\`\`
 
-          **Compare:** [View full diff](https://github.com/${{ github.repository }}/compare/${{ steps.get-release.outputs.deployed-sha }}...${{ steps.get-main.outputs.main-sha }})
+          **Compare:** [View full diff](https://github.com/${GITHUB_REPOSITORY}/compare/${DEPLOYED}...${MAIN})
 
           *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
           EOF
@@ -170,6 +174,7 @@ jobs:
         id: find-issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAIN_BRANCH: ${{ inputs.main-branch }}
         run: |
           # Look for existing issue with label "pending-release" (open or closed)
           ISSUE_NUMBER=$(gh issue list --label "pending-release" --state all --limit 1 --json number,state --jq '.[0] | .number // empty')
@@ -180,7 +185,7 @@ jobs:
             ISSUE_NUMBER=$(gh issue create \
               --title "Production Release Tracker" \
               --label "pending-release" \
-              --body "This issue tracks commits on ${{ inputs.main-branch }} that haven't been deployed to production yet." | grep -oP '\d+$')
+              --body "This issue tracks commits on ${MAIN_BRANCH} that haven't been deployed to production yet." | grep -oP '\d+$')
             echo "Created issue #$ISSUE_NUMBER"
           else
             echo "Found existing issue #$ISSUE_NUMBER (state: $ISSUE_STATE)"
@@ -196,10 +201,9 @@ jobs:
       - name: Update tracking issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.find-issue.outputs.issue-number }}
+          TITLE: ${{ steps.changelog.outputs.title }}
         run: |
-          ISSUE_NUMBER="${{ steps.find-issue.outputs.issue-number }}"
-          TITLE="${{ steps.changelog.outputs.title }}"
-
           # Update issue title and body
           gh issue edit "$ISSUE_NUMBER" \
             --title "$TITLE" \

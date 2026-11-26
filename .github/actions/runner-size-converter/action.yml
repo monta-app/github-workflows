@@ -22,11 +22,11 @@ runs:
     - name: Convert runner size to runner name
       id: convert
       shell: bash
+      env:
+        SIZE: ${{ inputs.runner-size }}
+        USE_ARC: ${{ inputs.use-arc-runners }}
+        PRIVATE: ${{ github.event.repository.private }}
       run: |
-        SIZE="${{ inputs.runner-size }}"
-        USE_ARC="${{ inputs.use-arc-runners }}"
-        PRIVATE="${{ github.event.repository.private }}"
-
         # Validate size
         case "$SIZE" in
           "normal"|"large")

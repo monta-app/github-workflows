@@ -42,20 +42,31 @@ runs:
         echo "infra-portal-hostname=$INFRA_PORTAL_HOSTNAME" >> "$GITHUB_OUTPUT"
     - name: Deploy OCPP Gateway to Infra Portal
       shell: bash
+      env:
+        STAGE: ${{ inputs.stage }}
+        PATH_PREFIX: ${{ inputs.infra-portal-path-prefix || '/api/public' }}
+        CONTEXT_OVERRIDE: ${{ inputs.infra-portal-context }}
+        INFRA_PORTAL_HOSTNAME: ${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}
+        SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+        INFRA_PORTAL_TOKEN: ${{ inputs.infra-portal-token }}
+        COMMIT_HASH: ${{ github.sha }}
+        BUILD_NUMBER: ${{ github.run_number }}
+        AWS_ACCOUNT_ID: ${{ inputs.aws-account-id }}
+        REPLICAS: ${{ inputs.ocpp-gateway-replicas }}
       run: |
-        if [[ ${{ inputs.stage }} =~ dev|staging ]]; then
+        if [[ $STAGE =~ dev|staging ]]; then
           cluster=staging
         else
           cluster=production
         fi
-        path_prefix="${{ inputs.infra-portal-path-prefix || '/api/public' }}"
-        context="${{ inputs.infra-portal-context }}"
+        path_prefix="$PATH_PREFIX"
+        context="$CONTEXT_OVERRIDE"
         if [[ -z "$context" ]]; then
           context="main-${cluster}"
         fi
-        release_url="https://${{ steps.set-infra-portal-server.outputs.infra-portal-hostname }}${path_prefix}/${context}/${{ inputs.service-identifier }}-${{ inputs.stage }}/create-gateway-release"
+        release_url="https://${INFRA_PORTAL_HOSTNAME}${path_prefix}/${context}/${SERVICE_IDENTIFIER}-${STAGE}/create-gateway-release"
         echo "Posting gateway release to ${release_url}"
-        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${{ inputs.infra-portal-token }}" -H "Content-Type: application/json" -d '{"commitHash": "'"${{ github.sha }}"'", "buildNumber": "'"${{ github.run_number }}"'", "awsAccountId": "'"${{ inputs.aws-account-id }}"'", "replicas": ${{ inputs.ocpp-gateway-replicas }}}' "${release_url}")
+        response_code=$(curl --write-out '%{http_code}' --silent -o resp_body.txt -X POST -H "Authorization: Bearer ${INFRA_PORTAL_TOKEN}" -H "Content-Type: application/json" -d '{"commitHash": "'"${COMMIT_HASH}"'", "buildNumber": "'"${BUILD_NUMBER}"'", "awsAccountId": "'"${AWS_ACCOUNT_ID}"'", "replicas": '"${REPLICAS}"'}' "${release_url}")
         if [[ $response_code != "200" ]]; then
           echo "::error::$(cat resp_body.txt)"
           exit 1

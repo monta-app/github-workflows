@@ -1,0 +1,7 @@
+# The same policy Octo-Guardrail scans every repo with: zizmor's defaults, except that our own
+# actions and reusable workflows may be used at any ref (they're called at @main on purpose).
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "monta-app/*": any
