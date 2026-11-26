@@ -24,9 +24,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       # Enable CD on merge to main
       - name: Enable ${{ inputs.workflow }} workflow
-        run: gh workflow enable ${{ inputs.workflow }}
+        run: gh workflow enable "$WORKFLOW"
         env:
           GH_TOKEN: ${{ github.token }}
+          WORKFLOW: ${{ inputs.workflow }}

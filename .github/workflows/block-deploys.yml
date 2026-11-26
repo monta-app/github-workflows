@@ -24,19 +24,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       # Disable CD on merge to main
       - name: Disable ${{ inputs.workflow }} workflow
-        run: gh workflow disable ${{ inputs.workflow }} || true
+        run: gh workflow disable "$WORKFLOW" || true
         env:
           GH_TOKEN: ${{ github.token }}
+          WORKFLOW: ${{ inputs.workflow }}
 
       # Cancel queued, in-progress, requested, pending or waiting deploy jobs
       - name: Cancel ${{ inputs.workflow }} jobs
         run: |
-          for runId in $(gh run list -w ${{ inputs.workflow }} -a --json databaseId,status -q '.[] | select(.status == "queued" or .status == "in_progress" or .status == "requested" or .status == "waiting" or .status == "pending") | .databaseId'); do
-            echo "Cancelling ${{ inputs.workflow }} job: $runId";
+          for runId in $(gh run list -w "$WORKFLOW" -a --json databaseId,status -q '.[] | select(.status == "queued" or .status == "in_progress" or .status == "requested" or .status == "waiting" or .status == "pending") | .databaseId'); do
+            echo "Cancelling $WORKFLOW job: $runId";
             gh run cancel "$runId" || echo "Could not cancel job $runId. Status might have just changed." ;
           done
         env:
           GH_TOKEN: ${{ github.token }}
+          WORKFLOW: ${{ inputs.workflow }}

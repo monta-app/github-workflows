@@ -129,6 +129,8 @@ jobs:
         id: update-image-tag
         shell: bash
         working-directory: ./manifests/apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/app
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           # Writes the Sentry release into an existing sentryRelease line only, never adds one:
           # kotlin chart schemas before 1.36.0 reject unknown keys, which would fail the ArgoCD sync.
@@ -151,7 +153,7 @@ jobs:
           echo "docker-image=$(yq .kotlin.image.repository values.yaml)" >> "$GITHUB_OUTPUT"
           echo "previous-image-tag=$(yq .kotlin.image.tag values.yaml)" >> "$GITHUB_OUTPUT"
 
-          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
+          sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
           set_sentry_release values.yaml
@@ -198,6 +200,9 @@ jobs:
           CLUSTER_PATH: apps/${{ inputs.service-identifier }}/${{ inputs.stage }}/cluster
           GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
           GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           source "$RUNNER_TEMP/set-sentry-release.sh"
           source "$RUNNER_TEMP/set-release-tag.sh"
@@ -205,7 +210,7 @@ jobs:
           git config user.email "$GIT_USER_EMAIL"
 
           git add .
-          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+          git commit -m "Bump docker tag for ${SERVICE_IDENTIFIER} on ${STAGE} to ${IMAGE_TAG}"
 
           for attempt in $(seq 1 10); do
             echo "Push attempt $attempt..."
@@ -221,7 +226,7 @@ jobs:
               echo "Rebase conflict, re-applying changes on top of latest main..."
               git rebase --abort
               git reset --soft origin/main
-              sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$APP_PATH/values.yaml"
+              sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" "$APP_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$APP_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$APP_PATH/values.yaml"
               set_sentry_release "$APP_PATH/values.yaml"
@@ -229,7 +234,7 @@ jobs:
               currentHash=${GITHUB_SHA::8} yq e '.currentHash = strenv(currentHash)' -i "$CLUSTER_PATH/config.yaml"
               set_release_tag "$CLUSTER_PATH/config.yaml"
               git add .
-              git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+              git commit -m "Bump docker tag for ${SERVICE_IDENTIFIER} on ${STAGE} to ${IMAGE_TAG}"
             fi
             sleep 2
           done

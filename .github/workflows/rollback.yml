@@ -54,6 +54,8 @@ jobs:
     runs-on: ${{ github.event.repository.private && 'arc-arm64-2cpu-4gb' || 'ubuntu-24.04-arm' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2
         env:
@@ -84,6 +86,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           fetch-depth: 2
 
       - name: Find commit to roll back to
@@ -155,12 +158,14 @@ jobs:
         env:
           GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
           GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           echo "Committing changes:"
           git diff
           git config --local user.email "$GIT_USER_EMAIL"
           git config --local user.name "$GIT_USER_NAME"
-          git commit -am "Bump docker tags for ${{ inputs.service-identifier }} on ${{ inputs.environment }} (rollback)"
+          git commit -am "Bump docker tags for ${SERVICE_IDENTIFIER} on ${ENVIRONMENT} (rollback)"
 
       - name: Push
         if: ${{ !inputs.dry-run }}

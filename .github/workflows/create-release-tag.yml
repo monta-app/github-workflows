@@ -31,8 +31,9 @@ jobs:
         id: generate_tag
         env:
           GIVEN_TAG: ${{ inputs.tag }}
+          PREFIX: ${{ inputs.prefix }}
         run: |
-          prefix="${{ inputs.prefix }}"
+          prefix="$PREFIX"
           date_tag=$(date -u +"%Y-%m-%d-%H-%M")
 
           if [[ -n "$GIVEN_TAG" ]]; then
@@ -46,8 +47,10 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Generated tag: $tag"
       - name: Create and push tag
+        env:
+          TAG: ${{ steps.generate_tag.outputs.tag }}
         run: |
-          tag="${{ steps.generate_tag.outputs.tag }}"
+          tag="$TAG"
 
           # Configure git
           git config user.name "github-actions[bot]"
@@ -61,13 +64,16 @@ jobs:
 
           echo "Tag '$tag' created and pushed successfully."
       - name: Create summary
+        env:
+          TAG: ${{ steps.generate_tag.outputs.tag }}
+          ACTOR: ${{ github.actor }}
         run: |
-          tag="${{ steps.generate_tag.outputs.tag }}"
+          tag="$TAG"
           {
             echo "## Release Tag Created 🎉"
             echo ""
             echo "**Tag:** \`$tag\`"
             echo ""
-            echo "**Created by:** @${{ github.actor }}"
+            echo "**Created by:** @${ACTOR}"
             echo "**Timestamp:** $(date -u)"
           } >> "$GITHUB_STEP_SUMMARY"

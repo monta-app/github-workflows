@@ -162,6 +162,8 @@ jobs:
       - name: Update image tag
         shell: bash
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           # Writes the Sentry release into an existing sentryRelease line only, never adds one:
           # kotlin chart schemas before 1.36.0 reject unknown keys, which would fail the ArgoCD sync.
@@ -182,7 +184,7 @@ jobs:
           declare -f set_sentry_release > "$RUNNER_TEMP/set-sentry-release.sh"
 
           # Update image tag using sed for chart-agnostic replacement (works with kotlin, static, etc.)
-          sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" values.yaml
+          sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" values.yaml
           sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" values.yaml
           sed -i "s/build: .*/build: ${{ github.run_number }}/" values.yaml
           set_sentry_release values.yaml
@@ -193,13 +195,16 @@ jobs:
           HELM_VALUES_PATH: ${{ inputs.helm-values-path || format('helm/{0}/{1}/app', inputs.service-identifier, inputs.stage) }}
           GIT_USER_NAME: ${{ steps.deploy-token.outputs.git-user-name }}
           GIT_USER_EMAIL: ${{ steps.deploy-token.outputs.git-user-email }}
+          SERVICE_IDENTIFIER: ${{ inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
+          IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
           source "$RUNNER_TEMP/set-sentry-release.sh"
           git config user.name "$GIT_USER_NAME"
           git config user.email "$GIT_USER_EMAIL"
 
           git add .
-          git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+          git commit -m "Bump docker tag for ${SERVICE_IDENTIFIER} on ${STAGE} to ${IMAGE_TAG}"
 
           for attempt in $(seq 1 10); do
             echo "Push attempt $attempt..."
@@ -215,12 +220,12 @@ jobs:
               echo "Rebase conflict, re-applying changes on top of latest main..."
               git rebase --abort
               git reset --soft origin/main
-              sed -i "s/tag: .*/tag: ${{ inputs.image-tag }}/" "$HELM_VALUES_PATH/values.yaml"
+              sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/revision: .*/revision: \"${GITHUB_SHA::8}\"/" "$HELM_VALUES_PATH/values.yaml"
               sed -i "s/build: .*/build: ${{ github.run_number }}/" "$HELM_VALUES_PATH/values.yaml"
               set_sentry_release "$HELM_VALUES_PATH/values.yaml"
               git add .
-              git commit -m "Bump docker tag for ${{ inputs.service-identifier }} on ${{ inputs.stage }} to ${{ inputs.image-tag }}"
+              git commit -m "Bump docker tag for ${SERVICE_IDENTIFIER} on ${STAGE} to ${IMAGE_TAG}"
             fi
             sleep 2
           done
@@ -256,6 +261,8 @@ jobs:
         working-directory: ./service-repo/${{ inputs.helm-values-path || format('helm/{0}/{1}', inputs.service-identifier, inputs.stage) }}
         env:
           GH_TOKEN: ${{ steps.manifests-token.outputs.token }}
+          ARGOCD_APP: ${{ inputs.argocd-app-name || inputs.service-identifier }}
+          STAGE: ${{ inputs.stage }}
         run: |
           # Opt-out model: auto-sync is on unless disableAutoSync is true
           if [ -f "../cluster/config.yaml" ]; then
@@ -270,8 +277,7 @@ jobs:
             echo "⏭️ No local config.yaml found, checking kube-manifests repo..."
 
             # Fallback: Check kube-manifests repo via GitHub API
-            ARGOCD_APP="${{ inputs.argocd-app-name || inputs.service-identifier }}"
-            CONFIG_PATH="apps/${ARGOCD_APP}/${{ inputs.stage }}/cluster/config.yaml"
+            CONFIG_PATH="apps/${ARGOCD_APP}/${STAGE}/cluster/config.yaml"
 
             # Try fetching from kube-manifests repo
             if CONFIG_CONTENT=$(gh api repos/monta-app/kube-manifests/contents/$CONFIG_PATH --jq '.content' 2>/dev/null); then
