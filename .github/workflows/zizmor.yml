@@ -1,9 +1,5 @@
 name: zizmor
 
-# Runs on this repository's own pull requests, and is called by any other repository's
-# workflow (see docs/workflow-guide.md#zizmor). Either way it audits with the central policy
-# in this repository's .github/zizmor.yml, never the caller's own, so the policy and
-# threshold live in one place.
 on:
   pull_request:
     branches:
@@ -25,9 +21,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # The policy comes from the commit of github-workflows this job runs from, so a caller
-      # pinned to a SHA gets the policy of that SHA. Only the policy file is checked out, so
-      # zizmor finds none of this repository's workflows or actions in the caller's tree.
+      # Always the central policy, never the caller's own.
       - name: Checkout the central policy
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
