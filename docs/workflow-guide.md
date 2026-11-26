@@ -23,6 +23,7 @@ This guide provides a comprehensive overview of all reusable GitHub workflows in
 17. [Track Pending Release](#track-pending-release)
 18. [PR Digest](#pr-digest)
 19. [Terraform](#terraform)
+20. [zizmor](#zizmor)
 
 ---
 
@@ -1397,6 +1398,41 @@ gh workflow run <caller-workflow-filename>.yml --repo monta-app/<your-repo>
 ```
 
 The first manual run is the recommended way to verify channel membership, secrets, and AI model availability before relying on the schedule.
+
+---
+
+## zizmor
+
+**File:** `zizmor.yml`
+**Purpose:** Audits a repository's GitHub Actions workflows and actions with [zizmor](https://docs.zizmor.sh/). It uses the same policy and threshold Octo-Guardrail enforces, so both are kept in one place.
+
+### What it does:
+1. Checks out the calling repository, without keeping the token.
+2. Checks out only `.github/zizmor.yml` from this repository, at the commit the job runs from (`job.workflow_sha`), so a caller pinned to a SHA gets that SHA's policy.
+3. Runs zizmor 1.33.1 offline with that policy, and fails on High-severity findings with Medium or High confidence. Findings show as annotations on the pull request.
+
+A caller's own `.github/zizmor.yml` is never used, and the workflow takes no inputs: the policy and threshold can't be changed per repository. To accept one finding, put an inline `# zizmor: ignore[<rule>]` comment with the reason on its line. Octo-Guardrail honours these comments too.
+
+### Permissions:
+The job asks for `contents: read` only. The calling job must grant it, as in the example below, because a caller's `permissions: {}` would otherwise leave it nothing.
+
+### Example Usage:
+```yaml
+name: zizmor
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  zizmor:
+    uses: monta-app/github-workflows/.github/workflows/zizmor.yml@main
+    permissions:
+      contents: read
+```
+
+To check a repository locally before adding the check, run this from its root: `uvx zizmor@1.33.1 --offline --config <path to github-workflows>/.github/zizmor.yml --min-severity high --min-confidence medium .`
 
 ---
 

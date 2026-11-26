@@ -12,3 +12,9 @@ self-hosted-runner:
     - arc-arm64-2cpu-4gb
     - arc-arm64-4cpu-12gb
     - arc-arm64-8cpu-24gb
+
+paths:
+  .github/workflows/zizmor.yml:
+    ignore:
+      # actionlint 1.7.12 doesn't know job.workflow_sha yet.
+      - 'property "workflow_sha" is not defined in object type'

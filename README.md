@@ -28,6 +28,9 @@ This repository contains several reusable workflows designed to streamline the C
 ### `pr-digest.yml`
 - **Purpose**: Posts a daily Slack digest of open pull requests for the calling repository. AI-curates the message (focus PRs, headline, area summary) for high-volume repos, with a deterministic fallback. See [PR Digest in workflow-guide.md](./docs/workflow-guide.md#pr-digest).
 
+### `zizmor.yml`
+- **Purpose**: Audits the calling repository's GitHub Actions workflows with zizmor. It uses the central policy in `.github/zizmor.yml` and Octo-Guardrail's threshold (High severity, Medium or High confidence). See [zizmor in workflow-guide.md](./docs/workflow-guide.md#zizmor).
+
 ### `deploy.yml`
 - **Purpose**: Manages deployments to various environments based on the branch being deployed.
 
