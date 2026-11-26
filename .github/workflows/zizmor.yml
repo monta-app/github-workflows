@@ -1,9 +1,14 @@
 name: zizmor
 
+# Runs on this repository's own pull requests, and is called by any other repository's
+# workflow (see docs/workflow-guide.md#zizmor). Either way it audits with the central policy
+# in this repository's .github/zizmor.yml, never the caller's own, so the policy and
+# threshold live in one place.
 on:
   pull_request:
     branches:
       - main
+  workflow_call:
 
 permissions: {}
 
@@ -20,12 +25,25 @@ jobs:
         with:
           persist-credentials: false
 
+      # The policy comes from the commit of github-workflows this job runs from, so a caller
+      # pinned to a SHA gets the policy of that SHA. Only the policy file is checked out, so
+      # zizmor finds none of this repository's workflows or actions in the caller's tree.
+      - name: Checkout the central policy
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: monta-app/github-workflows
+          ref: ${{ job.workflow_sha }}
+          path: .zizmor-policy
+          sparse-checkout: .github/zizmor.yml
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       # Fails on High-severity findings with Medium or High confidence, the threshold Octo-Guardrail enforces.
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@1b4550e929643b8b26a62303c6bd64814271a4f1 # v0.9.2
         with:
           version: 1.33.1
-          config: .github/zizmor.yml
+          config: .zizmor-policy/.github/zizmor.yml
           online-audits: false
           min-severity: high
           min-confidence: medium
