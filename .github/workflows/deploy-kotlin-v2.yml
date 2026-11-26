@@ -224,7 +224,7 @@ on:
         description: 'JIRA API token for authentication (used for ticket operations in changelog)'
       CHANGELOG_GITHUB_TOKEN:
         required: false
-        description: 'GitHub token for changelog generation'
+        description: 'Deprecated and ignored: the changelog now uses the workflow GITHUB_TOKEN. Kept so existing callers keep working.'
       TAILSCALE_AUTHKEY:
         required: false
         description: 'Unused. The changelog job reaches the identity service over cluster DNS now, so nothing here joins the tailnet. Still declared because a caller that passes it explicitly fails to start if the input disappears; drop it from your secrets block and this can go'
@@ -448,13 +448,17 @@ jobs:
     if: always() && inputs.enable-changelog && needs.deploy.result == 'success'
     runs-on: ${{ github.event.repository.private && 'arc-arm64-1cpu-2gb-nodocker' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 5
+    # Only the changelog runs here: the release needs contents, the "Production Deployment" PR comment needs pull-requests.
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Run changelog cli action
         uses: monta-app/changelog-cli-action@main
         with:
           service-name: ${{ inputs.service-name }}
           github-release: true
-          github-token: ${{ secrets.CHANGELOG_GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           github-tag-pattern: ${{ inputs.changelog-tag-pattern }}
           github-path-exclude-pattern: ${{ inputs.changelog-path-exclude-pattern }}
           jira-app-name: "montaapp"

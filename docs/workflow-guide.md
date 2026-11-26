@@ -604,7 +604,7 @@ jobs:
 | `LOKALISE_PROJECT_ID` | No | Lokalise project ID |
 | `JIRA_EMAIL` | No | Email for JIRA API authentication |
 | `JIRA_TOKEN` | No | JIRA API token |
-| `CHANGELOG_GITHUB_TOKEN` | No | GitHub token for changelog generation |
+| `CHANGELOG_GITHUB_TOKEN` | No | Deprecated and ignored, safe to drop from your `secrets:` block. The changelog job uses the workflow's own `GITHUB_TOKEN` and asks for `contents: write` (the GitHub release) and `pull-requests: write` (the deployment comment on PRs). If your caller sets a `permissions:` block, it must grant both, or the run fails at startup |
 | `ARGOCD_TOKEN` | No | ArgoCD authentication token |
 
 **Tagging contributors in the release notification:** the notification tags PR authors, co-authors and approvers with real Slack mentions. Resolving a GitHub login to a Slack user goes through an internal identity service, so the URL is *not* in the workflow - set it as a repo/org **variable** `CHANGELOG_IDENTITY_RESOLVE_URL` (full endpoint URL) and set `changelog-release-notify-channel`; nothing else is needed. In a private repo the changelog job runs on an ARC runner inside the same cluster as the service, so it reaches it over cluster DNS. A public repo runs on a GitHub-hosted runner, where that name doesn't resolve - the job still succeeds and the CLI falls back to less reliable GitHub-profile-email lookups.
@@ -709,7 +709,6 @@ jobs:
       SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
       MANIFEST_REPO_PAT: ${{ secrets.MANIFEST_REPO_PAT }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
       JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
