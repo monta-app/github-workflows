@@ -51,6 +51,11 @@ on:
         type: string
         default: "--parallel --build-cache"
         description: 'Additional Gradle arguments'
+      translate-exports:
+        required: false
+        type: string
+        default: ''
+        description: "Translation files to refresh from translate before the build, one '<export query> -> <path>' (or '<project>=<path>' for format=raw) per line; see component-build.yml."
       cache-gradle-build-outputs:
         required: false
         type: boolean
@@ -302,6 +307,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       git-sha: ${{ inputs.git-sha }}
+      translate-exports: ${{ inputs.translate-exports }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}

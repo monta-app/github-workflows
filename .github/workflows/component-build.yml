@@ -55,6 +55,16 @@ on:
         type: string
         default: ''
         description: "Name of an artifact an earlier job in the run uploaded, downloaded into the root of the build context before the Docker build, such as a binary compiled on the runner. Artifacts don't keep file modes, so the Dockerfile should COPY it with --chmod."
+      translate-exports:
+        required: false
+        type: string
+        default: ''
+        description: "Translation files to refresh from translate before the build, one request per line: '<export query> -> <path>' (e.g. 'project=product-server-php-backend&format=properties&lang=da&platform=all -> service/src/main/resources/i18n/messages_da.properties'; format=laravel writes a directory), or '<project>=<path>' for format=raw. Nothing is written unless every request succeeds; if translate can't be reached or a file would shrink by more than 5%, the committed files stay and the job warns. See .github/actions/translate-exports."
+      translate-export-url:
+        required: false
+        type: string
+        default: 'http://translate-internal.translate-internal.svc.cluster.local:3000/api'
+        description: "translate's API. The ARC runners run in the same internal cluster, so they reach it directly; GitHub-hosted runners don't, and keep the committed files."
       dockerfile-cache-mounts:
         required: false
         type: boolean
@@ -145,6 +155,12 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ inputs.prebuilt-artifact }}
+      - name: Fetch translation fallbacks from translate
+        if: ${{ inputs.translate-exports != '' }}
+        uses: monta-app/github-workflows/.github/actions/translate-exports@main
+        with:
+          exports: ${{ inputs.translate-exports }}
+          export-url: ${{ inputs.translate-export-url }}
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
         with:
