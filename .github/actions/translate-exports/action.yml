@@ -6,7 +6,7 @@ author: 'Monta'
 # GitHub-hosted runners can't, so they warn and build with the committed files.
 inputs:
   exports:
-    description: "One request per line: '<export query> -> <path>', such as 'project=product-server-php-backend&format=properties&lang=da&platform=all -> service/src/main/resources/i18n/messages_da.properties', or the shorthand '<project>=<path>' for format=raw. format=laravel writes a directory."
+    description: "One request per line: '<export query> -> <path>', such as 'project=product-server-php-backend&format=properties&lang=da&platform=all -> service/src/main/resources/i18n/messages_da.properties', or the shorthand '<project>=<path>' for format=raw. format=laravel writes a directory. lang={lang} repeats a line for every language the project has, with {lang} in the path replaced too."
     required: true
   export-url:
     description: "translate's API, without /export"
