@@ -55,6 +55,16 @@ on:
         type: string
         default: ''
         description: "Name of an artifact an earlier job in the run uploaded, downloaded into the root of the build context before the Docker build, such as a binary compiled on the runner. Artifacts don't keep file modes, so the Dockerfile should COPY it with --chmod."
+      translate-exports:
+        required: false
+        type: string
+        default: ''
+        description: "Translation fallbacks to bake into the image: one 'project=path' per line, such as 'product-financial-services=src/main/resources/translations_fallback.json'. Before the build, each path is overwritten with translate's format=raw export of that project. If translate can't be reached or answers badly, the committed file stays and the job warns, so a translate outage never fails a build."
+      translate-export-url:
+        required: false
+        type: string
+        default: 'http://translate-internal.translate-internal.svc.cluster.local:3000/api'
+        description: "translate's API. The ARC runners run in the same internal cluster, so they reach it directly; GitHub-hosted runners don't, and keep the committed files."
       dockerfile-cache-mounts:
         required: false
         type: boolean
@@ -145,6 +155,29 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ inputs.prebuilt-artifact }}
+      - name: Fetch translation fallbacks from translate
+        if: ${{ inputs.translate-exports != '' }}
+        env:
+          EXPORTS: ${{ inputs.translate-exports }}
+          TRANSLATE_API: ${{ inputs.translate-export-url }}
+        run: |
+          set -uo pipefail
+          while IFS='=' read -r project path; do
+            project="$(echo "$project" | xargs)"; path="$(echo "$path" | xargs)"
+            [ -n "$project" ] || continue
+            if [[ ! "$project" =~ ^[a-z0-9-]+$ || "$path" == /* || "$path" == *..* || ! -f "$path" ]]; then
+              echo "::error title=translate-exports::'$project=$path' needs a project slug and an existing file in the repository."; exit 1
+            fi
+            tmp="$(mktemp)"
+            code="$(curl -sS --max-time 60 --retry 2 --retry-delay 3 -o "$tmp" -w '%{http_code}' "$TRANSLATE_API/export?project=$project&format=raw")" || code=000
+            if [ "$code" = 200 ] && jq -e --arg p "$project" '.project == $p and (.keys | type == "array" and length > 0)' "$tmp" >/dev/null 2>&1; then
+              jq --indent 2 . "$tmp" > "$path"
+              echo "Baked translate's $project export into $path ($(jq '.keys | length' "$path") keys)."
+            else
+              echo "::warning title=Translation fallback::translate answered HTTP $code for $project, so the image keeps the committed $path."
+            fi
+            rm -f "$tmp"
+          done <<< "$EXPORTS"
       - name: Configure AWS credentials via assumed role
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
         with:
