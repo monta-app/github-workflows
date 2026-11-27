@@ -1,0 +1,29 @@
+name: 'Translate exports'
+description: "Overwrite committed translation files with translate's exports before a build, keeping the committed copies when translate can't be reached"
+author: 'Monta'
+
+# The ARC runners run in the internal cluster with translate and reach it in-cluster.
+# GitHub-hosted runners can't, so they warn and build with the committed files.
+inputs:
+  exports:
+    description: "One request per line: '<export query> -> <path>', such as 'project=product-server-php-backend&format=properties&lang=da&platform=all -> service/src/main/resources/i18n/messages_da.properties', or the shorthand '<project>=<path>' for format=raw. format=laravel writes a directory."
+    required: true
+  export-url:
+    description: "translate's API, without /export"
+    required: false
+    default: 'http://translate-internal.translate-internal.svc.cluster.local:3000/api'
+  max-shrink-percent:
+    description: 'Keep the committed files when any file would lose more than this share of its strings'
+    required: false
+    default: '5'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch translation files from translate
+      shell: bash
+      env:
+        EXPORTS: ${{ inputs.exports }}
+        TRANSLATE_API: ${{ inputs.export-url }}
+        MAX_SHRINK_PERCENT: ${{ inputs.max-shrink-percent }}
+      run: bash "$GITHUB_ACTION_PATH/fetch-exports.sh"

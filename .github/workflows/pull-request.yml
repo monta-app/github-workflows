@@ -42,3 +42,6 @@ jobs:
 
       - name: Run the tests
         run: node --test .github/actions/translate-export/test/*.test.mjs
+
+      - name: Run the translate-exports tests
+        run: bash .github/actions/translate-exports/test/test-fetch-exports.sh
