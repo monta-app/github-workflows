@@ -85,6 +85,11 @@ on:
         type: boolean
         default: true
         description: "Restore and save the Dockerfile's RUN --mount=type=cache contents on ARC. Turn it off when the build skips the stages that use them."
+      registry-cache:
+        required: false
+        type: boolean
+        default: true
+        description: "Use the registry-backed BuildKit layer cache (the ECR repo's :buildcache tag). Turn it off when the Dockerfile invalidates those layers on every build, to skip the cache export."
       argocd-resource-name:
         required: false
         type: string
@@ -191,6 +196,7 @@ jobs:
       git-sha: ${{ inputs.git-sha }}
       prebuilt-artifact: ${{ inputs.prebuilt-artifact }}
       dockerfile-cache-mounts: ${{ inputs.dockerfile-cache-mounts }}
+      registry-cache: ${{ inputs.registry-cache }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
