@@ -70,6 +70,11 @@ on:
         required: false
         type: string
         description: 'Additional build arguments for Docker'
+      registry-cache:
+        required: false
+        type: boolean
+        default: true
+        description: "Use the registry-backed BuildKit layer cache (the ECR repo's :buildcache tag). Turn it off when the Dockerfile invalidates those layers on every build, to skip the cache export."
       ecr-repository-name:
         required: false
         type: string
@@ -302,6 +307,7 @@ jobs:
       additional-build-args: ${{ inputs.additional-build-args }}
       ecr-repository-name: ${{ inputs.ecr-repository-name }}
       git-sha: ${{ inputs.git-sha }}
+      registry-cache: ${{ inputs.registry-cache }}
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       GHL_USERNAME: ${{ secrets.GHL_USERNAME }}

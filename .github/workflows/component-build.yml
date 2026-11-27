@@ -60,6 +60,11 @@ on:
         type: boolean
         default: true
         description: "Restore and save the Dockerfile's RUN --mount=type=cache contents on ARC. Turn it off when the build skips the stages that use them, such as with a prebuilt-artifact."
+      registry-cache:
+        required: false
+        type: boolean
+        default: true
+        description: "Read and write the registry-backed BuildKit cache (the ECR repo's :buildcache tag). Turn it off when the Dockerfile invalidates those layers on every build, such as a COPY . before the build or a per-run CACHEBUST, to skip the ~17s cache export."
     secrets:
       AWS_ACCOUNT_ID:
         required: true
@@ -213,8 +218,8 @@ jobs:
           sbom: false
           # Registry-backed BuildKit cache (mode=max) in the same ECR repo, covered by
           # the existing ecr-put-image IAM permissions.
-          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage) }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
+          cache-from: ${{ inputs.registry-cache && format('type=registry,ref={0}/{1}:buildcache', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
+          cache-to: ${{ inputs.registry-cache && format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true', steps.login-ecr.outputs.registry, inputs.ecr-repository-name || format('{0}-{1}', inputs.service-identifier, inputs.stage)) || '' }}
           build-args: |
             ${{ inputs.additional-build-args }}
           labels: |
