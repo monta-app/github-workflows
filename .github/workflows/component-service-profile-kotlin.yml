@@ -240,7 +240,7 @@ jobs:
           fi
       - name: Push changes
         if: always() && steps.commit-changes.outputs.has_changes == 'true'
-        uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
+        uses: ad-m/github-push-action@7fba72704ad2db819788db8f2d9e7d1dfbebe089 # master
         with:
           directory: './manifests'
           github_token: ${{ steps.deploy-token.outputs.token }}
