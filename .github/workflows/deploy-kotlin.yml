@@ -55,7 +55,7 @@ on:
         required: false
         type: string
         default: ''
-        description: "Translation fallbacks to bake into the image, one 'project=path' per line; see component-build.yml."
+        description: "Translation files to refresh from translate before the build, one '<export query> -> <path>' (or '<project>=<path>' for format=raw) per line; see component-build.yml."
       cache-gradle-build-outputs:
         required: false
         type: boolean
