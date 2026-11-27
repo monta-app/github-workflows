@@ -92,6 +92,43 @@ printf 'X-Mirror-Stale: true\r\n' > "$FAKE_DIR/project_p_format_raw.headers"
 run "p=res/fallback.json"
 check "a stale export is still baked, with a warning" "rc 0 && said 'Stale export' && said 'Baked 1 file'"
 
+# lang={lang}: one line per language the project has in translate.
+projects() { printf '%s' "$1" > "$FAKE_DIR/http:__t_api_projects.body"; }
+case_dir expand
+printf 'a = A\n' > "$ws/res/i18n/messages.properties"
+projects '{"projects":[{"slug":"s","languages":["en","da","fo_FO"]}]}'
+serve "project=s&format=properties&lang=en" $'a = A-en\n'
+serve "project=s&format=properties&lang=da" $'a = A-da\nb = B-da\n'
+serve "project=s&format=properties&lang=fo_FO" $'a = A-fo\n'
+run $'project=s&format=properties&lang=en -> res/i18n/messages.properties\nproject=s&format=properties&lang={lang} -> res/i18n/messages_{lang}.properties'
+check "lang={lang} repeats a line for every language, and an explicit line keeps its language" "rc 0 && [ \"\$(cat '$ws/res/i18n/messages.properties')\" = 'a = A-en' ] && grep -q 'B-da' '$ws/res/i18n/messages_da.properties' && [ -f '$ws/res/i18n/messages_fo_FO.properties' ] && [ ! -e '$ws/res/i18n/messages_en.properties' ] && said 'Baked 3 file'"
+
+case_dir expandfail
+projects '{"projects":[{"slug":"s","languages":["en","da"]}]}'
+serve "project=s&format=properties&lang=en" $'a = A\n'
+run "project=s&format=properties&lang={lang} -> res/i18n/messages_{lang}.properties"
+check "one failing language in a repeat keeps every committed file" "rc 0 && said 'HTTP 404' && [ ! -e '$ws/res/i18n/messages_en.properties' ] && [ \"\$(cat '$ws/res/i18n/messages_da.properties')\" = \$'a = A\nb = B' ]"
+
+case_dir noprojects
+run "project=s&format=properties&lang={lang} -> res/i18n/messages_{lang}.properties"
+check "an unreadable project list keeps every committed file" "rc 0 && said 'project list' && [ \"\$(cat '$ws/res/i18n/messages_da.properties')\" = \$'a = A\nb = B' ]"
+
+case_dir unknownproject
+projects '{"projects":[{"slug":"other","languages":["en"]}]}'
+run "project=s&format=properties&lang={lang} -> res/i18n/messages_{lang}.properties"
+check "a project translate doesn't list keeps every committed file" "rc 0 && said 'no languages' && [ ! -e '$ws/res/i18n/messages_en.properties' ]"
+
+case_dir nolangcall
+serve "project=p&format=raw" '{"project":"p","keys":[{"keyId":1}]}'
+run "p=res/fallback.json"
+check "lines without {lang} don't need the project list" "rc 0 && said 'Baked 1 file'"
+
+for bad in "project=s&format=properties&lang={lang} -> res/i18n/messages.properties" "project=s&format=properties&lang={x} -> res/i18n/m_{x}.properties" "project=s&format=properties&lang=da -> res/i18n/m_{lang}.properties" "project=s&format=properties&lang={lang} -> nodir/m_{lang}.properties" "project=s&format=laravel&lang={lang} -> lang/{lang}"; do
+  case_dir badtemplate
+  run "$bad"
+  check "refuses '$bad'" "rc 1 && said '::error'"
+done
+
 for bad in "p=../outside.json" "p=/etc/passwd" "p=res/missing.json" "project=s&format=xliff -> res/fallback.json" "format=raw -> res/fallback.json" "project=s&format=laravel -> res/fallback.json" "just text" "project=s&format=raw&x=\$(id) -> res/fallback.json"; do
   case_dir bad
   run "$bad"

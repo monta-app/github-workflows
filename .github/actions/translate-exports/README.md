@@ -25,6 +25,19 @@ translate-exports: |
 - `<project>=<path>`: shorthand for `project=<project>&format=raw`.
 - `format=raw` is written with `jq --indent 2`. The other formats are written exactly as
   translate serves them, because they are the consumers' own file formats.
+- `lang={lang}` repeats the line for every language the project has in translate, with
+  `{lang}` in the path replaced too, so a new language reaches the build without a workflow
+  change. A line that names one language for the same project and format keeps it, for a
+  file named differently:
+
+  ```yaml
+  translate-exports: |
+    project=product-server-php-backend&format=properties&lang=en&platform=all -> service/src/main/resources/i18n/messages.properties
+    project=product-server-php-backend&format=properties&lang={lang}&platform=all -> service/src/main/resources/i18n/messages_{lang}.properties
+  ```
+
+  A language without a committed file yet is written as a new file; its directory must be
+  committed. If translate's project list can't be read, every committed file stays.
 - `format=laravel` answers several files, so its path is a directory. The files land in it
   under their own names (`da/plans.php`). Lines run in order, so a later line's file
   replaces an earlier one's.

@@ -5,7 +5,9 @@
 #   <query> -> <path>      e.g. project=product-server-php-backend&format=properties&lang=da&platform=all -> i18n/messages_da.properties
 #   <project>=<path>       shorthand for project=<project>&format=raw -> <path>
 # format=laravel answers several files, so its <path> is a directory; every other format
-# writes one file. format=raw is pretty-printed with jq --indent 2, the rest is written as
+# writes one file. lang={lang} in a query repeats the line for every language the project
+# has in translate, with {lang} in the path replaced too; a line naming one language
+# explicitly (lang=en -> messages.properties) takes that language out of the repeat. format=raw is pretty-printed with jq --indent 2, the rest is written as
 # served, since those are the consumers' own file formats.
 #
 # Builds must not fail because translate is down, so a failed request, a bad answer or a
@@ -57,20 +59,51 @@ while IFS= read -r line || [ -n "$line" ]; do
   else
     error "Line $n '$line' is neither '<query> -> <path>' nor '<project>=<path>'."
   fi
-  [[ "$query" =~ ^[A-Za-z0-9_.,%=\&-]+$ ]] || error "Line $n: '$query' is not a plain query string."
+  [[ "$query" =~ ^[A-Za-z0-9_.,%=\&{}-]+$ ]] || error "Line $n: '$query' is not a plain query string."
+  template=0
+  if [[ "$query" == *"{"* || "$path" == *"{"* ]]; then
+    [[ "&$query&" == *"&lang={lang}&"* ]] || error "Line $n: '{' is only allowed as lang={lang}."
+    [[ "${query//lang=\{lang\}/}" != *"{"* ]] || error "Line $n: '{' is only allowed as lang={lang}."
+    template=1
+  fi
   project="$(tr '&' '\n' <<< "$query" | sed -n 's/^project=//p' | head -1)"
   format="$(tr '&' '\n' <<< "$query" | sed -n 's/^format=//p' | head -1)"
   [[ "$project" =~ ^[a-z0-9-]+$ ]] || error "Line $n: the query needs project=<slug>."
   [[ "$format" =~ ^(raw|properties|arb|lokalise-json|laravel)$ ]] || error "Line $n: format must be raw, properties, arb, lokalise-json or laravel, got '$format'."
-  safe_path "$path" || error "Line $n: '$path' must be a relative path inside the repository."
+  safe_path "${path//\{lang\}/x}" || error "Line $n: '$path' must be a relative path inside the repository."
   if [ "$format" = laravel ]; then
+    [[ "$path" != *"{"* ]] || error "Line $n: format=laravel writes a directory; leave {lang} out of its path."
     [ -d "$path" ] || error "Line $n: format=laravel writes a directory, and '$path' is not one."
+  elif [ "$template" = 1 ]; then
+    [[ "$path" == *"{lang}"* ]] || error "Line $n: lang={lang} needs {lang} in the path, or every language writes one file."
+    [ -d "$(dirname "$path")" ] || error "Line $n: '$(dirname "$path")' must be a committed directory."
   else
     [ -f "$path" ] || error "Line $n: '$path' must be a committed file; the image falls back to it."
   fi
-  printf '%s\t%s\t%s\t%s\n' "$n" "$query" "$format" "$path" >> "$work/plan"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$n" "$query" "$format" "$path" "$template" "$project" >> "$work/lines"
 done <<< "$EXPORTS"
-[ -s "$work/plan" ] || error "translate-exports is set but lists nothing."
+[ -s "$work/lines" ] || error "translate-exports is set but lists nothing."
+
+# Repeat each lang={lang} line over the project's languages in translate, in the line's
+# place. A language another line names explicitly for the same project and format stays
+# with that line. A language without a committed file yet is written as a new file.
+if cut -f5 "$work/lines" | grep -qx 1; then
+  code="$(curl -sS --max-time 60 --retry 2 --retry-delay 3 -o "$work/projects.json" -w '%{http_code}' "$TRANSLATE_API/projects" 2>/dev/null)" || code=000
+  [ "$code" = 200 ] || keep "translate answered HTTP $code for its project list."
+fi
+cp "$work/lines" "$work/explicit"
+while IFS=$'\t' read -r n query format path template project; do
+  if [ "$template" = 0 ]; then printf '%s\t%s\t%s\t%s\n' "$n" "$query" "$format" "$path" >> "$work/plan"; continue; fi
+  langs="$(jq -er --arg s "$project" '(.projects // .)[] | select(.slug == $s) | .languages | select(length > 0) | .[]' "$work/projects.json" 2>/dev/null)" \
+    || keep "translate lists no languages for '$project'."
+  for lang in $langs; do
+    [[ "$lang" =~ ^[A-Za-z0-9_]+$ ]] || keep "translate lists an unexpected language '$lang' for '$project'."
+    if awk -F'\t' -v p="$project" -v f="$format" -v l="lang=$lang" '$5 == 0 && $6 == p && $3 == f && index("&" $2 "&", "&" l "&") > 0 { found = 1 } END { exit !found }' "$work/explicit"; then
+      continue
+    fi
+    printf '%s\t%s\t%s\t%s\n' "$n-$lang" "${query//\{lang\}/$lang}" "$format" "${path//\{lang\}/$lang}" >> "$work/plan"
+  done
+done < "$work/lines"
 
 # Fetch everything into the stage. One failure keeps every committed file.
 stale=""
