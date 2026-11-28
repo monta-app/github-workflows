@@ -1,5 +1,7 @@
 # Claude Code Notes
 
+> **Note:** Use `AGENTS.md` instead of `CLAUDE.md` moving forward.
+
 ## Last Documentation Update
 - **Date**: 2026-10-23
 - **Latest SHA**: 84fb68d (check for newer commits)
